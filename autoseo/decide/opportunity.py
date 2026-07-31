@@ -133,7 +133,7 @@ def content_gaps(days: int = 90, min_impressions: float = 40) -> list[Opportunit
         rows = conn.execute(
             """
             SELECT query, SUM(impressions) imp, SUM(clicks) clk,
-                   SUM(impressions * position) / NULLIF(SUM(impressions), 0) pos,
+                   SUM(impressions * position) / NULLIF(SUM(impressions), 0) pos
             FROM gsc_query_daily WHERE date BETWEEN ? AND ?
             GROUP BY query HAVING imp >= ? AND pos > ?
             ORDER BY imp DESC

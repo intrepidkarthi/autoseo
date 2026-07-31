@@ -19,15 +19,13 @@ on:
         required: false
         default: "0"
       backfill:
-        description: "One-time: pull the full 16-month GSC history"
+        description: "One-time: pull the full 16-month GSC history (true/false)"
         required: false
-        type: boolean
-        default: false
+        default: "false"
       diagnose:
-        description: "Diagnostic: isolate where GSC impressions go missing"
+        description: "Diagnostic: isolate where GSC impressions go missing (true/false)"
         required: false
-        type: boolean
-        default: false
+        default: "false"
 
 concurrency:
   group: collect
@@ -64,6 +62,7 @@ jobs:
           if [ "${{ github.event.inputs.backfill }}" = "true" ]; then
             autoseo gsc --backfill
           fi
+          autoseo inventory
           autoseo collect
           if [ "${{ github.event.inputs.sample_orphans || '0' }}" != "0" ]; then
             autoseo inspect --sample-orphans ${{ github.event.inputs.sample_orphans }}
