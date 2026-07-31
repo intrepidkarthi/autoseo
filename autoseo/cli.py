@@ -112,6 +112,10 @@ def main(argv: list[str] | None = None) -> int:
     p_ins.add_argument("--sample-orphans", type=int, default=0, metavar="N",
                        help="one-time: inspect N de-listed URLs per cluster to decide noindex vs 410")
 
+    p_diag = sub.add_parser("diagnose", help="isolate where GSC impressions go missing")
+    p_diag.add_argument("--start", default="2026-04-30")
+    p_diag.add_argument("--end", default="2026-07-29")
+
     sub.add_parser("bing", help="pull Bing Webmaster stats")
     sub.add_parser("report", help="print the indexation report")
 
@@ -144,6 +148,10 @@ def main(argv: list[str] | None = None) -> int:
             from autoseo.collect import inspect
             inspect.collect(limit=args.limit, sample_orphans=args.sample_orphans)
             _print_report()
+
+        elif args.command == "diagnose":
+            from autoseo.collect import diagnose
+            diagnose.run(args.start, args.end)
 
         elif args.command == "bing":
             from autoseo.collect import bing
