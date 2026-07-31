@@ -14,6 +14,10 @@ on:
         description: "Sitemap URLs to inspect this run (156 total, quota 2000/day)"
         required: false
         default: "200"
+      sample_orphans:
+        description: "One-time: inspect N de-listed URLs per cluster (0 = skip)"
+        required: false
+        default: "0"
 
 concurrency:
   group: collect
@@ -42,7 +46,11 @@ jobs:
           GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
           BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
           AUTOSEO_INSPECT_LIMIT: ${{ github.event.inputs.inspect_limit || '200' }}
-        run: autoseo collect
+        run: |
+          autoseo collect
+          if [ "${{ github.event.inputs.sample_orphans || '0' }}" != "0" ]; then
+            autoseo inspect --sample-orphans ${{ github.event.inputs.sample_orphans }}
+          fi
 
       - name: Commit state
         run: |
