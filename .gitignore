@@ -1,0 +1,26 @@
+# secrets — never commit
+.env
+*.p8
+client_secret*.json
+token*.json
+service-account*.json
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# os
+.DS_Store
+
+# state/ IS committed on purpose — it is the datastore.
+# But never sqlite side-files, raw media, or scratch renders:
+state/*.db-wal
+state/*.db-shm
+state/*.db-journal
+state/media/
+state/tmp/

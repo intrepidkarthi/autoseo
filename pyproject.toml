@@ -1,0 +1,32 @@
+[project]
+name = "autoseo"
+version = "0.1.0"
+description = "Automated blog + social publishing and SEO/AEO measurement for DailyVox"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    "google-api-python-client>=2.150",
+    "google-auth>=2.35",
+    "httpx>=0.27",
+    "defusedxml>=0.7.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+autoseo = "autoseo.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["autoseo"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
