@@ -18,6 +18,11 @@ on:
         description: "One-time: inspect N de-listed URLs per cluster (0 = skip)"
         required: false
         default: "0"
+      backfill:
+        description: "One-time: pull the full 16-month GSC history"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: collect
@@ -47,10 +52,14 @@ jobs:
           BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
           AUTOSEO_INSPECT_LIMIT: ${{ github.event.inputs.inspect_limit || '200' }}
         run: |
+          if [ "${{ github.event.inputs.backfill }}" = "true" ]; then
+            autoseo gsc --backfill
+          fi
           autoseo collect
           if [ "${{ github.event.inputs.sample_orphans || '0' }}" != "0" ]; then
             autoseo inspect --sample-orphans ${{ github.event.inputs.sample_orphans }}
           fi
+          autoseo opportunity
 
       - name: Commit state
         run: |

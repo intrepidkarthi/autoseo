@@ -5,6 +5,8 @@
     autoseo inspect [--limit N]             rotate through URL Inspection (sitemap URLs only)
     autoseo inspect --sample-orphans N      one-time sample of the de-listed clusters
     autoseo bing                            pull Bing Webmaster stats
+    autoseo gsc --backfill                  pull the full 16-month history
+    autoseo opportunity [--days N]          where the leverage is
     autoseo report                          print the indexation report
     autoseo collect                         gsc + bing + inspect + report  (what CI runs)
 """
@@ -66,6 +68,28 @@ def _print_report() -> None:
     print()
 
 
+def _print_opportunities(days: int) -> None:
+    from autoseo.decide import opportunity
+
+    result = opportunity.report(days)
+    titles = {
+        "striking_distance": f"STRIKING DISTANCE — volume at position 8-30, last {days}d",
+        "ctr_underperformers": "CTR UNDERPERFORMERS — ranked well, not clicked",
+        "content_gaps": "CONTENT GAPS — demand with nothing ranking",
+    }
+    for key, title in titles.items():
+        items = result[key]
+        print(f"\n=== {title} ===")
+        if not items:
+            print("  (none)")
+            continue
+        for o in items[:12]:
+            label = (o.page or o.query).replace("https://getdailyvox.com", "") or "/"
+            print(f"  {o.impressions:>6.0f} imp {o.clicks:>4.0f} clk  pos {o.position:>5.1f}  {label[:48]}")
+            print(f"         {o.rationale}")
+    print()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="autoseo", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -77,6 +101,11 @@ def main(argv: list[str] | None = None) -> int:
 
     p_gsc = sub.add_parser("gsc", help="pull Search Console search analytics")
     p_gsc.add_argument("--days", type=int, default=10)
+    p_gsc.add_argument("--backfill", action="store_true",
+                       help="walk the full 16-month retention window in monthly chunks")
+
+    p_opp = sub.add_parser("opportunity", help="where the leverage is: striking distance, CTR, gaps")
+    p_opp.add_argument("--days", type=int, default=90)
 
     p_ins = sub.add_parser("inspect", help="rotate through the URL Inspection API")
     p_ins.add_argument("--limit", type=int, default=None)
@@ -103,7 +132,13 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "gsc":
             from autoseo.collect import gsc
-            gsc.collect(days=args.days)
+            if args.backfill:
+                gsc.backfill()
+            else:
+                gsc.collect(days=args.days)
+
+        elif args.command == "opportunity":
+            _print_opportunities(args.days)
 
         elif args.command == "inspect":
             from autoseo.collect import inspect
