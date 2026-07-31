@@ -67,7 +67,7 @@ jobs:
           if [ "${{ github.event.inputs.sample_orphans || '0' }}" != "0" ]; then
             autoseo inspect --sample-orphans ${{ github.event.inputs.sample_orphans }}
           fi
-          autoseo opportunity
+          autoseo brief
 
       - name: Commit state
         run: |

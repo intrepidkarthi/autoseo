@@ -7,6 +7,7 @@
     autoseo bing                            pull Bing Webmaster stats
     autoseo gsc --backfill                  pull the full 16-month history
     autoseo opportunity [--days N]          where the leverage is
+    autoseo brief [--days N] [--top N]      ranked actions with evidence
     autoseo report                          print the indexation report
     autoseo collect                         gsc + bing + inspect + report  (what CI runs)
 """
@@ -90,6 +91,33 @@ def _print_opportunities(days: int) -> None:
     print()
 
 
+def _print_brief(days: int, top: int) -> None:
+    from autoseo.decide import brief
+
+    actions = brief.build(days)
+    print(f"\n=== ACTIONS — ranked by estimated click gain, last {days}d ===")
+    if not actions:
+        print("  Nothing actionable. Either there is no data yet, or no query has enough demand.")
+    for a in actions[:top]:
+        tgt = a.target.replace("https://getdailyvox.com", "") or "(none)"
+        print(f"\n  [{a.priority}] {a.kind}  ~+{a.est_click_gain:.0f} clicks/90d")
+        print(f"      query : {a.query}")
+        print(f"      page  : {tgt}")
+        print(f"      why   : {a.evidence}")
+        for s in a.steps:
+            print(f"        - {s}")
+
+    ex = brief.excluded(days)
+    print("\n=== EXCLUDED from acquisition analysis ===")
+    for kind, items in ex.items():
+        if not items:
+            continue
+        total = sum(i for _, i in items)
+        names = ", ".join(q for q, _ in items[:4])
+        print(f"  {kind:<12}{total:>6.0f} imp across {len(items):>3}  ({names})")
+    print()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="autoseo", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -106,6 +134,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p_opp = sub.add_parser("opportunity", help="where the leverage is: striking distance, CTR, gaps")
     p_opp.add_argument("--days", type=int, default=90)
+
+    p_brief = sub.add_parser("brief", help="ranked actions with evidence — the decision, not the data")
+    p_brief.add_argument("--days", type=int, default=90)
+    p_brief.add_argument("--top", type=int, default=8)
 
     p_ins = sub.add_parser("inspect", help="rotate through the URL Inspection API")
     p_ins.add_argument("--limit", type=int, default=None)
@@ -143,6 +175,9 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "opportunity":
             _print_opportunities(args.days)
+
+        elif args.command == "brief":
+            _print_brief(args.days, args.top)
 
         elif args.command == "inspect":
             from autoseo.collect import inspect
