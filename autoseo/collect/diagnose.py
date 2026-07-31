@@ -38,7 +38,7 @@ def run(start: str = "2026-04-30", end: str = "2026-07-29") -> None:
     site_url = resolve_site_url()
     service = search_console()
     log.info("Diagnosing %s  %s -> %s", site_url, start, end)
-    print(f"\n  Reference: the UI export for this window reports 7,828 impressions / 65 clicks.\n")
+    print("\n  Reference: the UI export for this window reports 7,828 impressions / 65 clicks.\n")
     print(f"  {'variant':<52}{'impressions':>12}{'clicks':>8}{'rows':>7}")
     print("  " + "-" * 79)
 
@@ -49,6 +49,12 @@ def run(start: str = "2026-04-30", end: str = "2026-07-29") -> None:
         ("no dimensions, dataState=all, no type", {"dataState": "all"}),
         ("dims=[date], type=web", {"type": "web", "dimensions": ["date"]}),
         ("dims=[page], type=web", {"type": "web", "dimensions": ["page"]}),
+        ("dims=[query], type=web", {"type": "web", "dimensions": ["query"]}),
+        ("dims=[device], type=web", {"type": "web", "dimensions": ["device"]}),
+        ("dims=[date,page], type=web", {"type": "web", "dimensions": ["date", "page"]}),
+        ("dims=[date,query], type=web", {"type": "web", "dimensions": ["date", "query"]}),
+        ("dims=[page,query], type=web", {"type": "web", "dimensions": ["page", "query"]}),
+        ("dims=[date,device], type=web", {"type": "web", "dimensions": ["date", "device"]}),
         ("dims=[date,page,device], type=web", {"type": "web", "dimensions": ["date", "page", "device"]}),
         ("dims=[date,query,page,device], type=web", {"type": "web",
                                                      "dimensions": ["date", "query", "page", "device"]}),
