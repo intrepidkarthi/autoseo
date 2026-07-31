@@ -11,9 +11,9 @@ on:
   workflow_dispatch:
     inputs:
       inspect_limit:
-        description: "URL Inspection calls this run (site quota is 2000/day)"
+        description: "Sitemap URLs to inspect this run (156 total, quota 2000/day)"
         required: false
-        default: "300"
+        default: "200"
 
 concurrency:
   group: collect
@@ -41,7 +41,7 @@ jobs:
         env:
           GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
           BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
-          AUTOSEO_INSPECT_LIMIT: ${{ github.event.inputs.inspect_limit || '300' }}
+          AUTOSEO_INSPECT_LIMIT: ${{ github.event.inputs.inspect_limit || '200' }}
         run: autoseo collect
 
       - name: Commit state

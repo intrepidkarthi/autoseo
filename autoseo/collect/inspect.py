@@ -28,18 +28,22 @@ INDEXED_STATES = {"Submitted and indexed", "Indexed, not submitted in sitemap"}
 
 
 def _select_urls(limit: int) -> list[str]:
-    """Never-checked URLs first, then stalest. Ties broken by cluster so a single huge cluster
-    can't starve the others out of the rotation."""
+    """The daily rotation covers SITEMAP URLS ONLY — the ~156 pages we actually want indexed.
+
+    The other ~1,568 (/for/, /in/, /use/, /alternative/) were de-listed on purpose because they
+    weren't earning anything. Re-inspecting them every day would burn quota to re-learn a decision
+    that's already made. They get one sample, once, via --sample-orphans.
+    """
     with session() as conn:
         rows = conn.execute(
             """
             SELECT i.url
             FROM url_inventory i
             LEFT JOIN url_index_status s ON s.url = i.url
+            WHERE i.in_sitemap = 1
             ORDER BY
                 CASE WHEN s.checked_at IS NULL THEN 0 ELSE 1 END,
                 s.checked_at ASC,
-                i.cluster,
                 i.url
             LIMIT ?
             """,
@@ -48,17 +52,45 @@ def _select_urls(limit: int) -> list[str]:
     return [r["url"] for r in rows]
 
 
-def collect(limit: int | None = None) -> dict[str, int]:
+def _sample_orphans(per_cluster: int) -> list[str]:
+    """A one-time diagnostic on the de-listed clusters.
+
+    The only open question about them is whether removing them from the sitemap actually got them
+    out of Google's index — it doesn't on its own, which is why noindex or 410 may still be needed.
+    A sample of N per cluster answers that to well within the precision the decision needs; there is
+    no reason to inspect all 1,108 /for/ pages to learn a rate.
+    """
+    with session() as conn:
+        rows = conn.execute(
+            """
+            SELECT url FROM (
+                SELECT i.url, i.cluster,
+                       ROW_NUMBER() OVER (PARTITION BY i.cluster ORDER BY i.url) AS rn
+                FROM url_inventory i
+                LEFT JOIN url_index_status s ON s.url = i.url
+                WHERE i.in_sitemap = 0 AND s.url IS NULL
+            ) WHERE rn <= ?
+            """,
+            (per_cluster,),
+        ).fetchall()
+    return [r["url"] for r in rows]
+
+
+def collect(limit: int | None = None, sample_orphans: int = 0) -> dict[str, int]:
     limit = limit or settings.inspect_limit
     site_url = resolve_site_url()
     service = search_console()
-    urls = _select_urls(limit)
+
+    if sample_orphans:
+        urls = _sample_orphans(sample_orphans)
+        log.info("One-time orphan sample: %d URLs (%d per de-listed cluster)", len(urls), sample_orphans)
+    else:
+        urls = _select_urls(limit)
+        log.info("Inspecting %d sitemap URLs (orphans excluded from the rotation)", len(urls))
 
     if not urls:
-        log.warning("url_inventory is empty — run `autoseo inventory` first")
+        log.info("Nothing to inspect — inventory empty, or every URL is already current.")
         return {}
-
-    log.info("Inspecting %d URLs (site quota is 2000/day)", len(urls))
     now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
     tally = {"checked": 0, "indexed": 0, "errors": 0}
 

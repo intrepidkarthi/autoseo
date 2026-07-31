@@ -2,7 +2,8 @@
 
     autoseo inventory [--public-dir PATH]   build the URL list (sitemap + optional local public/)
     autoseo gsc [--days N]                  pull Search Console search analytics
-    autoseo inspect [--limit N]             rotate through URL Inspection
+    autoseo inspect [--limit N]             rotate through URL Inspection (sitemap URLs only)
+    autoseo inspect --sample-orphans N      one-time sample of the de-listed clusters
     autoseo bing                            pull Bing Webmaster stats
     autoseo report                          print the indexation report
     autoseo collect                         gsc + bing + inspect + report  (what CI runs)
@@ -45,9 +46,9 @@ def _print_report() -> None:
     for r in rows:
         pct = (r["indexed"] / r["checked"] * 100) if r["checked"] else 0.0
         flag = ""
-        # A cluster that is live but absent from the sitemap is the Phase 1 decision surface.
+        # De-listed clusters: shown for context, excluded from the daily rotation.
         if r["total"] and not r["in_sitemap"]:
-            flag = "  <- live, not in sitemap"
+            flag = "  de-listed (not tracked)"
         print(
             f"{r['cluster']:<14}{r['total']:>8}{r['in_sitemap']:>9}"
             f"{r['checked']:>9}{r['indexed']:>9}  {pct:>9.1f}%{flag}"
@@ -60,9 +61,8 @@ def _print_report() -> None:
         f"{'TOTAL':<14}{totals['total']:>8}{totals['in_sitemap']:>9}"
         f"{totals['checked']:>9}{totals['indexed']:>9}  {overall:>9.1f}%"
     )
-    unchecked = totals["total"] - totals["checked"]
-    if unchecked > 0:
-        print(f"\n{unchecked} URLs not yet inspected — the rotation covers more each run.")
+    print(f"\nRotation covers the {totals['in_sitemap']} sitemap URLs. "
+          f"De-listed clusters are sampled once, not tracked.")
     print()
 
 
@@ -80,6 +80,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p_ins = sub.add_parser("inspect", help="rotate through the URL Inspection API")
     p_ins.add_argument("--limit", type=int, default=None)
+    p_ins.add_argument("--sample-orphans", type=int, default=0, metavar="N",
+                       help="one-time: inspect N de-listed URLs per cluster to decide noindex vs 410")
 
     sub.add_parser("bing", help="pull Bing Webmaster stats")
     sub.add_parser("report", help="print the indexation report")
@@ -105,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "inspect":
             from autoseo.collect import inspect
-            inspect.collect(limit=args.limit)
+            inspect.collect(limit=args.limit, sample_orphans=args.sample_orphans)
             _print_report()
 
         elif args.command == "bing":
