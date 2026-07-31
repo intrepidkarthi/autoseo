@@ -14,40 +14,59 @@ from pathlib import Path
 
 from autoseo.core.config import settings
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 -- Phase 0: measurement -------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS gsc_daily (
-    date        TEXT NOT NULL,
-    query       TEXT NOT NULL,
-    page        TEXT NOT NULL,
-    device      TEXT NOT NULL DEFAULT '',
-    clicks      REAL NOT NULL DEFAULT 0,
-    impressions REAL NOT NULL DEFAULT 0,
-    ctr         REAL NOT NULL DEFAULT 0,
-    position    REAL NOT NULL DEFAULT 0,
-    PRIMARY KEY (date, query, page, device)
-);
-CREATE INDEX IF NOT EXISTS ix_gsc_daily_date ON gsc_daily(date);
-CREATE INDEX IF NOT EXISTS ix_gsc_daily_page ON gsc_daily(page);
+-- Two tables because GSC returns different totals at different granularities, and the difference
+-- is enormous. Measured against a UI export for 2026-04-30..2026-07-29 (true total 7,828):
+--
+--   dims=[date]                 7,828   complete
+--   dims=[date, page]          10,724   complete  <- what we collect for pages
+--   dims=[date, page, device]   1,439   87% LOST  <- adding `device` destroys it
+--   dims=[query]                1,098   query data has its own, much lower ceiling
+--
+-- So `device` is never requested: it adds nothing we need and silently drops most rows when
+-- combined with `page`. Query-level data is collected separately and is understood to be a subset
+-- (GSC withholds anonymised queries), which is why nothing page-level is derived from it.
+--
+-- Page impressions (10,724) legitimately exceed site impressions (7,828): a single search that
+-- shows two of our pages counts once for the property and once per page.
 
--- Page-level totals collected WITHOUT the query dimension.
--- This is not a convenience rollup of gsc_daily: asking GSC for the `query` dimension makes it drop
--- anonymised (rare) queries entirely, so summing gsc_daily by page undercounts badly — measured at
--- 87% missing on getdailyvox.com. Anything reasoning about page performance must use this table.
 CREATE TABLE IF NOT EXISTS gsc_page_daily (
     date        TEXT NOT NULL,
     page        TEXT NOT NULL,
-    device      TEXT NOT NULL DEFAULT '',
     clicks      REAL NOT NULL DEFAULT 0,
     impressions REAL NOT NULL DEFAULT 0,
     ctr         REAL NOT NULL DEFAULT 0,
     position    REAL NOT NULL DEFAULT 0,
-    PRIMARY KEY (date, page, device)
+    PRIMARY KEY (date, page)
 );
 CREATE INDEX IF NOT EXISTS ix_gsc_page_daily_date ON gsc_page_daily(date);
+
+CREATE TABLE IF NOT EXISTS gsc_query_daily (
+    date        TEXT NOT NULL,
+    query       TEXT NOT NULL,
+    clicks      REAL NOT NULL DEFAULT 0,
+    impressions REAL NOT NULL DEFAULT 0,
+    ctr         REAL NOT NULL DEFAULT 0,
+    position    REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (date, query)
+);
+CREATE INDEX IF NOT EXISTS ix_gsc_query_daily_date ON gsc_query_daily(date);
+
+-- The page<->query mapping. Lossy by nature (1,439 of 7,828) — used only to answer "which query is
+-- this page closest on", never to measure volume.
+CREATE TABLE IF NOT EXISTS gsc_page_query (
+    date        TEXT NOT NULL,
+    page        TEXT NOT NULL,
+    query       TEXT NOT NULL,
+    clicks      REAL NOT NULL DEFAULT 0,
+    impressions REAL NOT NULL DEFAULT 0,
+    position    REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (date, page, query)
+);
 
 -- One row per URL we know about, whether or not it is in the sitemap.
 -- cluster is derived from the path: core | blog | for | in | alternative | use | other

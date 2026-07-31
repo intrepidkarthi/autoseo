@@ -77,7 +77,7 @@ def striking_distance(days: int = 90, min_impressions: float = 50) -> list[Oppor
                 """
                 SELECT query, SUM(impressions) imp,
                        SUM(impressions * position) / NULLIF(SUM(impressions), 0) pos
-                FROM gsc_daily WHERE page = ? AND date BETWEEN ? AND ?
+                FROM gsc_page_query WHERE page = ? AND date BETWEEN ? AND ?
                 GROUP BY query ORDER BY imp DESC LIMIT 1
                 """,
                 (r["page"], start, end),
@@ -134,8 +134,7 @@ def content_gaps(days: int = 90, min_impressions: float = 40) -> list[Opportunit
             """
             SELECT query, SUM(impressions) imp, SUM(clicks) clk,
                    SUM(impressions * position) / NULLIF(SUM(impressions), 0) pos,
-                   COUNT(DISTINCT page) pages
-            FROM gsc_daily WHERE date BETWEEN ? AND ?
+            FROM gsc_query_daily WHERE date BETWEEN ? AND ?
             GROUP BY query HAVING imp >= ? AND pos > ?
             ORDER BY imp DESC
             """,
@@ -147,8 +146,7 @@ def content_gaps(days: int = 90, min_impressions: float = 40) -> list[Opportunit
             kind="content-gap", page="", query=r["query"],
             impressions=r["imp"], clicks=r["clk"], position=r["pos"],
             rationale=(
-                f"{r['imp']:.0f} impressions at position {r['pos']:.1f} spread across "
-                f"{r['pages']} page(s). Demand exists; nothing ranks for it."
+                f"{r['imp']:.0f} impressions at position {r['pos']:.1f}. Demand exists; nothing ranks."
             ),
         )
         for r in rows
