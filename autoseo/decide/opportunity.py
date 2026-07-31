@@ -60,7 +60,7 @@ def striking_distance(days: int = 90, min_impressions: float = 50) -> list[Oppor
                    SUM(impressions) imp,
                    SUM(clicks) clk,
                    SUM(impressions * position) / NULLIF(SUM(impressions), 0) pos
-            FROM gsc_daily
+            FROM gsc_page_daily
             WHERE date BETWEEN ? AND ?
             GROUP BY page
             HAVING imp >= ? AND pos BETWEEN ? AND ?
@@ -102,7 +102,7 @@ def ctr_underperformers(days: int = 90, min_impressions: float = 100) -> list[Op
             """
             SELECT page, SUM(impressions) imp, SUM(clicks) clk,
                    SUM(impressions * position) / NULLIF(SUM(impressions), 0) pos
-            FROM gsc_daily WHERE date BETWEEN ? AND ?
+            FROM gsc_page_daily WHERE date BETWEEN ? AND ?
             GROUP BY page HAVING imp >= ? AND pos <= 10
             ORDER BY imp DESC
             """,

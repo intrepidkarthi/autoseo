@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autoseo.core.config import settings
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 -- Phase 0: measurement -------------------------------------------------------
@@ -32,6 +32,22 @@ CREATE TABLE IF NOT EXISTS gsc_daily (
 );
 CREATE INDEX IF NOT EXISTS ix_gsc_daily_date ON gsc_daily(date);
 CREATE INDEX IF NOT EXISTS ix_gsc_daily_page ON gsc_daily(page);
+
+-- Page-level totals collected WITHOUT the query dimension.
+-- This is not a convenience rollup of gsc_daily: asking GSC for the `query` dimension makes it drop
+-- anonymised (rare) queries entirely, so summing gsc_daily by page undercounts badly — measured at
+-- 87% missing on getdailyvox.com. Anything reasoning about page performance must use this table.
+CREATE TABLE IF NOT EXISTS gsc_page_daily (
+    date        TEXT NOT NULL,
+    page        TEXT NOT NULL,
+    device      TEXT NOT NULL DEFAULT '',
+    clicks      REAL NOT NULL DEFAULT 0,
+    impressions REAL NOT NULL DEFAULT 0,
+    ctr         REAL NOT NULL DEFAULT 0,
+    position    REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (date, page, device)
+);
+CREATE INDEX IF NOT EXISTS ix_gsc_page_daily_date ON gsc_page_daily(date);
 
 -- One row per URL we know about, whether or not it is in the sitemap.
 -- cluster is derived from the path: core | blog | for | in | alternative | use | other
