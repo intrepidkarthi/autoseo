@@ -1,3 +1,3 @@
-# SQLite is binary; git cannot merge it. Only CI writes state/, so on a conflict the
-# CI copy always wins rather than producing an unresolvable merge.
+# SQLite is binary and unmergeable. CI is the only writer; on the rare conflict keep ours
+# rather than producing a merge that cannot be resolved. Requires: git config merge.ours.driver true
 state/*.db binary merge=ours
