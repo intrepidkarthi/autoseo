@@ -57,6 +57,7 @@ jobs:
         env:
           GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
           BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AUTOSEO_INSPECT_LIMIT: ${{ github.event.inputs.inspect_limit || '200' }}
         run: |
           if [ "${{ github.event.inputs.diagnose }}" = "true" ]; then
