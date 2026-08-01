@@ -117,8 +117,14 @@ def _ask(question: str, model: str) -> tuple[str, list[tuple[str, str]]]:
     )
     if resp.status_code >= 400:
         # Google's error body names the exact problem (wrong model, wrong API version, tool not
-        # supported). Swallowing it turns a one-line fix into a guessing game.
-        raise RuntimeError(f"Gemini {resp.status_code}: {resp.text[:400]}")
+        # supported), but it echoes the request URL — key included — so GitHub masks the entire
+        # string to *** and the diagnosis is lost. Pull out just the message.
+        try:
+            detail = resp.json().get("error", {}).get("message", "")
+        except ValueError:
+            detail = resp.text
+        detail = detail.replace(settings.gemini_api_key, "[KEY]") if settings.gemini_api_key else detail
+        raise RuntimeError(f"Gemini {resp.status_code}: {detail[:400]}")
     payload = resp.json()
 
     candidate = (payload.get("candidates") or [{}])[0]
