@@ -39,7 +39,10 @@ log = get_logger(__name__)
 
 PANEL_PATH = Path(__file__).parent / "panel.yaml"
 ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-DEFAULT_MODEL = "gemini-2.5-flash"
+# A moving alias on purpose. gemini-2.5-flash is still returned by ListModels but 404s for new keys
+# ("no longer available to new users"), so a pinned ID silently rots and the panel dies with it.
+# `gemini-flash-latest` always resolves to the current flash model.
+DEFAULT_MODEL = "gemini-flash-latest"
 REPEATS = 3
 
 
