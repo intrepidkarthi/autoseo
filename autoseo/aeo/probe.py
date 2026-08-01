@@ -130,6 +130,27 @@ def _ask(question: str, model: str) -> tuple[str, list[tuple[str, str]]]:
     return text, citations
 
 
+def list_models() -> None:
+    """Ask the API which models exist rather than guessing an ID.
+
+    Model names churn and a wrong one fails as a bare 404 with no hint, so this prints what the key
+    can actually reach along with the methods each supports.
+    """
+    if not settings.gemini_api_key:
+        raise ConfigError("GEMINI_API_KEY is not set.")
+    resp = httpx.get("https://generativelanguage.googleapis.com/v1beta/models",
+                     params={"key": settings.gemini_api_key, "pageSize": 200}, timeout=60.0)
+    resp.raise_for_status()
+    models = resp.json().get("models", [])
+    print(f"\n  {len(models)} models reachable with this key:\n")
+    for m in models:
+        methods = ",".join(m.get("supportedGenerationMethods", []))
+        if "generateContent" not in methods:
+            continue
+        print(f"    {m['name'].removeprefix('models/'):<45} {methods}")
+    print()
+
+
 def run(tier: str = "core", model: str = DEFAULT_MODEL, repeats: int = REPEATS,
         dry_run: bool = False) -> list[ProbeResult]:
     panel = _load_panel()

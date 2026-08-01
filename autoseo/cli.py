@@ -161,6 +161,8 @@ def main(argv: list[str] | None = None) -> int:
     p_aeo.add_argument("--tier", default="core", choices=["core", "extended", "all"])
     p_aeo.add_argument("--repeats", type=int, default=3)
     p_aeo.add_argument("--dry-run", action="store_true")
+    p_aeo.add_argument("--list-models", action="store_true")
+    p_aeo.add_argument("--model", default=None)
 
     p_out = sub.add_parser("outreach", help="pages worth getting listed on, ranked")
     p_out.add_argument("--days", type=int, default=30)
@@ -209,7 +211,11 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "aeo":
             from autoseo.aeo import probe
-            probe.run(tier=args.tier, repeats=args.repeats, dry_run=args.dry_run)
+            if args.list_models:
+                probe.list_models()
+            else:
+                probe.run(tier=args.tier, repeats=args.repeats, dry_run=args.dry_run,
+                          model=args.model or probe.DEFAULT_MODEL)
 
         elif args.command == "outreach":
             _print_outreach(args.days, args.top)

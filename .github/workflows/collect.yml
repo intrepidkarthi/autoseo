@@ -73,6 +73,10 @@ jobs:
             autoseo inspect --sample-orphans ${{ github.event.inputs.sample_orphans }}
           fi
           if [ "${{ github.event.inputs.aeo_tier || 'skip' }}" != "skip" ]; then
+            if [ "${{ github.event.inputs.aeo_tier }}" = "models" ]; then
+              autoseo aeo --list-models
+              exit 0
+            fi
             autoseo aeo --tier ${{ github.event.inputs.aeo_tier }}
             autoseo outreach
           fi
