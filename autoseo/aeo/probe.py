@@ -115,7 +115,10 @@ def _ask(question: str, model: str) -> tuple[str, list[tuple[str, str]]]:
         json=body,
         timeout=90.0,
     )
-    resp.raise_for_status()
+    if resp.status_code >= 400:
+        # Google's error body names the exact problem (wrong model, wrong API version, tool not
+        # supported). Swallowing it turns a one-line fix into a guessing game.
+        raise RuntimeError(f"Gemini {resp.status_code}: {resp.text[:400]}")
     payload = resp.json()
 
     candidate = (payload.get("candidates") or [{}])[0]
@@ -176,7 +179,7 @@ def run(tier: str = "core", model: str = DEFAULT_MODEL, repeats: int = REPEATS,
         for run_no in range(1, repeats + 1):
             try:
                 text, citations = _ask(q["text"], model)
-            except httpx.HTTPStatusError as exc:
+            except (httpx.HTTPError, RuntimeError) as exc:
                 log.warning("probe failed [%s run %d]: %s", q["id"], run_no, exc)
                 continue
 
