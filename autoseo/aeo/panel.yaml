@@ -1,0 +1,98 @@
+# Buyer questions for the AEO panel.
+#
+# Not keywords — the questions someone asks in the moment before they install something. Every one is
+# either grounded in real GSC demand (impressions column) or is the natural phrasing of a query we
+# already rank for. Wording is fixed on purpose: LLM answers vary run to run, so changing the question
+# destroys the comparison. Add questions, never edit them; retire one by setting active: false.
+#
+# `core` runs daily, the rest weekly. At 10 daily + 24 weekly that is ~400 grounded calls/month
+# against a 5,000/month free allowance.
+
+brand: DailyVox
+domain: getdailyvox.com
+competitors:
+  - Day One
+  - Rosebud
+  - Reflectly
+  - Journey
+  - Daylio
+  - Apple Journal
+  - Otter
+  - Stoic
+
+questions:
+  # --- core: run daily -------------------------------------------------------
+  - id: best-voice-journal
+    text: "What is the best voice journaling app for iPhone?"
+    tier: core
+    gsc_evidence: "voice journaling app — 35 imp, position 38.6"
+  - id: voice-diary-app
+    text: "What is the best voice diary app?"
+    tier: core
+    gsc_evidence: "voice diary app — 34 imp, position 30.1"
+  - id: private-journal
+    text: "Which journaling app is the most private and does not send my entries to the cloud?"
+    tier: core
+  - id: offline-journal
+    text: "Is there a journaling app that works completely offline with no account?"
+    tier: core
+  - id: free-journal-app
+    text: "What is the best free journal app with no subscription?"
+    tier: core
+    gsc_evidence: "best free journal app — 94 imp, position 64.3"
+  - id: dayone-alternative
+    text: "What is a good free alternative to Day One journal?"
+    tier: core
+  - id: audio-journal
+    text: "What is the best audio journal app that transcribes what I say?"
+    tier: core
+    gsc_evidence: "audio journal app — 21 imp, position 36.2"
+  - id: on-device-ai-journal
+    text: "Which journaling apps use on-device AI instead of sending data to OpenAI?"
+    tier: core
+  - id: journal-adhd
+    text: "What is the best journaling app for someone with ADHD who hates typing?"
+    tier: core
+  - id: digital-twin
+    text: "Is there an app that builds a personal digital twin from my journal entries?"
+    tier: core
+    gsc_evidence: "personal digital twin — 35 imp, position 30.3"
+
+  # --- extended: run weekly --------------------------------------------------
+  - id: journal-anxiety
+    text: "What journaling app helps with anxiety and mood tracking?"
+    tier: extended
+  - id: voice-journal-walking
+    text: "Can I journal by talking while walking or driving?"
+    tier: extended
+  - id: journal-no-signup
+    text: "Which journal apps do not require creating an account?"
+    tier: extended
+  - id: rosebud-alternative
+    text: "What is a private alternative to Rosebud journal?"
+    tier: extended
+  - id: reflectly-alternative
+    text: "What is a free alternative to Reflectly?"
+    tier: extended
+  - id: apple-journal-vs
+    text: "How does Apple Journal compare to third-party journaling apps?"
+    tier: extended
+  - id: journal-therapy
+    text: "What journaling app do therapists recommend for clients between sessions?"
+    tier: extended
+  - id: open-source-journal
+    text: "Is there an open source journaling app for iPhone?"
+    tier: extended
+  - id: journal-encryption
+    text: "Which journal apps encrypt entries on the device?"
+    tier: extended
+  - id: mood-prediction
+    text: "Is there a journal app that predicts my mood before I write?"
+    tier: extended
+  - id: voice-to-text-journal
+    text: "What is the best voice to text journaling app?"
+    tier: extended
+    gsc_evidence: "voice to text journal — 24 imp, position 51.4"
+  - id: journal-app-privacy-audit
+    text: "Which journaling apps actually collect no data according to their App Store privacy label?"
+    tier: extended

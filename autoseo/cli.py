@@ -8,6 +8,8 @@
     autoseo gsc --backfill                  pull the full 16-month history
     autoseo opportunity [--days N]          where the leverage is
     autoseo brief [--days N] [--top N]      ranked actions with evidence
+    autoseo aeo [--tier core|extended|all]  ask buyer questions, record what gets cited
+    autoseo outreach [--days N]             pages worth getting listed on
     autoseo report                          print the indexation report
     autoseo collect                         gsc + bing + inspect + report  (what CI runs)
 """
@@ -91,6 +93,26 @@ def _print_opportunities(days: int) -> None:
     print()
 
 
+def _print_outreach(days: int, top: int) -> None:
+    from autoseo.decide import outreach
+
+    targets = outreach.build(days)
+    print(f"\n=== OUTREACH TARGETS — cited by answer engines, last {days}d ===")
+    if not targets:
+        print("  No citation data yet. Run `autoseo aeo` first.\n")
+        return
+    for t in targets[:top]:
+        flag = "" if not t.we_are_listed else "  [already lists us]"
+        print(f"\n  [{t.rank}] {t.domain}{flag}")
+        print(f"      {t.title[:70]}")
+        print(f"      {t.url[:95]}")
+        print(f"      why   : {t.why}")
+        if t.competitors_named:
+            print(f"      names : {', '.join(t.competitors_named)}")
+        print(f"      angle : {t.angle}")
+    print()
+
+
 def _print_brief(days: int, top: int) -> None:
     from autoseo.decide import brief
 
@@ -135,6 +157,15 @@ def main(argv: list[str] | None = None) -> int:
     p_opp = sub.add_parser("opportunity", help="where the leverage is: striking distance, CTR, gaps")
     p_opp.add_argument("--days", type=int, default=90)
 
+    p_aeo = sub.add_parser("aeo", help="run the buyer-question panel against Gemini grounding")
+    p_aeo.add_argument("--tier", default="core", choices=["core", "extended", "all"])
+    p_aeo.add_argument("--repeats", type=int, default=3)
+    p_aeo.add_argument("--dry-run", action="store_true")
+
+    p_out = sub.add_parser("outreach", help="pages worth getting listed on, ranked")
+    p_out.add_argument("--days", type=int, default=30)
+    p_out.add_argument("--top", type=int, default=10)
+
     p_brief = sub.add_parser("brief", help="ranked actions with evidence — the decision, not the data")
     p_brief.add_argument("--days", type=int, default=90)
     p_brief.add_argument("--top", type=int, default=8)
@@ -175,6 +206,13 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "opportunity":
             _print_opportunities(args.days)
+
+        elif args.command == "aeo":
+            from autoseo.aeo import probe
+            probe.run(tier=args.tier, repeats=args.repeats, dry_run=args.dry_run)
+
+        elif args.command == "outreach":
+            _print_outreach(args.days, args.top)
 
         elif args.command == "brief":
             _print_brief(args.days, args.top)

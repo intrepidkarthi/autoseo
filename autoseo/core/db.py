@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autoseo.core.config import settings
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 -- Phase 0: measurement -------------------------------------------------------
@@ -117,6 +117,34 @@ CREATE TABLE IF NOT EXISTS run_log (
     ok       INTEGER NOT NULL DEFAULT 0,
     detail   TEXT
 );
+
+-- One row per (question, engine, run). Repeats matter: answers vary run to run, so a single
+-- result is not a measurement — everything downstream reads these as rates.
+CREATE TABLE IF NOT EXISTS aeo_probe (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          TEXT NOT NULL,
+    question_id TEXT NOT NULL,
+    question    TEXT NOT NULL,
+    engine      TEXT NOT NULL,
+    run         INTEGER NOT NULL DEFAULT 1,
+    mentioned   INTEGER NOT NULL DEFAULT 0,
+    cited       INTEGER NOT NULL DEFAULT 0,
+    competitors TEXT,
+    answer      TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_aeo_probe_ts ON aeo_probe(ts);
+
+-- Every source the engine cited. This is the outreach target list: pages answer engines already
+-- trust for our buyer questions, which is what getting listed on them is worth.
+CREATE TABLE IF NOT EXISTS aeo_citation (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          TEXT NOT NULL,
+    question_id TEXT NOT NULL,
+    url         TEXT NOT NULL,
+    domain      TEXT NOT NULL,
+    title       TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_aeo_citation_domain ON aeo_citation(domain);
 
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,

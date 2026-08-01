@@ -22,6 +22,10 @@ on:
         description: "One-time: pull the full 16-month GSC history (true/false)"
         required: false
         default: "false"
+      aeo_tier:
+        description: "AEO panel tier to run: core | extended | all | skip"
+        required: false
+        default: "skip"
       diagnose:
         description: "Diagnostic: isolate where GSC impressions go missing (true/false)"
         required: false
@@ -66,6 +70,10 @@ jobs:
           autoseo collect
           if [ "${{ github.event.inputs.sample_orphans || '0' }}" != "0" ]; then
             autoseo inspect --sample-orphans ${{ github.event.inputs.sample_orphans }}
+          fi
+          if [ "${{ github.event.inputs.aeo_tier || 'skip' }}" != "skip" ]; then
+            autoseo aeo --tier ${{ github.event.inputs.aeo_tier }}
+            autoseo outreach
           fi
           autoseo brief
 

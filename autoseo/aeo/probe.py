@@ -1,0 +1,191 @@
+"""Ask answer engines the questions buyers ask, and record what they cite.
+
+Two jobs from one free call, which is why this is the highest-value module in the repo:
+
+  1. AEO measurement — is DailyVox mentioned, is getdailyvox.com cited, which competitors win.
+  2. The outreach target list — the URLs the engine cites *instead of us*. Those pages are the ones
+     answer engines already trust for our buyer questions, so getting listed on them moves visibility
+     in a way publishing another blog post cannot.
+
+Gemini's Grounding with Google Search is the cheapest credible engine by a wide margin: 5,000 grounded
+prompts/month free on Gemini 3. Ten daily plus twenty-four weekly questions is roughly 400/month, so
+the panel costs nothing. The grounding metadata returns the cited sources, which is precisely the
+data a SERP API would otherwise be bought for.
+
+Two honest limits, recorded rather than hidden:
+  - The API's grounding stack is not identical to what a human sees in the Gemini app or in Google AI
+    Overviews. Treat this as directional trend data about which sources are trusted, not as a
+    reproduction of any user's screen.
+  - Answers vary run to run. A single run is not a measurement, so each question is asked `repeats`
+    times and results are reported as rates.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import json
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import urlparse
+
+import httpx
+
+from autoseo.core.config import ConfigError, settings
+from autoseo.core.db import session
+from autoseo.core.log import get_logger
+
+log = get_logger(__name__)
+
+PANEL_PATH = Path(__file__).parent / "panel.yaml"
+ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+DEFAULT_MODEL = "gemini-2.5-flash"
+REPEATS = 3
+
+
+@dataclass
+class ProbeResult:
+    question_id: str
+    question: str
+    engine: str
+    run: int
+    mentioned: bool
+    cited: bool
+    answer: str
+    citations: list[tuple[str, str]]   # (url, title)
+    competitors: list[str]
+
+
+def _load_panel() -> dict:
+    """Minimal YAML reader for the subset panel.yaml uses.
+
+    Deliberately not a PyYAML dependency: the file is ours, the shape is fixed, and one fewer
+    third-party parser in a repo that will later hold social credentials is worth the twenty lines.
+    """
+    data: dict = {"questions": [], "competitors": []}
+    current: dict | None = None
+    section = None
+
+    for raw in PANEL_PATH.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#")[0].rstrip() if not raw.strip().startswith("#") else ""
+        if not line.strip():
+            continue
+        if not line.startswith(" ") and line.endswith(":"):
+            section = line[:-1].strip()
+            continue
+        if not line.startswith(" ") and ":" in line:
+            k, _, v = line.partition(":")
+            data[k.strip()] = v.strip().strip('"')
+            section = None
+            continue
+        stripped = line.strip()
+        if section == "competitors" and stripped.startswith("- "):
+            data["competitors"].append(stripped[2:].strip())
+        elif section == "questions":
+            if stripped.startswith("- "):
+                current = {}
+                data["questions"].append(current)
+                stripped = stripped[2:]
+            if current is not None and ":" in stripped:
+                k, _, v = stripped.partition(":")
+                current[k.strip()] = v.strip().strip('"')
+    return data
+
+
+def _domain(url: str) -> str:
+    try:
+        return urlparse(url).netloc.removeprefix("www.").lower()
+    except ValueError:
+        return ""
+
+
+def _ask(question: str, model: str) -> tuple[str, list[tuple[str, str]]]:
+    if not settings.gemini_api_key:
+        raise ConfigError(
+            "GEMINI_API_KEY is not set. Free at https://aistudio.google.com/apikey — "
+            "the AEO panel runs entirely inside the free grounded-prompt allowance."
+        )
+    body = {
+        "contents": [{"parts": [{"text": question}]}],
+        "tools": [{"google_search": {}}],
+    }
+    resp = httpx.post(
+        ENDPOINT.format(model=model),
+        params={"key": settings.gemini_api_key},
+        json=body,
+        timeout=90.0,
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+
+    candidate = (payload.get("candidates") or [{}])[0]
+    text = "".join(p.get("text", "") for p in candidate.get("content", {}).get("parts", []))
+
+    citations: list[tuple[str, str]] = []
+    for chunk in candidate.get("groundingMetadata", {}).get("groundingChunks", []) or []:
+        web = chunk.get("web") or {}
+        uri, title = web.get("uri", ""), web.get("title", "")
+        if uri:
+            citations.append((uri, title))
+    return text, citations
+
+
+def run(tier: str = "core", model: str = DEFAULT_MODEL, repeats: int = REPEATS,
+        dry_run: bool = False) -> list[ProbeResult]:
+    panel = _load_panel()
+    brand = panel.get("brand", "DailyVox")
+    domain = panel.get("domain", "getdailyvox.com")
+    competitors = panel.get("competitors", [])
+    questions = [q for q in panel["questions"]
+                 if tier == "all" or q.get("tier") == tier]
+
+    if dry_run:
+        print(f"\n  {len(questions)} questions x {repeats} runs = {len(questions) * repeats} calls")
+        print("  free allowance is 5,000 grounded prompts/month — estimated cost $0.00\n")
+        for q in questions:
+            print(f"    [{q['id']}] {q['text']}")
+        print()
+        return []
+
+    brand_re = re.compile(re.escape(brand), re.I)
+    results: list[ProbeResult] = []
+    now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+
+    for q in questions:
+        for run_no in range(1, repeats + 1):
+            try:
+                text, citations = _ask(q["text"], model)
+            except httpx.HTTPStatusError as exc:
+                log.warning("probe failed [%s run %d]: %s", q["id"], run_no, exc)
+                continue
+
+            cited = any(domain in _domain(u) or domain in t.lower() for u, t in citations)
+            mentioned = bool(brand_re.search(text))
+            found = [c for c in competitors if re.search(re.escape(c), text, re.I)]
+
+            res = ProbeResult(q["id"], q["text"], f"gemini:{model}", run_no,
+                              mentioned, cited, text, citations, found)
+            results.append(res)
+
+            with session() as conn:
+                conn.execute(
+                    """INSERT INTO aeo_probe(ts, question_id, question, engine, run,
+                                             mentioned, cited, competitors, answer)
+                       VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (now, q["id"], q["text"], res.engine, run_no,
+                     int(mentioned), int(cited), json.dumps(found), text[:8000]),
+                )
+                for url, title in citations:
+                    conn.execute(
+                        """INSERT INTO aeo_citation(ts, question_id, url, domain, title)
+                           VALUES (?,?,?,?,?)""",
+                        (now, q["id"], url, _domain(url), title[:300]),
+                    )
+
+        log.info("  [%s] done", q["id"])
+
+    m = sum(r.mentioned for r in results)
+    c = sum(r.cited for r in results)
+    log.info("AEO: %d probes — mentioned %d (%.0f%%), cited %d (%.0f%%)",
+             len(results), m, 100 * m / max(len(results), 1), c, 100 * c / max(len(results), 1))
+    return results
