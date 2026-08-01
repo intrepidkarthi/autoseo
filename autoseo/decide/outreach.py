@@ -18,6 +18,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
+import httpx
+
 from autoseo.core.db import session
 
 # Pages that will never add us, and cost nothing to skip.
@@ -46,21 +48,36 @@ class Target:
     angle: str
 
 
+def resolve(url: str) -> str:
+    """Turn a Gemini grounding redirect into the page you would actually email about.
+
+    The API returns vertexaisearch.cloud.google.com/grounding-api-redirect/... which is unusable for
+    outreach — you cannot read it, judge it, or find its author. One HEAD request gets the real URL.
+    """
+    if "vertexaisearch" not in url:
+        return url
+    try:
+        r = httpx.head(url, follow_redirects=True, timeout=20.0)
+        return str(r.url)
+    except httpx.HTTPError:
+        return url
+
+
 def _is_listicle(title: str, url: str) -> bool:
     blob = f"{title} {url}".lower()
     return any(h in blob for h in LISTICLE_HINTS)
 
 
-def build(days: int = 30, min_citations: int = 2) -> list[Target]:
+def build(days: int = 30, min_citations: int = 2, resolve_top: int = 12) -> list[Target]:
     with session() as conn:
         rows = conn.execute(
             """
-            SELECT c.url, c.domain, MAX(c.title) title,
+            SELECT MIN(c.url) url, c.domain, MAX(c.title) title,
                    COUNT(*) hits,
                    GROUP_CONCAT(DISTINCT c.question_id) qs
             FROM aeo_citation c
             WHERE c.ts >= datetime('now', ?)
-            GROUP BY c.url
+            GROUP BY c.domain
             HAVING hits >= ?
             ORDER BY hits DESC
             """,
@@ -84,7 +101,10 @@ def build(days: int = 30, min_citations: int = 2) -> list[Target]:
 
     targets: list[Target] = []
     for r in rows:
-        if any(s in r["domain"] for s in SKIP_DOMAINS):
+        dom = r["domain"]
+        # Exact host or true subdomain only. Substring matching discarded every target, because
+        # Gemini's redirect host (vertexaisearch.cloud.google.com) contains "google.com".
+        if not dom or any(dom == s or dom.endswith("." + s) for s in SKIP_DOMAINS):
             continue
         qs = (r["qs"] or "").split(",")
         comps = sorted({c for q in qs for c in comp_by_q.get(q, set())})
@@ -94,9 +114,9 @@ def build(days: int = 30, min_citations: int = 2) -> list[Target]:
         score = r["hits"] * 2 + len(comps) * 1.5 + (4 if listicle else 0)
 
         targets.append(Target(
-            rank=0, domain=r["domain"], url=r["url"], title=r["title"] or "",
+            rank=0, domain=dom, url=r["url"], title=r["title"] or "",
             citation_count=r["hits"], questions=qs, competitors_named=comps,
-            we_are_listed=r["domain"] in listed_domains, score=score,
+            we_are_listed=dom in listed_domains, score=score,
             why=(
                 f"Cited {r['hits']}x across {len(set(qs))} buyer question(s)"
                 + (f", and the answers named {len(comps)} competitor(s)" if comps else "")
@@ -116,4 +136,7 @@ def build(days: int = 30, min_citations: int = 2) -> list[Target]:
     targets.sort(key=lambda t: -t.score)
     for i, t in enumerate(targets, 1):
         t.rank = i
+    # Resolve only the shortlist: one HEAD each, and nobody acts on target #40.
+    for t in targets[:resolve_top]:
+        t.url = resolve(t.url)
     return targets

@@ -95,11 +95,19 @@ def _load_panel() -> dict:
     return data
 
 
-def _domain(url: str) -> str:
+def _domain(url: str, title: str = "") -> str:
+    """Gemini returns grounding URIs as vertexaisearch.cloud.google.com redirects and puts the real
+    source domain in the chunk's `title`. Parsing the URI therefore yields Google's domain for every
+    citation, which is useless — and worse, it silently matches any skip-list entry containing
+    google.com, so every target gets discarded. Prefer the title when it looks like a hostname."""
+    t = (title or "").strip().lower()
+    if t and " " not in t and "." in t and "/" not in t:
+        return t.removeprefix("www.")
     try:
-        return urlparse(url).netloc.removeprefix("www.").lower()
+        host = urlparse(url).netloc.removeprefix("www.").lower()
     except ValueError:
         return ""
+    return "" if "vertexaisearch" in host else host
 
 
 def _ask(question: str, model: str) -> tuple[str, list[tuple[str, str]]]:
@@ -192,7 +200,7 @@ def run(tier: str = "core", model: str = DEFAULT_MODEL, repeats: int = REPEATS,
                 log.warning("probe failed [%s run %d]: %s", q["id"], run_no, exc)
                 continue
 
-            cited = any(domain in _domain(u) or domain in t.lower() for u, t in citations)
+            cited = any(domain in _domain(u, t) or domain in t.lower() for u, t in citations)
             mentioned = bool(brand_re.search(text))
             found = [c for c in competitors if re.search(re.escape(c), text, re.I)]
 
@@ -212,7 +220,7 @@ def run(tier: str = "core", model: str = DEFAULT_MODEL, repeats: int = REPEATS,
                     conn.execute(
                         """INSERT INTO aeo_citation(ts, question_id, url, domain, title)
                            VALUES (?,?,?,?,?)""",
-                        (now, q["id"], url, _domain(url), title[:300]),
+                        (now, q["id"], url, _domain(url, title), title[:300]),
                     )
 
         log.info("  [%s] done", q["id"])
