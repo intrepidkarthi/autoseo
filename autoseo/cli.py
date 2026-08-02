@@ -8,6 +8,7 @@
     autoseo gsc --backfill                  pull the full 16-month history
     autoseo opportunity [--days N]          where the leverage is
     autoseo brief [--days N] [--top N]      ranked actions with evidence
+    autoseo gate [--test-card|--status]     send cards, process approvals
     autoseo aeo [--tier core|extended|all]  ask buyer questions, record what gets cited
     autoseo outreach [--days N]             pages worth getting listed on
     autoseo report                          print the indexation report
@@ -114,6 +115,42 @@ def _print_outreach(days: int, top: int) -> None:
     print()
 
 
+def _run_gate(args) -> None:
+    from autoseo.gate import cards, client, queue
+    from autoseo.gate.queue import Item
+
+    if args.status:
+        print("\n" + client.dump_state())
+        with_counts = {}
+        from autoseo.core.db import session
+        with session() as conn:
+            for r in conn.execute("SELECT status, COUNT(*) n FROM queue_item GROUP BY status"):
+                with_counts[r["status"]] = r["n"]
+        print(f"  queue: {with_counts or 'empty'}\n")
+        return
+
+    if args.test_card:
+        queue.add(Item(
+            kind="test", channel="test", title="autoseo gate is live",
+            body="If you can see this and the buttons work, the approval loop is connected. "
+                 "Nothing publishes without a decision recorded here.",
+            rationale="Sent by `autoseo gate --test-card` to verify end-to-end delivery.",
+        ))
+
+    if args.queue_outreach:
+        from autoseo.decide import outreach
+        from autoseo.gate import compose_outreach
+        targets = outreach.build(days=30)
+        drafts = compose_outreach.queue_top(targets, limit=args.queue_outreach)
+        for d in drafts:
+            queue.add(d)
+        print(f"  queued {len(drafts)} outreach pitch(es)")
+
+    processed = cards.process_updates()
+    sent = cards.send_pending()
+    print(f"  decisions processed: {processed}   cards sent: {sent}")
+
+
 def _print_brief(days: int, top: int) -> None:
     from autoseo.decide import brief
 
@@ -164,6 +201,12 @@ def main(argv: list[str] | None = None) -> int:
     p_aeo.add_argument("--dry-run", action="store_true")
     p_aeo.add_argument("--list-models", action="store_true")
     p_aeo.add_argument("--model", default=None)
+
+    p_gate = sub.add_parser("gate", help="send pending cards and process approvals")
+    p_gate.add_argument("--test-card", action="store_true", help="queue and send one test card")
+    p_gate.add_argument("--queue-outreach", type=int, default=0, metavar="N",
+                        help="draft pitches for the top N outreach targets")
+    p_gate.add_argument("--status", action="store_true")
 
     p_out = sub.add_parser("outreach", help="pages worth getting listed on, ranked")
     p_out.add_argument("--days", type=int, default=30)
@@ -222,6 +265,9 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "outreach":
             _print_outreach(args.days, args.top)
+
+        elif args.command == "gate":
+            _run_gate(args)
 
         elif args.command == "brief":
             _print_brief(args.days, args.top)

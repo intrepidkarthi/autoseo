@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autoseo.core.config import settings
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA = """
 -- Phase 0: measurement -------------------------------------------------------
@@ -145,6 +145,34 @@ CREATE TABLE IF NOT EXISTS aeo_citation (
     title       TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_aeo_citation_domain ON aeo_citation(domain);
+
+-- The approval queue. `policy` exists from day one so per-channel autonomy is a config change
+-- rather than a rewrite; `rationale` is required because an approval given without a stated reason
+-- is not an approval, and leaves no way to correct the logic that produced the item.
+CREATE TABLE IF NOT EXISTS queue_item (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created     TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    channel     TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    body        TEXT NOT NULL,
+    rationale   TEXT,
+    policy      TEXT NOT NULL DEFAULT 'gated',
+    meta        TEXT,
+    status      TEXT NOT NULL DEFAULT 'pending',
+    message_id  INTEGER,
+    decided_at  TEXT,
+    decided_by  TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_queue_status ON queue_item(status);
+CREATE INDEX IF NOT EXISTS ix_queue_message ON queue_item(message_id);
+
+-- Telegram bookkeeping: the discovered chat id and the update offset. Persisting the offset is what
+-- makes a retried poll safe — without it a re-run could act on the same approval twice.
+CREATE TABLE IF NOT EXISTS gate_state (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
