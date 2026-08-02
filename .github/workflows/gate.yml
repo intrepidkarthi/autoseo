@@ -18,6 +18,10 @@ on:
         description: "Send one test card to verify delivery (true/false)"
         required: false
         default: "false"
+      raw:
+        description: "Dump pending Telegram updates without consuming them (true/false)"
+        required: false
+        default: "false"
       queue_outreach:
         description: "Draft pitches for the top N outreach targets (0 = skip)"
         required: false
@@ -49,6 +53,10 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           autoseo restore
+          if [ "${{ github.event.inputs.raw }}" = "true" ]; then
+            autoseo gate --raw
+            exit 0
+          fi
           autoseo gate \
             ${{ github.event.inputs.test_card == 'true' && '--test-card' || '' }} \
             --queue-outreach ${{ github.event.inputs.queue_outreach || '0' }}
