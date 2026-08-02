@@ -1,0 +1,2 @@
+id,created,kind,channel,title,body,rationale,policy,meta,status,message_id,decided_at,decided_by
+1,2026-08-02T11:56:00+00:00,test,test,autoseo gate is live,"If you can see this and the buttons work, the approval loop is connected. Nothing publishes without a decision recorded here.",Sent by `autoseo gate --test-card` to verify end-to-end delivery.,gated,{},pending,,,
