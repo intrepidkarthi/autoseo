@@ -119,6 +119,24 @@ def _run_gate(args) -> None:
     from autoseo.gate import cards, client, queue
     from autoseo.gate.queue import Item
 
+    if args.raw:
+        # Deliberately does NOT advance the offset — inspecting the queue must not consume it.
+        import json as _json
+        from autoseo.gate.client import _call
+        updates = _call("getUpdates", limit=100)
+        print(f"\n  {len(updates)} pending update(s)")
+        for u in updates:
+            kind = "callback_query" if "callback_query" in u else \
+                   "message" if "message" in u else ",".join(k for k in u if k != "update_id")
+            detail = ""
+            if cb := u.get("callback_query"):
+                detail = f" data={cb.get('data')!r} msg={(cb.get('message') or {}).get('message_id')}"
+            elif m := u.get("message"):
+                detail = f" text={(m.get('text') or '')[:30]!r}"
+            print(f"    id={u['update_id']}  {kind}{detail}")
+        print()
+        return
+
     if args.status:
         print("\n" + client.dump_state())
         with_counts = {}
@@ -207,6 +225,8 @@ def main(argv: list[str] | None = None) -> int:
     p_gate.add_argument("--queue-outreach", type=int, default=0, metavar="N",
                         help="draft pitches for the top N outreach targets")
     p_gate.add_argument("--status", action="store_true")
+    p_gate.add_argument("--raw", action="store_true",
+                        help="dump what getUpdates actually returns, without consuming it")
 
     p_out = sub.add_parser("outreach", help="pages worth getting listed on, ranked")
     p_out.add_argument("--days", type=int, default=30)
