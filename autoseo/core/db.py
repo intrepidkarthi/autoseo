@@ -211,8 +211,32 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     return conn
 
 
+def _repair_citation_domains(conn: sqlite3.Connection) -> int:
+    """Backfill aeo_citation.domain for rows stored before the extraction bug was fixed.
+
+    Gemini returns grounding URIs as vertexaisearch.cloud.google.com redirects and puts the real
+    source domain in the chunk title. Early rows therefore recorded Google's host for every citation,
+    which made every outreach target look like a skip-list match and the module returned nothing.
+
+    Written as a migration rather than a one-off script because the first repair was run locally,
+    never reached the committed snapshot, and the bug silently came back.
+    """
+    rows = conn.execute(
+        "SELECT id, title FROM aeo_citation WHERE domain LIKE '%vertexaisearch%'"
+    ).fetchall()
+    fixed = 0
+    for r in rows:
+        title = (r["title"] or "").strip().lower()
+        if title and " " not in title and "." in title and "/" not in title:
+            conn.execute("UPDATE aeo_citation SET domain = ? WHERE id = ?",
+                         (title.removeprefix("www."), r["id"]))
+            fixed += 1
+    return fixed
+
+
 def migrate(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
+    _repair_citation_domains(conn)
     conn.execute(
         "INSERT INTO meta(key, value) VALUES('schema_version', ?) "
         "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
