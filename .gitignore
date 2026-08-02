@@ -17,9 +17,10 @@ venv/
 # os
 .DS_Store
 
-# state/ is committed BY CI ONLY. Committing it from a workstation produced a rejected push,
-# an unresolvable binary merge, and a lost commit — git cannot merge sqlite. The workflow is the
-# single writer; locally the db is a throwaway cache rebuilt by `autoseo collect`.
+# The sqlite file is never committed by anyone. State lives in state/*.csv, which git can merge
+# line by line and which shows up as a readable diff. The db is a local cache rebuilt by
+# `autoseo restore`. Committing the binary cost a rejected push, two unresolvable conflicts, a
+# commit recovered from the reflog, and a silently wiped backfill.
 state/autoseo.db
 
 # sqlite side-files, raw media, scratch renders:

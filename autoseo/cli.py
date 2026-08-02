@@ -11,6 +11,7 @@
     autoseo aeo [--tier core|extended|all]  ask buyer questions, record what gets cited
     autoseo outreach [--days N]             pages worth getting listed on
     autoseo report                          print the indexation report
+    autoseo snapshot / restore              state <-> state/*.csv (git-mergeable)
     autoseo collect                         gsc + bing + inspect + report  (what CI runs)
 """
 
@@ -183,6 +184,8 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("bing", help="pull Bing Webmaster stats")
     sub.add_parser("report", help="print the indexation report")
+    sub.add_parser("snapshot", help="write state/*.csv from the database")
+    sub.add_parser("restore", help="rebuild the database from state/*.csv")
 
     p_all = sub.add_parser("collect", help="gsc + bing + inspect + report")
     p_all.add_argument("--limit", type=int, default=None)
@@ -238,6 +241,16 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "report":
             _print_report()
+
+        elif args.command == "snapshot":
+            from autoseo.core import snapshot
+            for tbl, n in snapshot.dump().items():
+                print(f"  {tbl:<20}{n:>7}")
+
+        elif args.command == "restore":
+            from autoseo.core import snapshot
+            for tbl, n in snapshot.load().items():
+                print(f"  {tbl:<20}{n:>7}")
 
         elif args.command == "collect":
             from autoseo.collect import bing, gsc, inspect

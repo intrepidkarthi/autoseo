@@ -1,0 +1,795 @@
+date,query,clicks,impressions,ctr,position
+2026-03-18,digital twin of a person,0.0,1.0,0.0,76.0
+2026-03-18,the daily vox,0.0,1.0,0.0,11.0
+2026-03-19,the daily vox,0.0,1.0,0.0,8.0
+2026-03-20,journal before bed,0.0,1.0,0.0,70.0
+2026-04-02,getdailyvox,0.0,4.0,0.0,1.0
+2026-04-03,getdailyvox,0.0,3.0,0.0,1.0
+2026-04-04,getdailyvox,0.0,4.0,0.0,1.0
+2026-04-05,getdailyvox,0.0,10.0,0.0,1.0
+2026-04-06,getdailyvox,0.0,2.0,0.0,1.0
+2026-04-07,getdailyvox,0.0,3.0,0.0,1.0
+2026-04-08,getdailyvox,0.0,4.0,0.0,1.0
+2026-04-09,day one journal pricing subscription 2026,0.0,1.0,0.0,12.0
+2026-04-09,getdailyvox,0.0,2.0,0.0,1.0
+2026-04-10,digital journal apps market,0.0,2.0,0.0,71.5
+2026-04-10,getdailyvox,0.0,3.0,0.0,1.0
+2026-04-11,digital journal apps market,0.0,1.0,0.0,73.0
+2026-04-11,getdailyvox,0.0,1.0,0.0,1.0
+2026-04-12,digital journal apps market,0.0,2.0,0.0,82.5
+2026-04-12,getdailyvox,0.0,7.0,0.0,1.0
+2026-04-12,vox daily,0.0,1.0,0.0,42.0
+2026-04-13,digital journal apps market,0.0,2.0,0.0,74.5
+2026-04-13,getdailyvox,0.0,4.0,0.0,1.0
+2026-04-14,digital journal apps market,0.0,2.0,0.0,77.0
+2026-04-14,getdailyvox,0.0,7.0,0.0,1.0
+2026-04-15,digital journal apps market,0.0,2.0,0.0,70.0
+2026-04-15,getdailyvox,0.0,2.0,0.0,1.0
+2026-04-15,untold voice journal,0.0,2.0,0.0,34.5
+2026-04-16,digital journal apps market,0.0,2.0,0.0,78.0
+2026-04-16,getdailyvox,0.0,6.0,0.0,1.0
+2026-04-17,dailyvox,1.0,3.0,0.3333333333333333,1.3333333333333333
+2026-04-17,digital journal apps market,0.0,2.0,0.0,76.5
+2026-04-17,getdailyvox,0.0,2.0,0.0,1.0
+2026-04-18,daily vox,0.0,1.0,0.0,4.0
+2026-04-18,digital journal apps market,0.0,3.0,0.0,74.0
+2026-04-18,getdailyvox,1.0,1.0,1.0,1.0
+2026-04-19,daily vox,0.0,1.0,0.0,6.0
+2026-04-19,digital journal apps market,0.0,3.0,0.0,74.66666666666667
+2026-04-19,vox daily,0.0,1.0,0.0,7.0
+2026-04-20,digital journal apps market,0.0,2.0,0.0,73.5
+2026-04-20,getdailyvox,0.0,1.0,0.0,1.0
+2026-04-21,digital journal apps market,0.0,1.0,0.0,74.0
+2026-04-21,the daily vox,0.0,1.0,0.0,8.0
+2026-04-22,dailyvox,1.0,1.0,1.0,1.0
+2026-04-22,digital journal apps market,0.0,5.0,0.0,76.0
+2026-04-23,digital journal apps market,0.0,2.0,0.0,71.0
+2026-04-24,digital journal apps market,0.0,4.0,0.0,73.0
+2026-04-25,digital journal apps market,0.0,4.0,0.0,71.25
+2026-04-26,digital journal apps market,0.0,4.0,0.0,76.75
+2026-04-27,digital journal apps market,0.0,4.0,0.0,72.75
+2026-04-27,journaling app vergleich,0.0,3.0,0.0,85.0
+2026-04-28,digital journal apps market,0.0,3.0,0.0,72.33333333333333
+2026-04-28,getdailyvox,0.0,1.0,0.0,1.0
+2026-04-29,dailyvox,1.0,1.0,1.0,1.0
+2026-04-29,day one journal pricing 2026,0.0,1.0,0.0,12.0
+2026-04-29,digital journal apps market,0.0,1.0,0.0,80.0
+2026-04-30,dailyvox,1.0,1.0,1.0,1.0
+2026-04-30,digital journal apps market,0.0,2.0,0.0,84.5
+2026-05-01,digital journal apps market,0.0,2.0,0.0,74.5
+2026-05-02,dailyvox,4.0,5.0,0.8,1.0
+2026-05-02,digital journal apps market,0.0,2.0,0.0,77.5
+2026-05-03,dailyvox,0.0,2.0,0.0,1.0
+2026-05-03,digital journal apps market,0.0,1.0,0.0,71.0
+2026-05-04,digital journal apps market,0.0,3.0,0.0,74.33333333333333
+2026-05-05,digital journal apps market,0.0,2.0,0.0,73.0
+2026-05-06,dailyvox,1.0,2.0,0.5,1.5
+2026-05-07,digital journal apps market,0.0,1.0,0.0,80.0
+2026-05-08,digital journal apps market,0.0,2.0,0.0,70.5
+2026-05-09,dailyvox,2.0,2.0,1.0,1.0
+2026-05-09,most effective app features for recording obsession and possessiveness,0.0,1.0,0.0,10.0
+2026-05-10,bearable alternative,0.0,1.0,0.0,10.0
+2026-05-10,digital journal apps market,0.0,1.0,0.0,70.0
+2026-05-12,digital journal apps market,0.0,3.0,0.0,84.66666666666667
+2026-05-13,dailyvox,1.0,1.0,1.0,1.0
+2026-05-13,digital journal apps market,0.0,1.0,0.0,87.0
+2026-05-14,digital journal apps market,0.0,1.0,0.0,65.0
+2026-05-15,digital journal apps market,0.0,5.0,0.0,80.0
+2026-05-17,digital journal apps market,0.0,6.0,0.0,73.66666666666667
+2026-05-18,apple journal app features 2026,0.0,1.0,0.0,11.0
+2026-05-18,dailyvox,0.0,2.0,0.0,1.0
+2026-05-18,digital journal apps market,0.0,2.0,0.0,67.5
+2026-05-19,digital journal apps market,0.0,5.0,0.0,79.6
+2026-05-20,digital journal apps market,0.0,4.0,0.0,79.5
+2026-05-21,dailyvox,1.0,1.0,1.0,1.0
+2026-05-21,digital journal apps market,0.0,2.0,0.0,82.5
+2026-05-22,dailyvox,0.0,1.0,0.0,1.0
+2026-05-22,digital journal apps market,0.0,3.0,0.0,84.33333333333333
+2026-05-23,audio journal app,0.0,1.0,0.0,36.0
+2026-05-23,audio journaling app,0.0,1.0,0.0,53.0
+2026-05-23,digital journal apps market,0.0,3.0,0.0,82.66666666666667
+2026-05-23,voice diary,0.0,1.0,0.0,41.0
+2026-05-23,voice diary app,0.0,1.0,0.0,32.0
+2026-05-23,voice journal app,0.0,1.0,0.0,46.0
+2026-05-24,"""id widgetkit"" android app",0.0,1.0,0.0,5.0
+2026-05-24,audio diary app,0.0,1.0,0.0,38.0
+2026-05-24,digital journal apps market,0.0,3.0,0.0,83.0
+2026-05-24,free finch online,0.0,1.0,0.0,96.0
+2026-05-24,voice diary,0.0,1.0,0.0,41.0
+2026-05-24,voice diary app,0.0,1.0,0.0,33.0
+2026-05-24,voice journaling app,0.0,1.0,0.0,46.0
+2026-05-24,voice to text journal,0.0,1.0,0.0,45.0
+2026-05-25,"""id widgetkit"" android",0.0,3.0,0.0,5.0
+2026-05-25,"""id widgetkit"" android app",0.0,3.0,0.0,5.0
+2026-05-25,best free journal publication,0.0,1.0,0.0,62.0
+2026-05-25,best journal app free,0.0,1.0,0.0,68.0
+2026-05-25,dailyvox,1.0,1.0,1.0,1.0
+2026-05-25,digital journal apps market,0.0,3.0,0.0,82.66666666666667
+2026-05-25,voice-first journaling,0.0,1.0,0.0,64.0
+2026-05-26,"""id widgetkit"" android",0.0,4.0,0.0,6.5
+2026-05-26,"""id widgetkit"" android app",0.0,2.0,0.0,5.0
+2026-05-26,"""id widgetkit"" app",0.0,6.0,0.0,10.833333333333334
+2026-05-26,app for journaling free,0.0,1.0,0.0,50.0
+2026-05-26,audio journaling app,0.0,2.0,0.0,41.0
+2026-05-26,best audio journal app,0.0,1.0,0.0,47.0
+2026-05-26,best free diary app,0.0,1.0,0.0,83.0
+2026-05-26,best free journal app,0.0,2.0,0.0,68.0
+2026-05-26,best voice journaling apps 2026,0.0,1.0,0.0,17.0
+2026-05-26,dailyvox,0.0,2.0,0.0,1.0
+2026-05-26,digital journal apps market,0.0,5.0,0.0,79.6
+2026-05-26,free journal apps,0.0,1.0,0.0,56.0
+2026-05-26,free journaling app,0.0,1.0,0.0,56.0
+2026-05-26,journal free,0.0,1.0,0.0,50.0
+2026-05-26,voice-first journaling,0.0,4.0,0.0,57.25
+2026-05-27,best free journal app,0.0,2.0,0.0,74.5
+2026-05-27,best free journal apps,0.0,1.0,0.0,73.0
+2026-05-27,best free journaling app,0.0,1.0,0.0,71.0
+2026-05-27,dailyvox,0.0,1.0,0.0,1.0
+2026-05-27,digital journal apps market,0.0,2.0,0.0,76.5
+2026-05-27,free journal,0.0,2.0,0.0,84.0
+2026-05-27,journal free,0.0,1.0,0.0,82.0
+2026-05-27,voice to text journal app,0.0,1.0,0.0,41.0
+2026-05-27,voice-first journaling,0.0,1.0,0.0,63.0
+2026-05-28,audio diary app,0.0,1.0,0.0,33.0
+2026-05-28,audio journaling app,0.0,1.0,0.0,39.0
+2026-05-28,best free journal app,0.0,1.0,0.0,68.0
+2026-05-28,best free journaling app,0.0,2.0,0.0,71.0
+2026-05-28,dailyvox,1.0,2.0,0.5,1.0
+2026-05-28,digital journal apps market,0.0,3.0,0.0,86.66666666666667
+2026-05-28,journal free,0.0,1.0,0.0,88.0
+2026-05-28,speakwise voice journaling app,0.0,1.0,0.0,8.0
+2026-05-28,voice diary app,0.0,1.0,0.0,36.0
+2026-05-28,voice journal app,0.0,1.0,0.0,41.0
+2026-05-28,voice-first journaling,0.0,2.0,0.0,60.5
+2026-05-29,audio journaling apps,0.0,1.0,0.0,47.0
+2026-05-29,dailyvox,1.0,1.0,1.0,1.0
+2026-05-29,digital journal apps market,0.0,3.0,0.0,74.66666666666667
+2026-05-29,journal free,0.0,1.0,0.0,81.0
+2026-05-29,journaling app free,0.0,1.0,0.0,52.0
+2026-05-29,voice diaries,0.0,1.0,0.0,46.0
+2026-05-29,voice diaries help with mental health,0.0,1.0,0.0,89.0
+2026-05-29,voice diary app,0.0,2.0,0.0,32.5
+2026-05-29,voice-first journaling,0.0,1.0,0.0,65.0
+2026-05-30,best free journal app,0.0,2.0,0.0,70.5
+2026-05-30,best journal app free,0.0,1.0,0.0,70.0
+2026-05-30,digital journal apps market,0.0,3.0,0.0,74.0
+2026-05-30,free journal app,0.0,2.0,0.0,51.0
+2026-05-30,getdailyvox,0.0,1.0,0.0,1.0
+2026-05-30,is apple journal private,0.0,1.0,0.0,31.0
+2026-05-30,is there a free voice journal,0.0,1.0,0.0,39.0
+2026-05-30,journal free,0.0,1.0,0.0,85.0
+2026-05-30,voice diary app,0.0,1.0,0.0,40.0
+2026-05-30,voice journaling app trends 2026,0.0,1.0,0.0,5.0
+2026-05-30,voice-first journaling,0.0,1.0,0.0,68.0
+2026-05-31,"""id widgetkit"" android",0.0,1.0,0.0,9.0
+2026-05-31,"""id widgetkit"" android app",0.0,3.0,0.0,9.0
+2026-05-31,best free diary app,0.0,1.0,0.0,65.0
+2026-05-31,best voice journal app,0.0,1.0,0.0,12.0
+2026-05-31,digital journal apps market,0.0,2.0,0.0,75.0
+2026-05-31,voice diary,0.0,1.0,0.0,42.0
+2026-05-31,voice journaling app,0.0,1.0,0.0,54.0
+2026-05-31,voice recorder journal,0.0,1.0,0.0,46.0
+2026-05-31,voice to text journal,0.0,2.0,0.0,66.5
+2026-05-31,voice-first journaling,0.0,1.0,0.0,67.0
+2026-06-01,"""id widgetkit"" android",0.0,1.0,0.0,9.0
+2026-06-01,"""short journal entries"" phrase",0.0,4.0,0.0,11.0
+2026-06-01,best free journal app,0.0,1.0,0.0,70.0
+2026-06-01,dailyvox,0.0,1.0,0.0,1.0
+2026-06-01,digital journal apps market,0.0,2.0,0.0,75.0
+2026-06-01,untold voice journal,0.0,1.0,0.0,31.0
+2026-06-01,vocolens,0.0,2.0,0.0,43.5
+2026-06-01,voice diary,0.0,1.0,0.0,37.0
+2026-06-01,voice diary app,0.0,2.0,0.0,41.5
+2026-06-01,voice journal app,0.0,1.0,0.0,66.0
+2026-06-01,voice-first journaling,0.0,2.0,0.0,58.5
+2026-06-02,"""id widgetkit"" android app",0.0,2.0,0.0,5.0
+2026-06-02,"""id widgetkit"" app",0.0,5.0,0.0,10.8
+2026-06-02,"""id widgetkit"" play store",0.0,1.0,0.0,9.0
+2026-06-02,audio journaling app,0.0,2.0,0.0,49.5
+2026-06-02,dailyvox,1.0,3.0,0.3333333333333333,1.0
+2026-06-02,digital journal apps market,0.0,1.0,0.0,70.0
+2026-06-02,getdailyvox,1.0,1.0,1.0,1.0
+2026-06-02,is the journal app private,0.0,1.0,0.0,11.0
+2026-06-02,voice-first journaling,0.0,2.0,0.0,60.0
+2026-06-03,best free journal app,0.0,3.0,0.0,70.33333333333333
+2026-06-03,dailyvox,0.0,2.0,0.0,1.0
+2026-06-03,voice-first journaling,0.0,1.0,0.0,63.0
+2026-06-04,digital journal apps market,0.0,1.0,0.0,73.0
+2026-06-04,voice-first journaling,0.0,1.0,0.0,58.0
+2026-06-05,audio journaling apps,0.0,2.0,0.0,50.5
+2026-06-05,digital journal apps market,0.0,1.0,0.0,78.0
+2026-06-05,voice journaling app,0.0,1.0,0.0,30.0
+2026-06-05,voice-first journaling,0.0,1.0,0.0,63.0
+2026-06-06,best free journal app,0.0,1.0,0.0,76.0
+2026-06-06,journaling apps free,0.0,1.0,0.0,64.0
+2026-06-06,voice-first journaling,0.0,1.0,0.0,64.0
+2026-06-07,"""id widgetkit"" app",0.0,3.0,0.0,9.333333333333334
+2026-06-07,best free journal app,0.0,1.0,0.0,59.0
+2026-06-07,dailyvox,0.0,3.0,0.0,1.3333333333333333
+2026-06-07,voice diary,0.0,1.0,0.0,35.0
+2026-06-07,voice journaling,0.0,2.0,0.0,63.5
+2026-06-07,voice journaling app,0.0,1.0,0.0,43.0
+2026-06-07,voice to text journal,0.0,5.0,0.0,64.2
+2026-06-07,voice-first journaling,0.0,1.0,0.0,61.0
+2026-06-08,"""id widgetkit"" android",0.0,5.0,0.0,4.8
+2026-06-08,"""id widgetkit"" android app",0.0,3.0,0.0,5.333333333333333
+2026-06-08,best free journal app,0.0,2.0,0.0,56.5
+2026-06-08,getdailyvox,0.0,1.0,0.0,1.0
+2026-06-08,voice-first journaling,0.0,1.0,0.0,64.0
+2026-06-09,"""id widgetkit"" app",0.0,2.0,0.0,9.0
+2026-06-09,audio journaling app,0.0,2.0,0.0,50.0
+2026-06-09,best free journal app,0.0,3.0,0.0,51.666666666666664
+2026-06-09,dailyvox,1.0,1.0,1.0,1.0
+2026-06-09,digital journal apps market,0.0,1.0,0.0,70.0
+2026-06-09,voice-first journaling,0.0,3.0,0.0,62.666666666666664
+2026-06-10,"""id widgetkit"" android app",0.0,2.0,0.0,3.5
+2026-06-10,audio journal app,0.0,1.0,0.0,41.0
+2026-06-10,best free journal,0.0,1.0,0.0,51.0
+2026-06-10,best free journal app,0.0,3.0,0.0,59.666666666666664
+2026-06-10,is my diary app safe,0.0,2.0,0.0,49.0
+2026-06-10,journal that talks back,0.0,1.0,0.0,53.0
+2026-06-10,mens journaling app,0.0,1.0,0.0,9.0
+2026-06-10,the daily vox,0.0,1.0,0.0,7.0
+2026-06-10,voice diary,0.0,1.0,0.0,34.0
+2026-06-10,voice-first journaling,0.0,1.0,0.0,65.0
+2026-06-11,"""id widgetkit"" android app",0.0,2.0,0.0,6.0
+2026-06-11,anxiety journal app,0.0,1.0,0.0,13.0
+2026-06-11,best free journal app,0.0,3.0,0.0,59.333333333333336
+2026-06-11,dailyvox,1.0,2.0,0.5,1.0
+2026-06-11,free journaling apps,0.0,1.0,0.0,59.0
+2026-06-11,is journal app free,0.0,1.0,0.0,34.0
+2026-06-11,is the journal app private,0.0,1.0,0.0,12.0
+2026-06-11,is there a free journal app,0.0,1.0,0.0,39.0
+2026-06-11,voice journal app,0.0,1.0,0.0,25.0
+2026-06-11,voice-first journaling,0.0,1.0,0.0,45.0
+2026-06-11,zlvox,0.0,1.0,0.0,67.0
+2026-06-12,anxiety journal app,0.0,1.0,0.0,40.0
+2026-06-12,audio journaling apps,0.0,1.0,0.0,59.0
+2026-06-12,best free journaling apps,0.0,1.0,0.0,58.0
+2026-06-12,dailyvox,1.0,1.0,1.0,1.0
+2026-06-12,voice-first journaling,0.0,2.0,0.0,63.0
+2026-06-12,vox daily,0.0,1.0,0.0,7.0
+2026-06-13,best free journal app,0.0,1.0,0.0,59.0
+2026-06-13,dailyvox,0.0,1.0,0.0,1.0
+2026-06-13,voice-first journaling,0.0,1.0,0.0,62.0
+2026-06-14,"""id widgetkit"" android",0.0,6.0,0.0,5.5
+2026-06-14,"""id widgetkit"" android app",0.0,3.0,0.0,5.333333333333333
+2026-06-14,"""id widgetkit"" app",0.0,3.0,0.0,10.333333333333334
+2026-06-14,best free journal app,0.0,3.0,0.0,54.0
+2026-06-14,best journaling app free,0.0,2.0,0.0,60.5
+2026-06-14,best journaling apps free,0.0,1.0,0.0,73.0
+2026-06-14,dailyvox,0.0,1.0,0.0,1.0
+2026-06-14,free journaling apps,0.0,1.0,0.0,55.0
+2026-06-14,getdailyvox,1.0,1.0,1.0,1.0
+2026-06-14,is apple journal private,0.0,1.0,0.0,28.0
+2026-06-14,journal apps free,0.0,1.0,0.0,29.0
+2026-06-14,journaling apps free,0.0,1.0,0.0,34.0
+2026-06-14,speech to text journal app,0.0,1.0,0.0,48.0
+2026-06-14,talk to text journal app,0.0,1.0,0.0,56.0
+2026-06-14,voice diary,0.0,1.0,0.0,35.0
+2026-06-14,voice journaling,0.0,1.0,0.0,66.0
+2026-06-14,voice journaling app,0.0,1.0,0.0,49.0
+2026-06-14,voice to text journal,0.0,1.0,0.0,67.0
+2026-06-14,voice to text journal app,0.0,1.0,0.0,43.0
+2026-06-14,voice-first journaling,0.0,1.0,0.0,50.0
+2026-06-15,"""id widgetkit"" android",0.0,3.0,0.0,6.0
+2026-06-15,audio journal app,0.0,1.0,0.0,27.0
+2026-06-15,best free journal app,0.0,2.0,0.0,60.0
+2026-06-15,best voice journal app,0.0,1.0,0.0,46.0
+2026-06-15,journal app ios 2026 market gap ai privacy local on-device no subscription user demand,0.0,5.0,0.0,90.4
+2026-06-15,voice diary app,0.0,1.0,0.0,24.0
+2026-06-15,voice journal app,0.0,1.0,0.0,28.0
+2026-06-15,voice-first journaling,0.0,2.0,0.0,65.0
+2026-06-16,"""id widgetkit"" android",0.0,3.0,0.0,6.0
+2026-06-16,"""id widgetkit"" android app",0.0,3.0,0.0,4.666666666666666
+2026-06-16,audio journaling app,0.0,1.0,0.0,38.0
+2026-06-16,best free journal app,0.0,1.0,0.0,56.0
+2026-06-16,dailyvox,1.0,2.0,0.5,1.0
+2026-06-16,free journal app,0.0,1.0,0.0,36.0
+2026-06-16,journal for free,0.0,1.0,0.0,40.0
+2026-06-16,journal software free,0.0,1.0,0.0,38.0
+2026-06-16,voice-first journaling,0.0,1.0,0.0,60.0
+2026-06-17,"""id widgetkit"" android",0.0,3.0,0.0,5.333333333333333
+2026-06-17,"""id widgetkit"" android app",0.0,2.0,0.0,5.5
+2026-06-17,anxiety journal app,0.0,1.0,0.0,35.0
+2026-06-17,best free journal app,0.0,2.0,0.0,55.0
+2026-06-17,best free voice journaling apps 2026,0.0,2.0,0.0,16.0
+2026-06-17,getdailyvox,0.0,1.0,0.0,1.0
+2026-06-17,journal app ios 2026 market gap ai privacy local on-device no subscription user demand,0.0,2.0,0.0,89.5
+2026-06-17,voice diary,0.0,1.0,0.0,35.0
+2026-06-17,voice-first journaling,0.0,1.0,0.0,71.0
+2026-06-17,vonovox,0.0,1.0,0.0,89.0
+2026-06-17,voxbloom ai diary app,0.0,4.0,0.0,11.0
+2026-06-18,best free journal app,0.0,3.0,0.0,58.666666666666664
+2026-06-18,best voice journal app,0.0,1.0,0.0,11.0
+2026-06-18,dailyvox,0.0,1.0,0.0,1.0
+2026-06-18,voice diary app,0.0,1.0,0.0,21.0
+2026-06-18,voice journal app,0.0,2.0,0.0,21.5
+2026-06-18,voice journaling app trends 2026,0.0,1.0,0.0,9.0
+2026-06-18,voice-first journaling,0.0,1.0,0.0,68.0
+2026-06-18,zlvox,0.0,1.0,0.0,69.0
+2026-06-19,audio journaling apps,0.0,2.0,0.0,49.5
+2026-06-19,best audio journal app,0.0,1.0,0.0,44.0
+2026-06-19,best free journal app,0.0,2.0,0.0,57.5
+2026-06-19,getdailyvox,0.0,1.0,0.0,1.0
+2026-06-19,journal freeware,0.0,1.0,0.0,39.0
+2026-06-19,voice to text journal app free,0.0,1.0,0.0,13.0
+2026-06-19,voice-first journaling,0.0,1.0,0.0,60.0
+2026-06-20,"""id widgetkit"" android",0.0,1.0,0.0,6.0
+2026-06-20,best free journal app,0.0,1.0,0.0,58.0
+2026-06-20,best voice journal app,0.0,1.0,0.0,9.0
+2026-06-20,free journal app,0.0,1.0,0.0,53.0
+2026-06-20,journal software free,0.0,2.0,0.0,36.0
+2026-06-20,lumenvox,0.0,1.0,0.0,82.0
+2026-06-20,voice-first journaling,0.0,1.0,0.0,67.0
+2026-06-21,"""id widgetkit"" android",0.0,1.0,0.0,6.0
+2026-06-21,anxiety journal app,0.0,1.0,0.0,17.0
+2026-06-21,best ai-powered voice journaling apps for ios and android,0.0,1.0,0.0,12.0
+2026-06-21,best free journal app,0.0,2.0,0.0,58.5
+2026-06-21,day one journal pricing official 2026,0.0,1.0,0.0,8.0
+2026-06-21,voice diary,0.0,1.0,0.0,29.0
+2026-06-21,voice diary app,0.0,2.0,0.0,28.0
+2026-06-21,voice journal,0.0,1.0,0.0,47.0
+2026-06-21,voice journal app free,0.0,2.0,0.0,11.0
+2026-06-21,voice journaling,0.0,1.0,0.0,65.0
+2026-06-21,voice journaling app,0.0,1.0,0.0,50.0
+2026-06-21,voice to text journal,0.0,5.0,0.0,47.6
+2026-06-21,voice-first journaling,0.0,1.0,0.0,66.0
+2026-06-22,"""id widgetkit"" android",0.0,1.0,0.0,6.0
+2026-06-22,"""id widgetkit"" android app",0.0,2.0,0.0,6.0
+2026-06-22,"""id widgetkit"" app",0.0,1.0,0.0,11.0
+2026-06-22,anxiety journal app,0.0,2.0,0.0,31.5
+2026-06-22,best free journal app,0.0,2.0,0.0,56.5
+2026-06-22,journey cloud vs premium,0.0,1.0,0.0,32.0
+2026-06-22,voice journal app free,0.0,1.0,0.0,10.0
+2026-06-22,voice-first journaling,0.0,1.0,0.0,62.0
+2026-06-23,audio journal app,0.0,1.0,0.0,35.0
+2026-06-23,audio journaling app,0.0,1.0,0.0,43.0
+2026-06-23,best free journal app,0.0,2.0,0.0,55.5
+2026-06-23,journal for free,0.0,2.0,0.0,49.0
+2026-06-23,voice diary,0.0,1.0,0.0,31.0
+2026-06-23,voice journaling app,0.0,1.0,0.0,56.0
+2026-06-23,voice journaling app trends 2026,0.0,1.0,0.0,4.0
+2026-06-23,voice-first journaling,0.0,1.0,0.0,67.0
+2026-06-24,best free journal app,0.0,1.0,0.0,71.0
+2026-06-24,diary voice,0.0,1.0,0.0,24.0
+2026-06-24,digital journal apps market,0.0,1.0,0.0,88.0
+2026-06-24,journal app free,0.0,1.0,0.0,40.0
+2026-06-24,journey cloud vs premium,0.0,2.0,0.0,26.0
+2026-06-25,anxiety journal app,0.0,1.0,0.0,39.0
+2026-06-25,best free journal app,0.0,2.0,0.0,70.5
+2026-06-25,dailyvox,0.0,2.0,0.0,1.0
+2026-06-25,getdailyvox,0.0,1.0,0.0,1.0
+2026-06-25,journey cloud vs premium,0.0,2.0,0.0,28.0
+2026-06-25,voice to text journal app free,0.0,1.0,0.0,11.0
+2026-06-25,zlvox,0.0,1.0,0.0,66.0
+2026-06-26,"""id widgetkit"" android",0.0,2.0,0.0,5.5
+2026-06-26,"""id widgetkit"" android app",0.0,6.0,0.0,5.0
+2026-06-26,"""id widgetkit"" play store",0.0,1.0,0.0,9.0
+2026-06-26,audio journaling apps,0.0,3.0,0.0,51.333333333333336
+2026-06-26,best audio journal app,0.0,1.0,0.0,51.0
+2026-06-26,best free journal app,0.0,1.0,0.0,68.0
+2026-06-26,best journal app free,0.0,1.0,0.0,72.0
+2026-06-26,journal app privacy,0.0,1.0,0.0,19.0
+2026-06-26,journey cloud vs premium,0.0,2.0,0.0,27.5
+2026-06-26,lumenvox tts,0.0,1.0,0.0,84.0
+2026-06-26,speech to text journal app,0.0,2.0,0.0,42.0
+2026-06-26,voice journaling app,0.0,1.0,0.0,50.0
+2026-06-27,app for journaling free,0.0,1.0,0.0,59.0
+2026-06-27,best free journal app,0.0,1.0,0.0,71.0
+2026-06-27,free journal app,0.0,1.0,0.0,58.0
+2026-06-27,journal private,0.0,1.0,0.0,58.0
+2026-06-27,journey cloud vs premium,0.0,2.0,0.0,26.5
+2026-06-28,audio journaling app,0.0,1.0,0.0,36.0
+2026-06-28,best free journal app,0.0,4.0,0.0,72.25
+2026-06-28,best free journal apps,0.0,2.0,0.0,72.5
+2026-06-28,dailyvox,0.0,2.0,0.0,1.0
+2026-06-28,free journaling app,0.0,1.0,0.0,45.0
+2026-06-28,free journaling apps,0.0,1.0,0.0,81.0
+2026-06-28,journey cloud vs premium,0.0,1.0,0.0,33.0
+2026-06-28,voice to text journal,0.0,1.0,0.0,65.0
+2026-06-29,"""dailyvox"" vs ""vox journal"" features comparison",0.0,1.0,0.0,1.0
+2026-06-29,best free journal app,0.0,1.0,0.0,73.0
+2026-06-29,best voice journal app,0.0,1.0,0.0,12.0
+2026-06-29,dailyvox,1.0,1.0,1.0,1.0
+2026-06-29,journal app privacy,0.0,1.0,0.0,9.0
+2026-06-29,journey cloud vs premium,0.0,1.0,0.0,20.0
+2026-06-29,lumenvox,0.0,1.0,0.0,85.0
+2026-06-29,mens journaling app,0.0,1.0,0.0,10.0
+2026-06-29,speakwise voice journaling app,0.0,2.0,0.0,11.0
+2026-06-29,voice diary app,0.0,1.0,0.0,36.0
+2026-06-29,voice journal app,0.0,1.0,0.0,33.0
+2026-06-29,voice journal app free,0.0,1.0,0.0,11.0
+2026-06-29,widevox,0.0,1.0,0.0,95.0
+2026-06-30,audio journaling app,0.0,1.0,0.0,34.0
+2026-06-30,best free journal app,0.0,3.0,0.0,70.66666666666667
+2026-06-30,best free journaling apps,0.0,1.0,0.0,72.0
+2026-06-30,best voice journaling apps 2026,0.0,1.0,0.0,15.0
+2026-06-30,dailyvox,0.0,2.0,0.0,1.0
+2026-06-30,journal private,0.0,1.0,0.0,64.0
+2026-06-30,journey cloud vs premium,0.0,2.0,0.0,25.5
+2026-06-30,speakwise voice journaling app,1.0,1.0,1.0,12.0
+2026-06-30,voice diaries,0.0,1.0,0.0,36.0
+2026-06-30,voice journaling apps,0.0,1.0,0.0,13.0
+2026-07-01,audio journal app,0.0,1.0,0.0,35.0
+2026-07-01,best free journal app,0.0,3.0,0.0,69.0
+2026-07-01,getdailyvox,0.0,1.0,0.0,1.0
+2026-07-01,journey cloud vs premium,0.0,2.0,0.0,25.0
+2026-07-01,nlp equipment for commuters,0.0,1.0,0.0,201.0
+2026-07-01,voice diary app,0.0,1.0,0.0,29.0
+2026-07-01,voice journal,0.0,1.0,0.0,44.0
+2026-07-01,voice journaling app,0.0,2.0,0.0,35.0
+2026-07-02,"""id widgetkit"" android",0.0,1.0,0.0,6.0
+2026-07-02,"""id widgetkit"" android app",0.0,2.0,0.0,5.5
+2026-07-02,anxiety journal app,0.0,1.0,0.0,43.0
+2026-07-02,best free journal app,0.0,2.0,0.0,69.5
+2026-07-02,dailyvox,2.0,2.0,1.0,1.0
+2026-07-02,gistvox,0.0,1.0,0.0,65.0
+2026-07-02,journey cloud vs premium,0.0,2.0,0.0,27.0
+2026-07-02,personal digital twin,0.0,1.0,0.0,43.0
+2026-07-03,"""sparkle.magnifyingglass"" sf symbols",0.0,13.0,0.0,9.538461538461538
+2026-07-03,audio journaling apps,0.0,2.0,0.0,50.0
+2026-07-03,best free journal app,0.0,1.0,0.0,66.0
+2026-07-03,dailyvox,0.0,2.0,0.0,1.0
+2026-07-03,journey cloud vs premium,0.0,2.0,0.0,26.0
+2026-07-03,personal digital twin,0.0,1.0,0.0,42.0
+2026-07-03,voice diary app,0.0,1.0,0.0,19.0
+2026-07-03,voice journal,0.0,1.0,0.0,53.0
+2026-07-03,voice journaling app,0.0,3.0,0.0,38.666666666666664
+2026-07-03,voice to text journal,0.0,1.0,0.0,43.0
+2026-07-03,voice to text journal app,0.0,1.0,0.0,35.0
+2026-07-04,"""sparkle.magnifyingglass"" sf symbols",0.0,8.0,0.0,9.25
+2026-07-04,best free journal app,0.0,2.0,0.0,68.0
+2026-07-04,dailyvox,2.0,3.0,0.6666666666666666,1.0
+2026-07-04,free journaling apps,0.0,1.0,0.0,81.0
+2026-07-04,journey cloud vs premium,0.0,1.0,0.0,34.0
+2026-07-04,personal digital twin,0.0,1.0,0.0,42.0
+2026-07-05,"""sparkle.magnifyingglass"" sf symbols",0.0,4.0,0.0,10.0
+2026-07-05,audio journal app,0.0,1.0,0.0,48.0
+2026-07-05,best free journal app,0.0,1.0,0.0,65.0
+2026-07-05,best free journal apps,0.0,1.0,0.0,64.0
+2026-07-05,best voice journaling apps,0.0,1.0,0.0,27.0
+2026-07-05,dailyvox,0.0,3.0,0.0,1.0
+2026-07-05,personal digital twin,0.0,1.0,0.0,42.0
+2026-07-05,voice diaries,0.0,1.0,0.0,43.0
+2026-07-05,voice diary app,0.0,1.0,0.0,47.0
+2026-07-05,voice journal app,0.0,1.0,0.0,46.0
+2026-07-05,vox daily,0.0,1.0,0.0,8.0
+2026-07-06,"""id widgetkit"" android",0.0,3.0,0.0,4.666666666666666
+2026-07-06,"""id widgetkit"" app",0.0,3.0,0.0,10.666666666666666
+2026-07-06,journey cloud vs premium,0.0,1.0,0.0,20.0
+2026-07-06,personal digital twin,0.0,1.0,0.0,30.0
+2026-07-07,audio journal app,0.0,1.0,0.0,40.0
+2026-07-07,audio journaling app,0.0,1.0,0.0,41.0
+2026-07-07,best voice journal app,0.0,1.0,0.0,9.0
+2026-07-07,dailyvox,0.0,1.0,0.0,1.0
+2026-07-07,dailywav,0.0,1.0,0.0,35.0
+2026-07-07,journey cloud vs premium,0.0,1.0,0.0,33.0
+2026-07-07,voice diary app,0.0,1.0,0.0,29.0
+2026-07-07,voice journaling app,0.0,2.0,0.0,64.0
+2026-07-08,"""id widgetkit"" android",0.0,2.0,0.0,4.5
+2026-07-08,"""id widgetkit"" app",0.0,1.0,0.0,11.0
+2026-07-08,audio journal app,0.0,3.0,0.0,35.333333333333336
+2026-07-08,dailyvox,0.0,1.0,0.0,1.0
+2026-07-08,digital twin of a person,0.0,1.0,0.0,37.0
+2026-07-08,personal digital twin,0.0,1.0,0.0,43.0
+2026-07-08,voice journaling app,0.0,1.0,0.0,34.0
+2026-07-08,voice journaling apps,0.0,1.0,0.0,11.0
+2026-07-09,anxiety journal app,0.0,1.0,0.0,17.0
+2026-07-09,journal software free,0.0,1.0,0.0,35.0
+2026-07-09,journey cloud vs premium,0.0,1.0,0.0,20.0
+2026-07-09,nltagger,0.0,1.0,0.0,45.0
+2026-07-09,voice diary,0.0,1.0,0.0,93.0
+2026-07-09,voice diary app,0.0,1.0,0.0,32.0
+2026-07-09,voice diary apps,0.0,1.0,0.0,25.0
+2026-07-09,voice journaling app,0.0,2.0,0.0,32.0
+2026-07-09,voice to text journal,0.0,1.0,0.0,47.0
+2026-07-10,audio journaling apps,0.0,1.0,0.0,44.0
+2026-07-10,journal app for anxiety,0.0,1.0,0.0,49.0
+2026-07-10,journey cloud vs premium,0.0,2.0,0.0,25.5
+2026-07-10,personal digital twin,0.0,2.0,0.0,32.5
+2026-07-10,voice diary,0.0,1.0,0.0,51.0
+2026-07-10,voice diary app,0.0,1.0,0.0,54.0
+2026-07-10,voice journaling app,0.0,2.0,0.0,38.0
+2026-07-10,voice to text journal app free,0.0,1.0,0.0,11.0
+2026-07-11,best voice journaling app,0.0,2.0,0.0,40.0
+2026-07-11,journey cloud vs premium,0.0,3.0,0.0,27.666666666666668
+2026-07-11,personal digital twin,0.0,3.0,0.0,48.333333333333336
+2026-07-11,vox daily,0.0,1.0,0.0,19.0
+2026-07-12,"""sparkle.magnifyingglass"" sf symbols",0.0,3.0,0.0,8.666666666666668
+2026-07-12,anxiety journal app,0.0,1.0,0.0,18.0
+2026-07-12,best app for journaling,0.0,1.0,0.0,74.0
+2026-07-12,journaling software free,0.0,1.0,0.0,79.0
+2026-07-12,personal digital twin,0.0,3.0,0.0,32.33333333333333
+2026-07-12,voice diary app,0.0,1.0,0.0,18.0
+2026-07-12,voice journal,0.0,1.0,0.0,30.0
+2026-07-12,voice to text journal,0.0,3.0,0.0,49.333333333333336
+2026-07-12,voice to text journaling app,0.0,1.0,0.0,36.0
+2026-07-13,best online journal,0.0,1.0,0.0,53.0
+2026-07-13,dailyvox,0.0,1.0,0.0,1.0
+2026-07-13,digital journal apps market,0.0,3.0,0.0,82.0
+2026-07-13,free journal app,0.0,1.0,0.0,43.0
+2026-07-13,is apple journal private,0.0,1.0,0.0,26.0
+2026-07-13,journal app free,0.0,2.0,0.0,41.0
+2026-07-13,journaling app free,0.0,1.0,0.0,68.0
+2026-07-13,personal digital twin,0.0,1.0,0.0,40.0
+2026-07-13,voice journal app free,0.0,1.0,0.0,31.0
+2026-07-13,voice journaling app,0.0,1.0,0.0,25.0
+2026-07-13,what is voice journaling,0.0,1.0,0.0,30.0
+2026-07-14,"""id widgetkit"" android",0.0,1.0,0.0,5.0
+2026-07-14,"""id widgetkit"" android app",0.0,5.0,0.0,5.0
+2026-07-14,"""id widgetkit"" app",0.0,1.0,0.0,11.0
+2026-07-14,anxiety journal app,0.0,1.0,0.0,39.0
+2026-07-14,audio journal app,0.0,3.0,0.0,38.666666666666664
+2026-07-14,audio journaling app,0.0,1.0,0.0,47.0
+2026-07-14,best free diary app,0.0,2.0,0.0,70.5
+2026-07-14,best free journal app,0.0,4.0,0.0,69.0
+2026-07-14,best free journaling app,0.0,1.0,0.0,74.0
+2026-07-14,best free online journal,0.0,1.0,0.0,65.0
+2026-07-14,best journaling app,0.0,1.0,0.0,60.0
+2026-07-14,best online free journal,0.0,1.0,0.0,63.0
+2026-07-14,digital journal apps market,0.0,3.0,0.0,85.33333333333333
+2026-07-14,free daily journal app,0.0,1.0,0.0,50.0
+2026-07-14,free journal app,0.0,1.0,0.0,10.0
+2026-07-14,free journal software,0.0,1.0,0.0,38.0
+2026-07-14,free online journaling app,0.0,1.0,0.0,42.0
+2026-07-14,journal free,0.0,1.0,0.0,59.0
+2026-07-14,journaling app vergleich,0.0,1.0,0.0,65.0
+2026-07-14,journey cloud vs premium,0.0,1.0,0.0,19.0
+2026-07-14,personal digital twin,0.0,2.0,0.0,34.0
+2026-07-14,purchase automatic speech to text journal,0.0,1.0,0.0,12.0
+2026-07-14,voice diary app,0.0,1.0,0.0,32.0
+2026-07-14,voice journal,0.0,1.0,0.0,45.0
+2026-07-14,voice journal app,0.0,1.0,0.0,35.0
+2026-07-14,voice journaling app,0.0,1.0,0.0,23.0
+2026-07-14,voice to text journal app free,0.0,1.0,0.0,11.0
+2026-07-15,best free journal,0.0,1.0,0.0,68.0
+2026-07-15,best free journal app,0.0,3.0,0.0,68.0
+2026-07-15,best journal app free,0.0,1.0,0.0,68.0
+2026-07-15,best journaling app free,0.0,1.0,0.0,66.0
+2026-07-15,best journaling apps free,0.0,1.0,0.0,68.0
+2026-07-15,digital journal apps market,0.0,4.0,0.0,85.5
+2026-07-15,digital twin of a person,0.0,1.0,0.0,30.0
+2026-07-15,free journal,0.0,1.0,0.0,82.0
+2026-07-15,journal apps free,0.0,1.0,0.0,83.0
+2026-07-15,journal cloud,0.0,1.0,0.0,24.0
+2026-07-15,journaling for sleep,0.0,1.0,0.0,76.0
+2026-07-15,journey cloud vs premium,0.0,2.0,0.0,31.0
+2026-07-15,personal digital twin,0.0,2.0,0.0,34.0
+2026-07-15,voice to text journal app free,0.0,1.0,0.0,11.0
+2026-07-16,best free journal app,0.0,2.0,0.0,65.5
+2026-07-16,best online journals,0.0,2.0,0.0,55.5
+2026-07-16,daily journal app free,0.0,1.0,0.0,57.0
+2026-07-16,digital journal apps market,0.0,5.0,0.0,82.4
+2026-07-16,journal app free,0.0,1.0,0.0,35.0
+2026-07-16,journaling app free,0.0,1.0,0.0,66.0
+2026-07-16,journey cloud vs premium,0.0,1.0,0.0,33.0
+2026-07-16,life vox,0.0,1.0,0.0,24.0
+2026-07-16,personal digital twin,0.0,1.0,0.0,40.0
+2026-07-16,voice diary,0.0,1.0,0.0,43.0
+2026-07-16,voice journaling app,0.0,2.0,0.0,51.0
+2026-07-16,voice to text journal,0.0,2.0,0.0,49.5
+2026-07-17,"""sparkle.magnifyingglass"" sf symbols",0.0,1.0,0.0,8.0
+2026-07-17,audio journal app,0.0,1.0,0.0,36.0
+2026-07-17,audio journaling apps,0.0,3.0,0.0,43.666666666666664
+2026-07-17,best free journal app,0.0,1.0,0.0,72.0
+2026-07-17,best free online journal,0.0,2.0,0.0,65.5
+2026-07-17,dailyvox,2.0,2.0,1.0,1.0
+2026-07-17,digital journal apps market,0.0,3.0,0.0,80.0
+2026-07-17,free journaling app,0.0,1.0,0.0,57.0
+2026-07-17,journal freeware,0.0,1.0,0.0,41.0
+2026-07-17,journaling apps for anxiety and depression,0.0,1.0,0.0,86.0
+2026-07-17,journey cloud vs premium,0.0,2.0,0.0,20.5
+2026-07-17,personal digital twin,0.0,1.0,0.0,19.0
+2026-07-17,secure journaling app,0.0,1.0,0.0,61.0
+2026-07-17,voice diary app,0.0,1.0,0.0,30.0
+2026-07-17,voice journal,0.0,1.0,0.0,39.0
+2026-07-17,voice journaling app,0.0,1.0,0.0,21.0
+2026-07-17,voice to text journal app,0.0,1.0,0.0,34.0
+2026-07-18,best free journal app,0.0,1.0,0.0,68.0
+2026-07-18,best voice journaling apps,0.0,1.0,0.0,28.0
+2026-07-18,digital journal apps market,0.0,3.0,0.0,87.0
+2026-07-18,is there a free journal app,0.0,1.0,0.0,35.0
+2026-07-18,journey cloud vs premium,0.0,1.0,0.0,21.0
+2026-07-18,personal digital twin,0.0,1.0,0.0,19.0
+2026-07-18,voice diary app,0.0,1.0,0.0,11.0
+2026-07-18,voice to text journal app free,0.0,1.0,0.0,11.0
+2026-07-18,vox daily,0.0,1.0,0.0,2.0
+2026-07-19,"""sparkle.magnifyingglass"" sf symbols",0.0,2.0,0.0,7.5
+2026-07-19,automated speech to text family journal review,0.0,1.0,0.0,82.0
+2026-07-19,best free journal app,0.0,1.0,0.0,68.0
+2026-07-19,best journaling app,0.0,1.0,0.0,74.0
+2026-07-19,digital journal apps market,0.0,1.0,0.0,90.0
+2026-07-19,dillivox,0.0,2.0,0.0,7.0
+2026-07-19,free audio journal app,0.0,1.0,0.0,39.0
+2026-07-19,journal freeware,0.0,1.0,0.0,53.0
+2026-07-19,journaling before bed,0.0,3.0,0.0,46.666666666666664
+2026-07-19,personal digital twin,0.0,1.0,0.0,23.0
+2026-07-19,purchase automatic speech to text journal,0.0,1.0,0.0,19.0
+2026-07-19,voice journal,0.0,2.0,0.0,23.5
+2026-07-20,best free diary app,0.0,1.0,0.0,73.0
+2026-07-20,best free journal app,0.0,1.0,0.0,71.0
+2026-07-20,best free online journal,0.0,1.0,0.0,64.0
+2026-07-20,best voice journal app,0.0,2.0,0.0,16.5
+2026-07-20,cheap version digital journaling apps with cloud sync options in israel,0.0,1.0,0.0,9.0
+2026-07-20,cheap version digital journaling apps with cloud sync options in united states,0.0,1.0,0.0,10.0
+2026-07-20,dailyvox,0.0,1.0,0.0,1.0
+2026-07-20,digital journal apps market,0.0,2.0,0.0,87.0
+2026-07-20,free daily journal app,0.0,1.0,0.0,46.0
+2026-07-20,free journal software,0.0,1.0,0.0,63.0
+2026-07-20,is penzu free,0.0,1.0,0.0,9.0
+2026-07-20,journaling for sleep,0.0,1.0,0.0,75.0
+2026-07-20,journey cloud vs premium,0.0,1.0,0.0,21.0
+2026-07-20,personal digital twin,0.0,1.0,0.0,21.0
+2026-07-20,sleep journaling,0.0,1.0,0.0,81.0
+2026-07-20,voice diary app,0.0,1.0,0.0,22.0
+2026-07-20,voice journal app,0.0,2.0,0.0,32.0
+2026-07-20,voice journaling app,0.0,1.0,0.0,40.0
+2026-07-20,voice to text journal app free,0.0,2.0,0.0,10.5
+2026-07-20,vox daily,0.0,1.0,0.0,17.0
+2026-07-21,anxiety journal app,0.0,1.0,0.0,35.0
+2026-07-21,audio journal app,0.0,2.0,0.0,37.0
+2026-07-21,audio journaling app,0.0,2.0,0.0,39.0
+2026-07-21,best free journal app,0.0,4.0,0.0,46.5
+2026-07-21,best online journals,0.0,1.0,0.0,60.0
+2026-07-21,best online journals free,0.0,1.0,0.0,67.0
+2026-07-21,cheap version digital journaling apps with cloud sync options in israel,0.0,1.0,0.0,8.0
+2026-07-21,digital journal apps market,0.0,2.0,0.0,81.0
+2026-07-21,free journal apps,0.0,1.0,0.0,66.0
+2026-07-21,free journal software,0.0,1.0,0.0,58.0
+2026-07-21,free journaling apps,0.0,1.0,0.0,54.0
+2026-07-21,journey cloud vs premium,0.0,3.0,0.0,19.0
+2026-07-21,personal digital twin,0.0,3.0,0.0,11.333333333333334
+2026-07-21,voice diary app,0.0,1.0,0.0,25.0
+2026-07-21,voice journal app,0.0,2.0,0.0,13.0
+2026-07-21,voice journaling app,0.0,1.0,0.0,17.0
+2026-07-21,voice journals,0.0,1.0,0.0,32.0
+2026-07-22,audio journal that transcribes,0.0,1.0,0.0,24.0
+2026-07-22,dailyvox,1.0,2.0,0.5,1.0
+2026-07-22,digital journal apps market,0.0,3.0,0.0,83.66666666666667
+2026-07-22,digital twin of a person,0.0,2.0,0.0,30.5
+2026-07-22,is the journal app private,0.0,1.0,0.0,11.0
+2026-07-22,journaling apps free,0.0,1.0,0.0,79.0
+2026-07-22,personal digital twin,0.0,1.0,0.0,19.0
+2026-07-22,voice journal,0.0,1.0,0.0,5.0
+2026-07-22,voice journaling app,0.0,1.0,0.0,19.0
+2026-07-22,widevox,0.0,2.0,0.0,71.0
+2026-07-23,ai journaling app,0.0,1.0,0.0,49.0
+2026-07-23,audio journal app,0.0,1.0,0.0,31.0
+2026-07-23,best journaling app,0.0,1.0,0.0,75.0
+2026-07-23,best online journals,0.0,1.0,0.0,59.0
+2026-07-23,best voice journal app,0.0,1.0,0.0,14.0
+2026-07-23,cheap version digital journaling apps with cloud sync options in israel,0.0,1.0,0.0,8.0
+2026-07-23,digital journal apps market,0.0,2.0,0.0,91.0
+2026-07-23,dillivox,0.0,2.0,0.0,8.0
+2026-07-23,journey cloud vs premium,0.0,1.0,0.0,18.0
+2026-07-23,personal digital twin,0.0,1.0,0.0,22.0
+2026-07-23,voice diary,0.0,2.0,0.0,27.0
+2026-07-23,voice diary app,0.0,2.0,0.0,26.0
+2026-07-23,voice journaling app,0.0,1.0,0.0,31.0
+2026-07-23,zlvox,0.0,1.0,0.0,58.0
+2026-07-24,audio journaling apps,0.0,1.0,0.0,45.0
+2026-07-24,best free journal app,0.0,2.0,0.0,70.5
+2026-07-24,best journaling app,0.0,1.0,0.0,76.0
+2026-07-24,cheap version digital journaling apps with cloud sync options in israel,0.0,1.0,0.0,8.0
+2026-07-24,digital journal apps market,0.0,3.0,0.0,85.0
+2026-07-24,journal freeware,0.0,2.0,0.0,45.5
+2026-07-24,journey cloud vs premium,0.0,1.0,0.0,18.0
+2026-07-24,personal digital twin,0.0,1.0,0.0,20.0
+2026-07-24,pix2vox,0.0,1.0,0.0,50.0
+2026-07-24,voice journal app,0.0,1.0,0.0,18.0
+2026-07-24,voice to text journal,0.0,1.0,0.0,10.0
+2026-07-24,voice to text journal app free,0.0,1.0,0.0,10.0
+2026-07-25,ai journaling,0.0,2.0,0.0,57.0
+2026-07-25,ai journaling app,0.0,1.0,0.0,20.0
+2026-07-25,ai powered journaling app,0.0,1.0,0.0,15.0
+2026-07-25,anxiety journal app,0.0,1.0,0.0,35.0
+2026-07-25,audio journal app,0.0,1.0,0.0,33.0
+2026-07-25,audio journal apps,0.0,1.0,0.0,35.0
+2026-07-25,dailyvox,1.0,1.0,1.0,1.0
+2026-07-25,digital journal apps market,0.0,3.0,0.0,82.0
+2026-07-25,free journal app,0.0,3.0,0.0,53.0
+2026-07-25,free journal apps,0.0,1.0,0.0,42.0
+2026-07-25,journal ai,0.0,1.0,0.0,58.0
+2026-07-25,journey cloud vs premium,0.0,1.0,0.0,18.0
+2026-07-25,personal digital twin,0.0,1.0,0.0,20.0
+2026-07-25,purchase automatic speech to text journal,0.0,1.0,0.0,7.0
+2026-07-25,voice diary,0.0,1.0,0.0,29.0
+2026-07-25,voice journal,0.0,2.0,0.0,35.0
+2026-07-25,voice journal app free,0.0,1.0,0.0,10.0
+2026-07-26,ai journaling app,0.0,1.0,0.0,49.0
+2026-07-26,ai powered journaling app,0.0,2.0,0.0,46.5
+2026-07-26,best free journal app,0.0,2.0,0.0,70.0
+2026-07-26,best voice journaling apps 2026,0.0,1.0,0.0,14.0
+2026-07-26,cheap version digital journaling apps with cloud sync options in united states,0.0,1.0,0.0,9.0
+2026-07-26,dailyvox,1.0,1.0,1.0,1.0
+2026-07-26,diary software free,0.0,1.0,0.0,48.0
+2026-07-26,free journal software,0.0,2.0,0.0,44.0
+2026-07-26,free journal writing software,0.0,1.0,0.0,50.0
+2026-07-26,is diarium safe,0.0,2.0,0.0,9.0
+2026-07-26,is penzu free,0.0,1.0,0.0,23.0
+2026-07-26,journal ai,0.0,1.0,0.0,42.0
+2026-07-26,journal for free,0.0,2.0,0.0,78.5
+2026-07-26,journal software free,0.0,2.0,0.0,45.5
+2026-07-26,journey cloud vs premium,0.0,1.0,0.0,19.0
+2026-07-26,personal digital twin,0.0,1.0,0.0,20.0
+2026-07-26,purchase automatic speech to text journal,0.0,1.0,0.0,7.0
+2026-07-26,voice journaling app,0.0,1.0,0.0,33.0
+2026-07-26,voice to text journal,0.0,1.0,0.0,18.0
+2026-07-27,best free journal app,0.0,1.0,0.0,71.0
+2026-07-27,dailyvox,0.0,2.0,0.0,1.0
+2026-07-27,is penzu free,0.0,1.0,0.0,9.0
+2026-07-27,journal ai,0.0,1.0,0.0,57.0
+2026-07-27,journey cloud vs premium,0.0,2.0,0.0,26.5
+2026-07-27,offline journal app,0.0,3.0,0.0,12.0
+2026-07-27,personal digital twin,0.0,1.0,0.0,22.0
+2026-07-27,private diary apps,0.0,1.0,0.0,34.0
+2026-07-27,tw vox,0.0,1.0,0.0,45.0
+2026-07-27,voice diary app,0.0,2.0,0.0,34.0
+2026-07-27,voice journaling app,0.0,4.0,0.0,33.5
+2026-07-27,vox daily,0.0,1.0,0.0,8.0
+2026-07-28,ai journal app,0.0,2.0,0.0,64.0
+2026-07-28,ai journaling app,0.0,1.0,0.0,48.0
+2026-07-28,audio journal app,0.0,3.0,0.0,34.0
+2026-07-28,audio journaling app,0.0,2.0,0.0,39.0
+2026-07-28,best ai journal app,0.0,1.0,0.0,83.0
+2026-07-28,best free diary app,0.0,2.0,0.0,70.0
+2026-07-28,best free journal,0.0,1.0,0.0,10.0
+2026-07-28,best free journal app,0.0,2.0,0.0,68.5
+2026-07-28,best voice journaling apps,0.0,1.0,0.0,26.0
+2026-07-28,daily vox,0.0,1.0,0.0,1.0
+2026-07-28,digital twin of a person,0.0,1.0,0.0,33.0
+2026-07-28,how secure is apple journal,0.0,3.0,0.0,26.666666666666668
+2026-07-28,is penzu free,0.0,1.0,0.0,9.0
+2026-07-28,journal ai,0.0,2.0,0.0,59.5
+2026-07-28,journey cloud vs premium,0.0,2.0,0.0,27.0
+2026-07-28,personal digital twin,0.0,2.0,0.0,28.5
+2026-07-28,private journal app,0.0,1.0,0.0,50.0
+2026-07-28,secure journal app,0.0,3.0,0.0,61.0
+2026-07-28,voice diary app,0.0,5.0,0.0,26.2
+2026-07-28,voice journal,0.0,4.0,0.0,50.25
+2026-07-28,voice journal app,0.0,1.0,0.0,33.0
+2026-07-28,voice journaling app,0.0,1.0,0.0,40.0
+2026-07-28,voice to text diary,0.0,2.0,0.0,42.0
+2026-07-28,widevox,0.0,1.0,0.0,96.0
+2026-07-29,best free journal app,0.0,3.0,0.0,71.33333333333333
+2026-07-29,best free online journal,0.0,1.0,0.0,66.0
+2026-07-29,best journaling app,0.0,1.0,0.0,65.0
+2026-07-29,dailyvox,0.0,1.0,0.0,1.0
+2026-07-29,journal ai,0.0,1.0,0.0,56.0
+2026-07-29,journey cloud vs premium,0.0,1.0,0.0,34.0
+2026-07-29,private journal app,0.0,1.0,0.0,51.0
+2026-07-29,ultravox realtime,0.0,1.0,0.0,44.0
+2026-07-30,ai assisted journaling app,0.0,5.0,0.0,47.8
+2026-07-30,ai daily journal,0.0,3.0,0.0,38.666666666666664
+2026-07-30,ai journal app,0.0,2.0,0.0,66.5
+2026-07-30,ai journaling app,0.0,3.0,0.0,61.666666666666664
+2026-07-30,ai powered journaling apps,0.0,1.0,0.0,67.0
+2026-07-30,app for journaling free,0.0,1.0,0.0,87.0
+2026-07-30,best ai journaling apps,0.0,1.0,0.0,86.0
+2026-07-30,best audio journal app,0.0,1.0,0.0,43.0
+2026-07-30,best free diary app,0.0,1.0,0.0,72.0
+2026-07-30,best free journal app,0.0,3.0,0.0,72.0
+2026-07-30,best free journal publication,0.0,1.0,0.0,57.0
+2026-07-30,best journal app free,0.0,1.0,0.0,72.0
+2026-07-30,best journaling app,0.0,2.0,0.0,73.5
+2026-07-30,best journaling apps for free,0.0,1.0,0.0,70.0
+2026-07-30,best secure journal app,0.0,2.0,0.0,50.0
+2026-07-30,free digital journal app,0.0,1.0,0.0,39.0
+2026-07-30,free journal app,0.0,1.0,0.0,67.0
+2026-07-30,free journal apps,0.0,1.0,0.0,68.0
+2026-07-30,free journal software,0.0,1.0,0.0,62.0
+2026-07-30,journal ai,0.0,2.0,0.0,56.5
+2026-07-30,journal free app,0.0,1.0,0.0,42.0
+2026-07-30,journal software free,0.0,1.0,0.0,25.0
+2026-07-30,journaling before sleep,0.0,1.0,0.0,37.0
+2026-07-30,journaling for better sleep,0.0,1.0,0.0,97.0
+2026-07-30,journaling for sleep,0.0,1.0,0.0,78.0
+2026-07-30,journey cloud vs premium,0.0,3.0,0.0,24.333333333333332
+2026-07-30,private journal app,0.0,1.0,0.0,49.0
+2026-07-30,the daily wav,0.0,1.0,0.0,44.0
+2026-07-30,voice diary,0.0,1.0,0.0,46.0
+2026-07-30,voice diary app,0.0,1.0,0.0,28.0
+2026-07-30,voice journaling app,0.0,2.0,0.0,39.0
+2026-07-30,voice note diary app,0.0,1.0,0.0,19.0
+2026-07-30,voice to text journal,0.0,1.0,0.0,45.0

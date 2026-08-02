@@ -1,3 +1,1 @@
-# SQLite is binary and unmergeable. CI is the only writer; on the rare conflict keep ours
-# rather than producing a merge that cannot be resolved. Requires: git config merge.ours.driver true
-state/*.db binary merge=ours
+# state/*.csv is text and merges normally — that is the point.

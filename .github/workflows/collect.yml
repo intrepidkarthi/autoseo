@@ -60,6 +60,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AUTOSEO_INSPECT_LIMIT: ${{ github.event.inputs.inspect_limit || '200' }}
         run: |
+          autoseo restore
           if [ "${{ github.event.inputs.diagnose }}" = "true" ]; then
             autoseo diagnose
             exit 0
@@ -81,12 +82,13 @@ jobs:
             autoseo outreach
           fi
           autoseo brief
+          autoseo snapshot
 
       - name: Commit state
         run: |
           git config user.name  "autoseo[bot]"
           git config user.email "autoseo@users.noreply.github.com"
-          git add -A -f state/
+          git add -A state/
           if git diff --staged --quiet; then
             echo "No state changes."
           else
