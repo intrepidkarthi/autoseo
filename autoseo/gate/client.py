@@ -124,6 +124,8 @@ def poll_updates() -> list[dict]:
     if offset:
         params["offset"] = int(offset) + 1
     updates = _call("getUpdates", **params)
+    log.info("poll: sent offset=%s, got %d update(s) %s",
+             params.get("offset"), len(updates), [u.get("update_id") for u in updates])
     if updates:
         _state_set("update_offset", updates[-1]["update_id"])
     return updates
