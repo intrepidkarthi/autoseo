@@ -77,3 +77,5 @@ id,started,command,ok,detail
 76,2026-08-03T06:06:59+00:00,gsc,0,"GSC_SERVICE_ACCOUNT_JSON is not set.
   Local: add it to .env (see .env.example)
   CI:    GitHub -> autoseo -> Settings -> Environments -> read"
+77,2026-08-03T06:07:36+00:00,restore,1,
+78,2026-08-03T06:07:37+00:00,gate,1,
