@@ -147,6 +147,20 @@ def poll_updates() -> list[dict]:
     return fresh
 
 
+def already_seen(update_ids: set) -> set:
+    """Which of these have we acted on before? Telegram retries a webhook until it gets a 2xx, so
+    the same approval can legitimately arrive several times."""
+    ids = {int(i) for i in update_ids if i is not None}
+    if not ids:
+        return set()
+    with session() as conn:
+        rows = conn.execute(
+            f"SELECT update_id FROM gate_seen WHERE update_id IN ({','.join('?' * len(ids))})",
+            tuple(ids),
+        ).fetchall()
+    return {r["update_id"] for r in rows}
+
+
 def confirm(update_ids: list[int]) -> None:
     """Record ids as handled, then let Telegram release them.
 
@@ -164,7 +178,9 @@ def confirm(update_ids: list[int]) -> None:
     try:
         _call("getUpdates", offset=max(update_ids) + 1, limit=1)
     except RuntimeError as exc:
-        log.warning("could not confirm updates with telegram: %s", exc)
+        # Expected once a webhook is registered: Telegram returns 409 for getUpdates. Nothing to
+        # confirm in that mode — the webhook already delivered it.
+        log.info("skipping getUpdates confirm (normal in webhook mode): %s", exc)
 
 
 def dump_state() -> str:

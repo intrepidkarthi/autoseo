@@ -10,6 +10,13 @@ name: gate
 # send messages, but cannot post anything anywhere.
 
 on:
+  # Primary path: the Cloudflare worker forwards each Telegram update the instant it arrives.
+  repository_dispatch:
+    types: [telegram_update]
+
+  # Safety net. With a webhook registered getUpdates returns 409, so this no longer collects
+  # decisions — it exists to deliver any cards queued by other jobs and to prove the gate still
+  # runs. GitHub honours this roughly hourly regardless of the interval requested.
   schedule:
     - cron: "*/20 * * * *"
   workflow_dispatch:
@@ -51,15 +58,20 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DISPATCHED_UPDATE: ${{ toJSON(github.event.client_payload.update) }}
         run: |
           autoseo restore
           if [ "${{ github.event.inputs.raw }}" = "true" ]; then
             autoseo gate --raw
             exit 0
           fi
-          autoseo gate \
-            ${{ github.event.inputs.test_card == 'true' && '--test-card' || '' }} \
-            --queue-outreach ${{ github.event.inputs.queue_outreach || '0' }}
+          if [ -n "$DISPATCHED_UPDATE" ] && [ "$DISPATCHED_UPDATE" != "null" ]; then
+            autoseo gate --update "$DISPATCHED_UPDATE"
+          else
+            autoseo gate \
+              ${{ github.event.inputs.test_card == 'true' && '--test-card' || '' }} \
+              --queue-outreach ${{ github.event.inputs.queue_outreach || '0' }}
+          fi
           autoseo snapshot
 
       - name: Commit state

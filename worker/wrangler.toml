@@ -1,0 +1,11 @@
+name = "autoseo-gate"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+[vars]
+GITHUB_REPO = "intrepidkarthi/autoseo"
+
+# Secrets are set with `wrangler secret put`, never in this file:
+#   TELEGRAM_BOT_TOKEN   the BotFather token
+#   GITHUB_TOKEN         fine-grained PAT, autoseo only, Contents: read+write
+#   WEBHOOK_SECRET       any random string; Telegram echoes it back for verification

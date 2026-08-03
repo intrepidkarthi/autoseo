@@ -176,7 +176,10 @@ def _run_gate(args) -> None:
             queue.add(d)
         print(f"  queued {len(drafts)} outreach pitch(es)")
 
-    processed = cards.process_updates()
+    if args.update:
+        processed = cards.process_one(args.update)
+    else:
+        processed = cards.process_updates()
     sent = cards.send_pending()
     print(f"  decisions processed: {processed}   cards sent: {sent}")
 
@@ -237,6 +240,9 @@ def main(argv: list[str] | None = None) -> int:
     p_gate.add_argument("--queue-outreach", type=int, default=0, metavar="N",
                         help="draft pitches for the top N outreach targets")
     p_gate.add_argument("--status", action="store_true")
+    p_gate.add_argument("--update", metavar="JSON",
+                        help="process one Telegram update handed in by the webhook dispatch "
+                             "(a webhook disables getUpdates, so the payload must be passed in)")
     p_gate.add_argument("--raw", action="store_true",
                         help="dump what getUpdates actually returns, without consuming it")
 

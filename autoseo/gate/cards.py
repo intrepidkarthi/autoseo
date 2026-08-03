@@ -71,13 +71,41 @@ DECISIONS = {
 }
 
 
+def process_one(payload: str) -> int:
+    """Handle a single update delivered by the Cloudflare worker.
+
+    Setting a Telegram webhook disables getUpdates entirely (409), so once the worker is live this
+    is the only path that sees callbacks. It deliberately shares dedupe and decision recording with
+    the polling path, so a decision cannot be double-applied if Telegram retries the webhook.
+    """
+    import json as _json
+
+    try:
+        update = _json.loads(payload)
+    except ValueError as exc:
+        log.error("could not parse dispatched update: %s", exc)
+        return 0
+    if "update" in update:          # the worker nests it under client_payload.update
+        update = update["update"]
+    return _handle([update])
+
+
 def process_updates() -> int:
     """Resolve button taps into decisions. Idempotent: the update offset is persisted, so a retried
     run cannot act on the same tap twice."""
+    return _handle(client.poll_updates())
+
+
+def _handle(updates: list[dict]) -> int:
     handled = 0
     seen_ids: list[int] = []
-    for update in client.poll_updates():
-        seen_ids.append(update["update_id"])
+    already = client.already_seen({u.get("update_id") for u in updates})
+    for update in updates:
+        uid = update.get("update_id")
+        if uid in already:
+            log.info("update %s already handled — skipping", uid)
+            continue
+        seen_ids.append(uid)
         cb = update.get("callback_query")
         if not cb:
             continue
