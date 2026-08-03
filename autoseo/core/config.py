@@ -60,6 +60,7 @@ class Settings:
     gemini_api_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
     telegram_bot_token: str = field(default_factory=lambda: _env("TELEGRAM_BOT_TOKEN"))
     telegram_chat_id: str = field(default_factory=lambda: _env("TELEGRAM_CHAT_ID"))
+    gh_dailyvox_token: str = field(default_factory=lambda: _env("GH_DAILYVOX_TOKEN"))
 
     @property
     def state_dir(self) -> Path:

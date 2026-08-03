@@ -39,6 +39,7 @@ TABLES: tuple[str, ...] = (
     "queue_item",
     "gate_state",
     "gate_seen",
+    "corpus_shingle",
 )
 
 # Sort keys chosen to be stable and to group related rows together in the diff.
@@ -56,6 +57,7 @@ SORT_KEYS: dict[str, str] = {
     "queue_item": "id",
     "gate_state": "key",
     "gate_seen": "update_id",
+    "corpus_shingle": "url",
 }
 
 

@@ -12,6 +12,10 @@
     autoseo aeo [--tier core|extended|all]  ask buyer questions, record what gets cited
     autoseo outreach [--days N]             pages worth getting listed on
     autoseo report                          print the indexation report
+    autoseo index-corpus --public-dir P     shingle the site for duplication checks
+    autoseo draft [--top N] [--queue]       write posts against measured demand
+    autoseo publish [--dry-run]             open PRs for approved drafts
+    autoseo check FILE                      run the quality gate over a draft
     autoseo snapshot / restore              state <-> state/*.csv (git-mergeable)
     autoseo collect                         gsc + bing + inspect + report  (what CI runs)
 """
@@ -113,6 +117,75 @@ def _print_outreach(days: int, top: int) -> None:
             print(f"      names : {', '.join(t.competitors_named)}")
         print(f"      angle : {t.angle}")
     print()
+
+
+def _run_draft(args) -> None:
+    """Draft against the highest-value measured opportunities, and optionally queue for approval."""
+    import json as _json
+
+    from autoseo.compose import blog
+    from autoseo.decide import brief
+    from autoseo.gate import queue
+    from autoseo.gate.queue import Item
+
+    actions = [a for a in brief.build(days=90) if a.kind == "improve-page"][: args.top]
+    if not actions:
+        print("  No reachable opportunities. Nothing worth writing today.")
+        return
+
+    for action in actions:
+        print(f"\n  drafting for '{action.query}' (position {action.position:.1f})")
+        draft = blog.write(action)
+        if not draft:
+            print("    dropped — failed the quality gate twice")
+            continue
+        print(f"    {draft.title}")
+        print(f"    {draft.verdict.summary()}")
+        if args.dry_run:
+            print(f"\n{draft.markdown[:500]}\n    ...")
+            continue
+        if args.queue:
+            queue.add(Item(
+                kind="blog", channel="blog", title=draft.title,
+                body=draft.markdown[:3000],
+                rationale=f"{action.evidence} | {draft.verdict.summary()}",
+                meta={"slug": draft.slug, "query": action.query,
+                      "markdown": draft.markdown, "description": draft.description,
+                      "evidence": action.evidence},
+            ))
+            print("    queued for approval")
+
+
+def _run_publish(args) -> None:
+    """Open PRs for blog items that were approved in Telegram."""
+    from autoseo.compose.blog import Draft
+    from autoseo.gate import queue
+    from autoseo.gate.queue import Status
+    from autoseo.publish import blog as publisher
+    from autoseo.quality import gate as qgate
+
+    items = [i for i in queue.approved_unposted() if i.channel == "blog"]
+    if not items:
+        print("  Nothing approved and waiting.")
+        return
+
+    for item in items:
+        meta = item.meta
+        draft = Draft(
+            slug=meta.get("slug", ""), title=item.title,
+            description=meta.get("description", ""), markdown=meta.get("markdown", item.body),
+            target_query=meta.get("query", ""), evidence=meta.get("evidence", ""),
+            verdict=qgate.Verdict(passed=True),
+        )
+        try:
+            url = publisher.publish(draft, dry_run=args.dry_run)
+        except Exception as exc:  # noqa: BLE001 — one bad item must not stop the rest
+            log.error("publish failed for %s: %s", item.title, exc)
+            queue.decide(item.id, Status.FAILED, by="publish")
+            continue
+        if not args.dry_run:
+            queue.decide(item.id, Status.POSTED, by="publish")
+            print(f"  {url}")
 
 
 def _run_gate(args) -> None:
@@ -265,6 +338,20 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("bing", help="pull Bing Webmaster stats")
     sub.add_parser("report", help="print the indexation report")
+    p_idx = sub.add_parser("index-corpus", help="shingle the existing site for duplication checks")
+    p_idx.add_argument("--public-dir", type=Path, required=True)
+
+    p_draft = sub.add_parser("draft", help="write a post against the top measured opportunity")
+    p_draft.add_argument("--top", type=int, default=1, help="how many opportunities to draft for")
+    p_draft.add_argument("--queue", action="store_true", help="send drafts to the Telegram gate")
+    p_draft.add_argument("--dry-run", action="store_true")
+
+    p_pub = sub.add_parser("publish", help="open PRs for approved drafts")
+    p_pub.add_argument("--dry-run", action="store_true")
+
+    p_chk = sub.add_parser("check", help="run the quality gate over a file")
+    p_chk.add_argument("path", type=Path)
+
     sub.add_parser("snapshot", help="write state/*.csv from the database")
     sub.add_parser("restore", help="rebuild the database from state/*.csv")
 
@@ -325,6 +412,28 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "report":
             _print_report()
+
+        elif args.command == "draft":
+            _run_draft(args)
+
+        elif args.command == "publish":
+            _run_publish(args)
+
+        elif args.command == "index-corpus":
+            from autoseo.quality import plagiarism
+            n = plagiarism.build_index(args.public_dir)
+            print(f"  indexed {n} pages")
+
+        elif args.command == "check":
+            from autoseo.quality import gate
+            v = gate.evaluate(args.path.read_text(encoding="utf-8"))
+            print(f"\n  {v.summary()}\n")
+            for r in v.reasons:
+                print(f"    BLOCK  {r}")
+            for w in v.warnings[:8]:
+                print(f"    warn   {w}")
+            print()
+            return 0 if v.passed else 1
 
         elif args.command == "snapshot":
             from autoseo.core import snapshot

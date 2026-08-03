@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autoseo.core.config import settings
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 SCHEMA = """
 -- Phase 0: measurement -------------------------------------------------------
@@ -181,6 +181,14 @@ CREATE TABLE IF NOT EXISTS gate_state (
 CREATE TABLE IF NOT EXISTS gate_seen (
     update_id INTEGER PRIMARY KEY,
     ts        TEXT NOT NULL
+);
+
+-- Shingle index of the existing site, for duplication checking. Hashes only: the index stays small
+-- enough to commit and reveals nothing about page content. Built locally from public/, used in CI.
+CREATE TABLE IF NOT EXISTS corpus_shingle (
+    url    TEXT PRIMARY KEY,
+    n      INTEGER NOT NULL,
+    hashes TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS meta (
