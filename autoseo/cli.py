@@ -123,6 +123,18 @@ def _run_gate(args) -> None:
         # Deliberately does NOT advance the offset — inspecting the queue must not consume it.
         import json as _json
         from autoseo.gate.client import _call
+        # Isolate which parameter suppresses the result: same method, four variants.
+        for label, kw in [
+            ("no params            ", {}),
+            ("limit=100            ", {"limit": 100}),
+            ("timeout=0,limit=100  ", {"timeout": 0, "limit": 100}),
+            ("offset=31484907      ", {"timeout": 0, "limit": 100, "offset": 31484907}),
+        ]:
+            try:
+                r = _call("getUpdates", **kw)
+                print(f"    {label} -> {len(r)} update(s) {[u.get('update_id') for u in r]}")
+            except Exception as exc:
+                print(f"    {label} -> ERROR {exc}")
         updates = _call("getUpdates", limit=100)
         print(f"\n  {len(updates)} pending update(s)")
         for u in updates:
