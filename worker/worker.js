@@ -59,6 +59,41 @@ export default {
       return Response.json({ target: url.origin, telegram: body });
     }
 
+    /**
+     * GET /diag — check the GitHub credential without side effects.
+     *
+     * A failing dispatch surfaces to Telegram only as "500 Internal Server Error", which says
+     * nothing about the cause. This reports which secrets are present (never their values) and what
+     * GitHub says about the token, so a misconfigured or under-scoped token is one request away
+     * from being identified instead of requiring dashboard log access.
+     */
+    if (request.method === "GET" && url.pathname === "/diag") {
+      const present = {
+        TELEGRAM_BOT_TOKEN: Boolean(env.TELEGRAM_BOT_TOKEN),
+        GITHUB_TOKEN: Boolean(env.GITHUB_TOKEN),
+        WEBHOOK_SECRET: Boolean(env.WEBHOOK_SECRET),
+        GITHUB_REPO: env.GITHUB_REPO ?? null,
+      };
+      let github = { checked: false };
+      if (env.GITHUB_TOKEN && env.GITHUB_REPO) {
+        // A plain repo read: proves the token is valid and can see the repo, with no side effect.
+        const r = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}`, {
+          headers: {
+            authorization: `Bearer ${env.GITHUB_TOKEN}`,
+            accept: "application/vnd.github+json",
+            "user-agent": "autoseo-gate-worker",
+          },
+        });
+        const body = await r.text();
+        github = {
+          checked: true,
+          status: r.status,
+          message: r.ok ? "token can read the repo" : body.slice(0, 200),
+        };
+      }
+      return Response.json({ secrets_present: present, github });
+    }
+
     /** GET /status — webhook health, with the token stripped from Telegram's reply. */
     if (request.method === "GET" && url.pathname === "/status") {
       const res = await fetch(
