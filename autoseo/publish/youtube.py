@@ -15,8 +15,10 @@ Two facts worth keeping visible:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
+import httpx
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -42,6 +44,45 @@ def _credentials() -> Credentials:
     if not creds.valid and creds.expired and creds.refresh_token:
         creds.refresh(Request())
     return creds
+
+
+def fetch_render(run_id: str, artifact: str = "short", dest_dir: Path = Path("state/media")) -> Path:
+    """Download a rendered video from the artifact of the run that produced it.
+
+    Render and upload happen on different runners, and state/media/ is gitignored, so there is no
+    shared filesystem between them. Artifacts are the free way across: the GITHUB_TOKEN already
+    available to the job can read them, they survive 14 days, and nothing large enters the repo.
+    """
+    import io
+    import zipfile
+
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if not token:
+        raise ConfigError("GITHUB_TOKEN is not set; it is needed to fetch the render artifact.")
+    headers = {"authorization": f"Bearer {token}", "accept": "application/vnd.github+json"}
+
+    listing = httpx.get(
+        f"https://api.github.com/repos/{os.environ.get('GITHUB_REPOSITORY', 'intrepidkarthi/autoseo')}"
+        f"/actions/runs/{run_id}/artifacts",
+        headers=headers, timeout=60.0,
+    )
+    listing.raise_for_status()
+    match = next((a for a in listing.json().get("artifacts", []) if a["name"] == artifact), None)
+    if not match:
+        raise RuntimeError(
+            f"no artifact '{artifact}' on run {run_id} — it may have expired (artifacts last 14 days)"
+        )
+
+    blob = httpx.get(match["archive_download_url"], headers=headers, follow_redirects=True,
+                     timeout=300.0)
+    blob.raise_for_status()
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(io.BytesIO(blob.content)) as zf:
+        name = next(n for n in zf.namelist() if n.endswith(".mp4"))
+        out = dest_dir / Path(name).name
+        out.write_bytes(zf.read(name))
+    log.info("fetched %s (%.1f MB) from run %s", out.name, out.stat().st_size / 1_048_576, run_id)
+    return out
 
 
 def upload(video: Path, title: str, description: str, tags: list[str] | None = None,

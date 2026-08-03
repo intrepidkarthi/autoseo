@@ -156,6 +156,25 @@ def send_document(filename: str, content: str, caption: str = "") -> int:
     return int(payload["result"]["message_id"])
 
 
+def send_video(path, caption: str = "") -> int:
+    """Upload the rendered file itself. Bots can send up to 50 MB, and a Short is ~10 MB.
+
+    Approving a video you cannot watch is the same mistake as approving an article you can only
+    half-read: the gate stops being a judgement and becomes a reflex.
+    """
+    with open(path, "rb") as fh:
+        resp = httpx.post(
+            API.format(token=settings.telegram_bot_token, method="sendVideo"),
+            data={"chat_id": chat_id(), "caption": caption[:1000], "supports_streaming": "true"},
+            files={"video": (getattr(path, "name", "short.mp4"), fh, "video/mp4")},
+            timeout=httpx.Timeout(300.0),
+        )
+    payload = resp.json() if resp.content else {}
+    if not payload.get("ok"):
+        raise RuntimeError(f"Telegram sendVideo failed: {payload.get('description', '')}")
+    return int(payload["result"]["message_id"])
+
+
 def edit_card(message_id: int, text: str) -> None:
     """Replace a card's text and drop its buttons, so a decision cannot be made twice."""
     _call("editMessageText", chat_id=chat_id(), message_id=message_id,

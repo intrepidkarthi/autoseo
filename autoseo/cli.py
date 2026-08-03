@@ -146,14 +146,27 @@ def _run_video(args) -> None:
     print(f"\n  rendered {out}  ({out.stat().st_size / 1_048_576:.1f} MB)")
 
     if args.queue:
-        from autoseo.gate import queue
-        from autoseo.gate.queue import Item
-        queue.add(Item(
+        import os as _os
+
+        from autoseo.gate import cards, queue
+        from autoseo.gate.queue import Item, get
+        item_id = queue.add(Item(
             kind="video", channel="youtube", title=spec.title,
             body=spec.script, rationale=f"Topic: {spec.topic} | {spec.words} words",
-            meta={"path": str(out), "description": spec.description, "synthetic": True},
+            meta={
+                "description": spec.description,
+                "synthetic": True,
+                # The publish job runs on a different runner, so it fetches the render from this
+                # run's artifact rather than from a path that will not exist.
+                "run_id": _os.environ.get("GITHUB_RUN_ID", ""),
+                "artifact": "short",
+            },
         ))
-        print("  queued for approval")
+        try:
+            cards.send_video_now(get(item_id), out)
+            print("  sent to telegram for approval")
+        except Exception as exc:  # noqa: BLE001 — queued regardless; the gate cron will retry
+            print(f"  queued, but could not send now: {exc}")
 
 
 def _run_draft(args) -> None:
@@ -201,12 +214,33 @@ def _run_publish(args) -> None:
     from autoseo.publish import blog as publisher
     from autoseo.quality import gate as qgate
 
-    items = [i for i in queue.approved_unposted() if i.channel == "blog"]
+    items = [i for i in queue.approved_unposted() if i.channel in ("blog", "youtube")]
     if not items:
         print("  Nothing approved and waiting.")
         return
 
     for item in items:
+        if item.channel == "youtube":
+            from autoseo.publish import youtube
+            try:
+                video = youtube.fetch_render(item.meta.get("run_id", ""),
+                                             item.meta.get("artifact", "short"))
+                vid = youtube.upload(
+                    video, item.title, item.meta.get("description", ""),
+                    privacy="private",
+                    # The narration is machine-generated, so YouTube requires the disclosure.
+                    synthetic=bool(item.meta.get("synthetic")),
+                    dry_run=args.dry_run,
+                )
+            except Exception as exc:  # noqa: BLE001 — one bad item must not stop the rest
+                log.error("youtube upload failed for %s: %s", item.title, exc)
+                queue.decide(item.id, Status.FAILED, by="publish")
+                continue
+            if not args.dry_run:
+                queue.decide(item.id, Status.POSTED, by="publish")
+                print(f"  https://youtube.com/watch?v={vid}")
+            continue
+
         meta = item.meta
         draft = Draft(
             slug=meta.get("slug", ""), title=item.title,

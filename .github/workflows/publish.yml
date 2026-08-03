@@ -22,6 +22,7 @@ concurrency:
 
 permissions:
   contents: write
+  actions: read   # to download the render artifact
 
 jobs:
   publish:
@@ -39,6 +40,8 @@ jobs:
       - name: Publish approved drafts
         env:
           GH_DAILYVOX_TOKEN: ${{ secrets.GH_DAILYVOX_TOKEN }}
+          YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           autoseo restore
           autoseo publish ${{ github.event.inputs.dry_run != 'false' && '--dry-run' || '' }}

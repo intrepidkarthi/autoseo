@@ -33,7 +33,12 @@ def render(item: Item) -> str:
         f"<i>{esc(item.channel)} · {esc(item.kind)}</i>",
         "",
     ]
-    if item.channel == "blog":
+    if item.channel == "youtube":
+        lines.append(item.body[:900])
+        if run_id := item.meta.get("run_id"):
+            lines.append("")
+            lines.append(f"Render: run {run_id}")
+    elif item.channel == "blog":
         # The full text was already sent above; repeating it here would just be noise.
         words = len(item.meta.get("markdown", item.body).split())
         lines.append(f"Full draft is above — {words} words.")
@@ -76,6 +81,19 @@ def send_pending() -> int:
     if sent:
         log.info("sent %d card(s)", sent)
     return sent
+
+
+def send_video_now(item: Item, video_path) -> int:
+    """Deliver a video card at render time, because the file only exists on that runner.
+
+    The gate workflow runs later and elsewhere, and state/media/ is gitignored, so it has no way to
+    attach the video. Sending it here is the only point where the bytes are available.
+    """
+    message_id = client.send_video(video_path, caption=item.title)
+    card = client.send_card(render(item), BUTTONS)
+    queue.mark_sent(item.id, card)
+    log.info("sent video card for item %s (preview message %s)", item.id, message_id)
+    return card
 
 
 DECISIONS = {
