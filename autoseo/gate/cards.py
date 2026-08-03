@@ -117,7 +117,14 @@ def _handle(updates: list[dict]) -> int:
         status, label = DECISIONS[data]
         with_item = _item_for_message(message_id)
         if not with_item:
-            client.answer_callback(cb["id"], "That item is no longer in the queue")
+            # Happens when a card was delivered but its queue row never got committed — a run can
+            # send the message and then fail at the commit step. The card is then permanently
+            # un-approvable, and silence here made that look like a broken button for hours.
+            log.warning(
+                "no queued item for message_id=%s — the card was sent but its row was never "
+                "committed, so this tap cannot be honoured", message_id,
+            )
+            client.answer_callback(cb["id"], "That card is orphaned — a fresh one will follow")
             continue
 
         # Record the decision FIRST and never let anything cosmetic undo it.
