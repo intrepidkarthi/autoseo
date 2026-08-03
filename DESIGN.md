@@ -59,11 +59,10 @@ autoseo/
 │   │   ├── social.py           # → per-platform copy
 │   │   └── prompts/            # brand guardrails + per-format templates
 │   │
-│   ├── quality/                # ← the pre-publish gate. Mostly regex + arithmetic, so ~$0.
-│   │   ├── slop.py             # AI-ism detector: tiered word lists, structure, stylometry
-│   │   ├── voice.py            # `karthik` profile conformance + hard-nos
-│   │   ├── plagiarism.py       # internal shingle match vs the 1,724-page corpus; external n-gram
-│   │   └── gate.py             # combines to pass / warn / block
+│   ├── quality/                # ← the pre-publish gate. Regex + arithmetic, so $0.
+│   │   ├── slop.py             # AI-ism rules, length floor, truncation, stylometry, hard-nos
+│   │   ├── plagiarism.py       # shingled 5-grams vs the 1,722-page corpus (hashes only)
+│   │   └── gate.py             # P0 blocks; P1 must reach 6
 │   │
 │   ├── media/
 │   │   ├── tts.py              # Kokoro-82M (Apache-2.0), CPU, on-runner
@@ -90,6 +89,7 @@ autoseo/
 │   └── budget/
 │       └── ledger.py           # spend accounting + tiered degradation
 │
+├── worker/                     # Cloudflare worker: Telegram webhook -> repository_dispatch
 ├── vendor/mpt/                 # vendored MoneyPrinterTurbo modules (MIT, headers intact)
 ├── state/                      # SQLite + JSON snapshots, committed each run
 ├── DESIGN.md · SETUP.md · VENDOR.md · LICENSE
@@ -268,11 +268,11 @@ which covers the entire AEO panel at weekly cadence. `PREMIUM` is opt-in; the sy
 
 | Phase | Deliverable | Cost |
 |---|---|---|
-| 0 ✅ | repo skeleton, `core/`, `collect/{inventory,gsc,inspect,bing}` → real indexation ratio | $0 |
+| 0 ✅ | `core/`, `collect/{inventory,gsc,inspect,bing}` → real indexation ratio | $0 |
 | 1 | **finish the de-listing** — see below. No code, highest ROI available | $0 |
-| 2 | `quality/` — slop + plagiarism gate. Built *before* anything can publish, not after | $0 |
-| 3 | `gate/` — Telegram cards, approval state | $0 |
-| 4 | `publish/blog.py` — PR to dailyvox, IndexNow ping | $0 |
+| 2 ✅ | `quality/` — slop + plagiarism gate. Built *before* anything can publish, not after | $0 |
+| 3 ✅ | `gate/` — Telegram cards, approval state | $0 |
+| 4 ✅ | `publish/blog.py` — PR to dailyvox, IndexNow ping | $0 |
 | 5 | `publish/{youtube,instagram,manual}.py` + scheduler v1 (priors + constraints) | $0 |
 | 6 | `decide/bandit.py` — turn on after ~4–6 weeks of data; back-test before trusting | $0 |
 | 7 | `media/` + `vendor/mpt` — video from real screen recordings | $0 |
