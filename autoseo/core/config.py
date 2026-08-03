@@ -61,6 +61,7 @@ class Settings:
     telegram_bot_token: str = field(default_factory=lambda: _env("TELEGRAM_BOT_TOKEN"))
     telegram_chat_id: str = field(default_factory=lambda: _env("TELEGRAM_CHAT_ID"))
     gh_dailyvox_token: str = field(default_factory=lambda: _env("GH_DAILYVOX_TOKEN"))
+    yt_token_json: str = field(default_factory=lambda: _env("YT_TOKEN_JSON"))
 
     @property
     def state_dir(self) -> Path:

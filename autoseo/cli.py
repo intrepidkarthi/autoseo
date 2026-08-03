@@ -15,6 +15,8 @@
     autoseo index-corpus --public-dir P     shingle the site for duplication checks
     autoseo draft [--top N] [--queue]       write posts against measured demand
     autoseo publish [--dry-run]             open PRs for approved drafts
+    autoseo video --topic "..."             generate a Short (script + render)
+    autoseo delist                          plan the noindex for orphaned clusters
     autoseo check FILE                      run the quality gate over a draft
     autoseo snapshot / restore              state <-> state/*.csv (git-mergeable)
     autoseo collect                         gsc + bing + inspect + report  (what CI runs)
@@ -117,6 +119,41 @@ def _print_outreach(days: int, top: int) -> None:
             print(f"      names : {', '.join(t.competitors_named)}")
         print(f"      angle : {t.angle}")
     print()
+
+
+def _run_video(args) -> None:
+    """Script -> voiceover -> footage -> render. Every step free."""
+    from autoseo.compose import video as composer
+
+    spec = composer.write(args.topic, search_terms=args.terms)
+    if not spec:
+        print("  no script cleared the gate — nothing rendered")
+        return
+
+    print(f"\n  {spec.words} words\n")
+    print("  " + spec.script.replace(". ", ".\n  "))
+    if args.script_only:
+        return
+
+    from autoseo.media import footage, render, speech
+
+    work = args.out.parent / "work"
+    work.mkdir(parents=True, exist_ok=True)
+    segments = speech.synthesise(spec.script, work / "voice.wav")
+    srt = speech.write_srt(segments, work / "captions.srt")
+    clips = footage.fetch(spec.search_terms, count=max(3, len(segments) // 2), out_dir=work)
+    out = render.render(clips, work / "voice.wav", srt, args.out, segments)
+    print(f"\n  rendered {out}  ({out.stat().st_size / 1_048_576:.1f} MB)")
+
+    if args.queue:
+        from autoseo.gate import queue
+        from autoseo.gate.queue import Item
+        queue.add(Item(
+            kind="video", channel="youtube", title=spec.title,
+            body=spec.script, rationale=f"Topic: {spec.topic} | {spec.words} words",
+            meta={"path": str(out), "description": spec.description, "synthetic": True},
+        ))
+        print("  queued for approval")
 
 
 def _run_draft(args) -> None:
@@ -349,6 +386,16 @@ def main(argv: list[str] | None = None) -> int:
     p_pub = sub.add_parser("publish", help="open PRs for approved drafts")
     p_pub.add_argument("--dry-run", action="store_true")
 
+    p_vid = sub.add_parser("video", help="generate a Short: script, voiceover, footage, render")
+    p_vid.add_argument("--topic", required=True)
+    p_vid.add_argument("--terms", default="journal writing calm morning routine",
+                       help="stock footage search terms")
+    p_vid.add_argument("--out", type=Path, default=Path("state/media/short.mp4"))
+    p_vid.add_argument("--script-only", action="store_true", help="write the script, skip rendering")
+    p_vid.add_argument("--queue", action="store_true", help="send to the Telegram gate when done")
+
+    sub.add_parser("delist", help="plan the noindex for the orphaned page clusters")
+
     p_chk = sub.add_parser("check", help="run the quality gate over a file")
     p_chk.add_argument("path", type=Path)
 
@@ -418,6 +465,13 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "publish":
             _run_publish(args)
+
+        elif args.command == "video":
+            _run_video(args)
+
+        elif args.command == "delist":
+            from autoseo.publish import delist
+            print("\n" + delist.render_patch(delist.build_plan()) + "\n")
 
         elif args.command == "index-corpus":
             from autoseo.quality import plagiarism

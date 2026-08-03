@@ -29,3 +29,6 @@ state/*.db-shm
 state/*.db-journal
 state/media/
 state/tmp/
+
+# rendered media is a build artifact, not state
+state/media/
