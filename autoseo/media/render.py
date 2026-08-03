@@ -40,6 +40,14 @@ def _ffmpeg() -> str:
     return exe
 
 
+def _has_subtitles_filter(ff: str) -> bool:
+    """Burning captions needs ffmpeg built with libass. Homebrew's default build is not — it has no
+    subtitles, ass or drawtext filter — while Ubuntu's is, which is why this works in CI and fails
+    on a Mac. Checking up front turns 'No such filter' into something actionable."""
+    out = subprocess.run([ff, "-hide_banner", "-filters"], capture_output=True, text=True).stdout
+    return any(f" {name} " in out for name in ("subtitles", "ass"))
+
+
 def _run(args: list[str]) -> None:
     result = subprocess.run(args, capture_output=True, text=True)
     if result.returncode != 0:
@@ -77,12 +85,26 @@ def render(clips: list[Path], audio: Path, srt: Path, out_path: Path,
     listing = work / "concat.txt"
     listing.write_text("".join(f"file '{p.resolve()}'\n" for p in normalised), encoding="utf-8")
 
+    # Commas separate filters in a filtergraph, so every comma inside force_style must be escaped
+    # or the parser splits the style into nonsense options. Quoting does not help when there is no
+    # shell to strip the quotes — ffmpeg receives them literally.
+    style = SUBTITLE_STYLE.replace(",", r"\,")
+    srt_arg = str(srt).replace("\\", "/").replace(":", r"\:")
+    vf = f"subtitles={srt_arg}:force_style={style}"
+
+    if not _has_subtitles_filter(ff):
+        log.warning(
+            "this ffmpeg has no libass, so captions cannot be burned in — rendering without them. "
+            "Shorts autoplay muted, so captions matter: use a build with libass (Ubuntu's default "
+            "has it; Homebrew's does not)."
+        )
+        vf = "null"
+
     _run([
         ff, "-y", "-loglevel", "error",
         "-f", "concat", "-safe", "0", "-i", str(listing),
         "-i", str(audio),
-        # Escape for the subtitles filter: colons and backslashes are filtergraph syntax.
-        "-vf", f"subtitles={str(srt).replace(':', r'\\:')}:force_style='{SUBTITLE_STYLE}'",
+        "-vf", vf,
         "-map", "0:v:0", "-map", "1:a:0",
         "-c:v", "libx264", "-preset", "medium", "-crf", "22", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "128k",

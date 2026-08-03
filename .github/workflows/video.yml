@@ -44,6 +44,14 @@ jobs:
         # ffmpeg is not preinstalled on ubuntu-24.04 runners.
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
+      - name: Cache the speech model
+        # 88 MB int8 ONNX plus a 28 MB voice pack. Downloading it on every run would dominate the
+        # job time for no reason — the files are immutable release assets.
+        uses: actions/cache@v4
+        with:
+          path: state/models
+          key: kokoro-v1.0-int8
+
       - name: Install
         run: pip install -e ".[media]"
 

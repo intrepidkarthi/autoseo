@@ -18,6 +18,7 @@ whisper model to download, no drift, and one less thing to be wrong.
 
 from __future__ import annotations
 
+import os
 import re
 import wave
 from dataclasses import dataclass
@@ -29,6 +30,14 @@ log = get_logger(__name__)
 
 SAMPLE_RATE = 24_000
 DEFAULT_VOICE = "af_heart"
+
+# kokoro-onnx takes explicit model paths — there is no from_pretrained. The int8 build is 88 MB
+# against 325 MB for fp32, which matters when every CI run downloads it; quality difference is
+# inaudible under narration. Cached between runs so this is a one-time cost.
+MODEL_BASE = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0"
+MODEL_FILE = "kokoro-v1.0.int8.onnx"
+VOICES_FILE = "voices-v1.0.bin"
+MODEL_DIR = Path(os.environ.get("AUTOSEO_MODEL_DIR", "state/models"))
 
 
 @dataclass
@@ -63,6 +72,26 @@ def split_sentences(script: str) -> list[str]:
     return out
 
 
+def _ensure_models() -> tuple[Path, Path]:
+    """Fetch the ONNX model and voice pack if absent. Cached across runs by the workflow."""
+    import httpx
+
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for name in (MODEL_FILE, VOICES_FILE):
+        dest = MODEL_DIR / name
+        if not dest.exists() or dest.stat().st_size < 1_000_000:
+            log.info("downloading %s (one-time)", name)
+            with httpx.stream("GET", f"{MODEL_BASE}/{name}", timeout=600.0,
+                              follow_redirects=True) as r:
+                r.raise_for_status()
+                with dest.open("wb") as fh:
+                    for chunk in r.iter_bytes(1 << 20):
+                        fh.write(chunk)
+        paths.append(dest)
+    return paths[0], paths[1]
+
+
 def synthesise(script: str, out_path: Path, voice: str = DEFAULT_VOICE) -> list[Segment]:
     """Render the script to a single WAV, returning per-sentence timings."""
     try:
@@ -75,7 +104,8 @@ def synthesise(script: str, out_path: Path, voice: str = DEFAULT_VOICE) -> list[
 
     import numpy as np
 
-    model = Kokoro.from_pretrained()
+    model_path, voices_path = _ensure_models()
+    model = Kokoro(str(model_path), str(voices_path))
     sentences = split_sentences(script)
     chunks: list[object] = []
     segments: list[Segment] = []

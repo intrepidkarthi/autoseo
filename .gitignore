@@ -32,3 +32,4 @@ state/tmp/
 
 # rendered media is a build artifact, not state
 state/media/
+state/models/
