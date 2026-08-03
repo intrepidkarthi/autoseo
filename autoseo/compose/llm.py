@@ -12,6 +12,7 @@ with it.
 
 from __future__ import annotations
 
+import time
 from enum import StrEnum
 
 import httpx
@@ -37,6 +38,13 @@ MODELS = {
 }
 
 
+# Free-tier capacity is shared, so 503s and 429s happen and mean "later", not "no". An unattended
+# pipeline that dies on the first one is not unattended. Backoff is generous because the retry costs
+# nothing and the alternative is a lost run.
+RETRY_STATUSES = {429, 500, 502, 503, 504}
+BACKOFF_SECONDS = (5, 20, 60)
+
+
 def complete(prompt: str, tier: Tier = Tier.FREE, temperature: float = 0.85,
              max_tokens: int = 4096) -> str:
     """One completion. Temperature defaults high: low temperature produces the metronomic,
@@ -47,6 +55,21 @@ def complete(prompt: str, tier: Tier = Tier.FREE, temperature: float = 0.85,
         )
 
     model = MODELS[tier]
+    last_error = ""
+    for attempt, wait in enumerate((*BACKOFF_SECONDS, None), start=1):
+        try:
+            return _once(model, prompt, temperature, max_tokens)
+        except RuntimeError as exc:
+            last_error = str(exc)
+            transient = any(f"Gemini {s}" in last_error for s in RETRY_STATUSES)
+            if not transient or wait is None:
+                raise
+            log.warning("attempt %d: %s — retrying in %ds", attempt, last_error[:80], wait)
+            time.sleep(wait)
+    raise RuntimeError(last_error)
+
+
+def _once(model: str, prompt: str, temperature: float, max_tokens: int) -> str:
     resp = httpx.post(
         ENDPOINT.format(model=model),
         params={"key": settings.gemini_api_key},
