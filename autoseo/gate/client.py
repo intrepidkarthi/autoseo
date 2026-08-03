@@ -68,7 +68,20 @@ def chat_id() -> str:
     if cached:
         return cached
 
-    for update in _call("getUpdates", limit=100):
+    try:
+        updates = _call("getUpdates", limit=100)
+    except RuntimeError as exc:
+        if "webhook is active" in str(exc):
+            # Discovery is unavailable in webhook mode. It has normally already happened and been
+            # cached, but a fresh checkout with no cached value needs the id supplied explicitly.
+            raise ConfigError(
+                "No cached chat id, and discovery needs getUpdates which the active webhook "
+                "disables. Set TELEGRAM_CHAT_ID in the compose environment (message @userinfobot "
+                "for your numeric id), or delete the webhook to rediscover."
+            ) from exc
+        raise
+
+    for update in updates:
         message = update.get("message") or update.get("callback_query", {}).get("message") or {}
         cid = str((message.get("chat") or {}).get("id", ""))
         if cid:
@@ -137,7 +150,16 @@ def poll_updates() -> list[dict]:
     lets Telegram drop them) happens in `confirm()`, only after the caller has actually processed
     them.
     """
-    updates = _call("getUpdates", limit=100)
+    try:
+        updates = _call("getUpdates", limit=100)
+    except RuntimeError as exc:
+        if "webhook is active" in str(exc):
+            # Expected and correct once the Cloudflare worker is registered: Telegram refuses
+            # getUpdates while a webhook exists. Decisions arrive by repository_dispatch instead,
+            # so there is nothing to poll and this is not an error.
+            log.info("webhook mode — decisions arrive by dispatch, not polling")
+            return []
+        raise
     with session() as conn:
         seen = {r["update_id"] for r in conn.execute("SELECT update_id FROM gate_seen")}
     fresh = [u for u in updates if u.get("update_id") not in seen]
