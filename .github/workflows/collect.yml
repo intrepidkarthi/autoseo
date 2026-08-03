@@ -22,6 +22,10 @@ on:
         description: "One-time: pull the full 16-month GSC history (true/false)"
         required: false
         default: "false"
+      draft:
+        description: "Draft N posts against measured demand and queue them (0 = skip)"
+        required: false
+        default: "0"
       aeo_tier:
         description: "AEO panel tier to run: core | extended | all | skip"
         required: false
@@ -84,6 +88,9 @@ jobs:
             autoseo outreach
           fi
           autoseo brief
+          if [ "${{ github.event.inputs.draft || '0' }}" != "0" ]; then
+            autoseo draft --top ${{ github.event.inputs.draft }} --queue
+          fi
           autoseo snapshot
 
       - name: Commit state

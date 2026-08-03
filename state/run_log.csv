@@ -97,3 +97,14 @@ id,started,command,ok,detail
 94,2026-08-03T09:50:40+00:00,gate,1,
 95,2026-08-03T09:53:20+00:00,restore,1,
 96,2026-08-03T09:53:22+00:00,gate,1,
+97,2026-08-03T10:02:21+00:00,restore,1,
+98,2026-08-03T10:02:21+00:00,report,1,
+99,2026-08-03T10:02:21+00:00,brief,1,
+100,2026-08-03T10:02:31+00:00,outreach,1,
+101,2026-08-03T10:02:31+00:00,opportunity,1,
+102,2026-08-03T10:02:31+00:00,gate,1,
+103,2026-08-03T10:02:31+00:00,aeo,1,
+104,2026-08-03T10:02:31+00:00,snapshot,1,
+105,2026-08-03T10:02:31+00:00,gsc,0,"GSC_SERVICE_ACCOUNT_JSON is not set.
+  Local: add it to .env (see .env.example)
+  CI:    GitHub -> autoseo -> Settings -> Environments -> read"
