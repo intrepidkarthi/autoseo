@@ -51,9 +51,41 @@ def is_irrelevant(query: str) -> bool:
     return "android" in q  # iPhone-only product; Android intent cannot convert.
 
 
+# Competitors whose own product mechanics people search for. Ranking for these by accident is fine;
+# writing toward them is not.
+COMPETITORS = ("day one", "dayone", "journey", "rosebud", "reflectly", "daylio", "penzu",
+               "diarium", "momento", "stoic", "otter", "grid diary", "five minute journal")
+
+# Terms that make a query about a competitor's internals rather than about choosing an app.
+INTERNAL_MARKERS = ("cloud vs", "premium", "subscription", "pricing", "price", "cost", "plan",
+                    "refund", "cancel", "login", "sign in", "not working", "export from",
+                    "free trial", "upgrade", "downgrade", "student discount")
+
+
+def is_competitor_internal(query: str) -> bool:
+    """A query about how a competitor's product or billing works.
+
+    `journey cloud vs premium` is someone deciding between Journey's own tiers — a Journey customer,
+    not a prospect for anything else. It surfaced as the top opportunity because a comparison page
+    mentions Journey in passing, and drafting toward it produced a page explaining a rival's pricing:
+    content that cannot convert and that Google's site-reputation policies treat as parasitic.
+
+    Comparative queries are deliberately NOT caught here. "dailyvox vs day one" and "day one
+    alternative" are buyers choosing between products, which is exactly what to write for.
+    """
+    q = query.lower()
+    if not any(c in q for c in COMPETITORS):
+        return False
+    if any(w in q for w in (" vs dailyvox", "dailyvox vs", "alternative", "better than", "instead of")):
+        return False
+    return any(m in q for m in INTERNAL_MARKERS)
+
+
 def classify(query: str) -> str:
     if is_brand(query):
         return "brand"
     if is_irrelevant(query):
         return "irrelevant"
+    if is_competitor_internal(query):
+        return "competitor-internal"
     return "acquisition"

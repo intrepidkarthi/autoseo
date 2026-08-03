@@ -124,10 +124,32 @@ def _words(text: str) -> list[str]:
     return re.findall(r"[a-zA-Z']+", text.lower())
 
 
+# A blog post shorter than this is a stub, not a draft. Length matters to the gate because short
+# text scores *better* on every other check — there is less room for tells — so brevity was a way
+# to pass without saying anything. A 121-word truncation once scored a clean zero.
+MIN_WORDS = {"blog": 500, "social": 0, "outreach": 0}
+
+
 def analyse(text: str, context: str = "blog") -> SlopReport:
     report = SlopReport()
     words = _words(text)
     report.words = len(words)
+
+    floor = MIN_WORDS.get(context, 0)
+    if floor and report.words < floor:
+        report.flags.append(Flag("P0", "too short",
+                                 f"{report.words} words, need {floor}+", ""))
+
+    # Truncation mid-thought: a trailing heading with nothing under it, or a body that simply stops
+    # without terminal punctuation. Models cut off silently and the result reads as complete until
+    # you reach the end.
+    stripped = text.rstrip()
+    if stripped:
+        last = stripped.split("\n")[-1].strip()
+        if last.startswith("#"):
+            report.flags.append(Flag("P0", "truncated", "ends on a heading with no content", last[:60]))
+        elif floor and not re.search(r"[.!?\"')\]]$", last):
+            report.flags.append(Flag("P0", "truncated", "ends mid-sentence", last[-60:]))
 
     for name, pattern in FINGERPRINTS:
         for m in pattern.finditer(text):

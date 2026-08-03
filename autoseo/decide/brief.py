@@ -142,7 +142,8 @@ def build(days: int = 90, min_impressions: float = 15) -> list[Action]:
 def excluded(days: int = 90, min_impressions: float = 15) -> dict[str, list[tuple[str, float]]]:
     """What was filtered out and why — so the exclusions stay auditable rather than invisible."""
     start, end = _window(days)
-    out: dict[str, list[tuple[str, float]]] = {"brand": [], "irrelevant": []}
+    out: dict[str, list[tuple[str, float]]] = {"brand": [], "irrelevant": [],
+                                               "competitor-internal": []}
     with session() as conn:
         for r in conn.execute(
             """
