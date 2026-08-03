@@ -90,6 +90,31 @@ export default {
           status: r.status,
           message: r.ok ? "token can read the repo" : body.slice(0, 200),
         };
+
+        // A read succeeding proves nothing about dispatch: repository_dispatch is gated behind
+        // Contents WRITE, which is counterintuitive for something that triggers a workflow. Only an
+        // actual dispatch distinguishes a read-only token from a working one, so ?dispatch=1 does
+        // exactly that. Opt-in, because it starts a real workflow run.
+        if (url.searchParams.get("dispatch") === "1") {
+          const d = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`, {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${env.GITHUB_TOKEN}`,
+              accept: "application/vnd.github+json",
+              "content-type": "application/json",
+              "user-agent": "autoseo-gate-worker",
+            },
+            body: JSON.stringify({
+              event_type: "telegram_update",
+              client_payload: { update: { update_id: 0, diagnostic: true } },
+            }),
+          });
+          github.dispatch = {
+            status: d.status,
+            ok: d.ok,
+            message: d.ok ? "dispatch accepted" : (await d.text()).slice(0, 300),
+          };
+        }
       }
       return Response.json({ secrets_present: present, github });
     }
