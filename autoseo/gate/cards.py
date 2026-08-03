@@ -75,7 +75,9 @@ def process_updates() -> int:
     """Resolve button taps into decisions. Idempotent: the update offset is persisted, so a retried
     run cannot act on the same tap twice."""
     handled = 0
+    seen_ids: list[int] = []
     for update in client.poll_updates():
+        seen_ids.append(update["update_id"])
         cb = update.get("callback_query")
         if not cb:
             continue
@@ -98,6 +100,9 @@ def process_updates() -> int:
             log.warning("could not update card %s: %s", message_id, exc)
         handled += 1
         log.info("item %s -> %s", with_item.id, status)
+
+    # Confirm only what we actually looked at, and only after looking at it.
+    client.confirm(seen_ids)
     return handled
 
 

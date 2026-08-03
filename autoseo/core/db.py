@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autoseo.core.config import settings
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 SCHEMA = """
 -- Phase 0: measurement -------------------------------------------------------
@@ -172,6 +172,15 @@ CREATE INDEX IF NOT EXISTS ix_queue_message ON queue_item(message_id);
 CREATE TABLE IF NOT EXISTS gate_state (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
+);
+
+-- Update ids already acted on. Telegram's offset alone proved unreliable here: a call with
+-- offset=N returned zero while the same call without an offset returned two updates with ids > N,
+-- and those two approvals were then lost. The payload is a human decision, so losing one is not
+-- acceptable — we read without an offset and dedupe against this table instead.
+CREATE TABLE IF NOT EXISTS gate_seen (
+    update_id INTEGER PRIMARY KEY,
+    ts        TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS meta (

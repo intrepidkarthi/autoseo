@@ -12,6 +12,7 @@ with no error.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from typing import Any
 
@@ -114,21 +115,46 @@ def answer_callback(callback_id: str, text: str = "") -> None:
 
 
 def poll_updates() -> list[dict]:
-    """Fetch updates since the last processed one.
+    """Return updates we have not acted on yet.
 
-    The offset is persisted, so a decision is never acted on twice even if a run is retried — which
-    matters when the action on the other side is publishing something.
+    Read WITHOUT an offset on purpose. Telegram's offset is documented as the way to page through
+    updates, but in production a call with offset=N returned zero while the same call without an
+    offset returned two updates with ids greater than N — and those two approvals were then
+    consumed and lost. Since the payload here is a human decision, silently dropping one is the
+    worst possible failure, so the offset is no longer trusted as the read cursor.
+
+    Instead: read everything Telegram still holds, and dedupe against gate_seen. Confirmation (which
+    lets Telegram drop them) happens in `confirm()`, only after the caller has actually processed
+    them.
     """
-    offset = _state_get("update_offset")
-    params: dict[str, Any] = {"timeout": 0, "limit": 100}
-    if offset:
-        params["offset"] = int(offset) + 1
-    updates = _call("getUpdates", **params)
-    log.info("poll: sent offset=%s, got %d update(s) %s",
-             params.get("offset"), len(updates), [u.get("update_id") for u in updates])
-    if updates:
-        _state_set("update_offset", updates[-1]["update_id"])
-    return updates
+    updates = _call("getUpdates", limit=100)
+    with session() as conn:
+        seen = {r["update_id"] for r in conn.execute("SELECT update_id FROM gate_seen")}
+    fresh = [u for u in updates if u.get("update_id") not in seen]
+    log.info("poll: %d held by telegram, %d already handled, %d fresh %s",
+             len(updates), len(updates) - len(fresh), len(fresh),
+             [u.get("update_id") for u in fresh])
+    return fresh
+
+
+def confirm(update_ids: list[int]) -> None:
+    """Record ids as handled, then let Telegram release them.
+
+    Recording happens first. If the confirming call fails, the worst case is that Telegram replays
+    an update we have already recorded — which dedupe absorbs. The reverse order could lose one.
+    """
+    if not update_ids:
+        return
+    now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+    with session() as conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO gate_seen(update_id, ts) VALUES (?, ?)",
+            [(int(i), now) for i in update_ids],
+        )
+    try:
+        _call("getUpdates", offset=max(update_ids) + 1, limit=1)
+    except RuntimeError as exc:
+        log.warning("could not confirm updates with telegram: %s", exc)
 
 
 def dump_state() -> str:
