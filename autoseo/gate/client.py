@@ -116,6 +116,46 @@ def send_plain(text: str) -> int:
     return int(result["message_id"])
 
 
+# Telegram hard-caps a message at 4096 characters. An article silently truncated at that boundary
+# is worse than no preview: you would be approving prose you cannot see.
+MAX_MESSAGE = 3900
+
+
+def send_long(text: str) -> None:
+    """Send text of any length as consecutive plain messages, split on paragraph boundaries."""
+    chunks: list[str] = []
+    current = ""
+    for para in text.split("\n\n"):
+        candidate = f"{current}\n\n{para}" if current else para
+        if len(candidate) > MAX_MESSAGE and current:
+            chunks.append(current)
+            current = para
+        else:
+            current = candidate
+    if current:
+        chunks.append(current)
+
+    total = len(chunks)
+    for i, chunk in enumerate(chunks, 1):
+        prefix = f"[{i}/{total}]\n" if total > 1 else ""
+        _call("sendMessage", chat_id=chat_id(), text=prefix + chunk,
+              disable_web_page_preview=True)
+
+
+def send_document(filename: str, content: str, caption: str = "") -> int:
+    """Upload text as a file, so a long draft can be read properly rather than skimmed in chunks."""
+    files = {"document": (filename, content.encode("utf-8"), "text/markdown")}
+    data = {"chat_id": chat_id(), "caption": caption[:1000]}
+    resp = httpx.post(
+        API.format(token=settings.telegram_bot_token, method="sendDocument"),
+        data=data, files=files, timeout=TIMEOUT,
+    )
+    payload = resp.json() if resp.content else {}
+    if not payload.get("ok"):
+        raise RuntimeError(f"Telegram sendDocument failed: {payload.get('description', '')}")
+    return int(payload["result"]["message_id"])
+
+
 def edit_card(message_id: int, text: str) -> None:
     """Replace a card's text and drop its buttons, so a decision cannot be made twice."""
     _call("editMessageText", chat_id=chat_id(), message_id=message_id,

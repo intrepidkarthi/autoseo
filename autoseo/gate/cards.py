@@ -32,8 +32,15 @@ def render(item: Item) -> str:
         f"<b>{esc(item.title)}</b>",
         f"<i>{esc(item.channel)} · {esc(item.kind)}</i>",
         "",
-        esc(item.body[:2500]),
     ]
+    if item.channel == "blog":
+        # The full text was already sent above; repeating it here would just be noise.
+        words = len(item.meta.get("markdown", item.body).split())
+        lines.append(f"Full draft is above — {words} words.")
+        if q := item.meta.get("query"):
+            lines.append(f"Targeting: <code>{esc(q)}</code>")
+    else:
+        lines.append(esc(item.body[:2500]))
     if item.rationale:
         lines += ["", f"<b>Why:</b> {esc(item.rationale)}"]
     if item.meta.get("url"):
@@ -51,6 +58,15 @@ def send_pending() -> int:
                 # Copy-paste channels get the draft as its own plain-text message first, so it can
                 # be copied cleanly without the card's formatting coming with it.
                 client.send_plain(item.body)
+            elif item.channel == "blog":
+                # An article cannot be reviewed inside a card — Telegram caps a message at 4096
+                # characters and the card template truncates well before that. Approving prose you
+                # can only half-read defeats the point of the gate. Send the whole thing: as a file
+                # for proper reading, and inline in chunks so it is visible without downloading.
+                full = item.meta.get("markdown", item.body)
+                client.send_document(f"{item.meta.get('slug', 'draft')}.md", full,
+                                     caption=f"{item.title} — {len(full.split())} words")
+                client.send_long(full)
             message_id = client.send_card(render(item), buttons)
         except RuntimeError as exc:
             log.warning("could not send item %s: %s", item.id, exc)
