@@ -110,8 +110,18 @@ def edit_card(message_id: int, text: str) -> None:
 
 
 def answer_callback(callback_id: str, text: str = "") -> None:
-    """Stops Telegram's spinner on the tapped button."""
-    _call("answerCallbackQuery", callback_query_id=callback_id, text=text)
+    """Stop Telegram's spinner on the tapped button. Never raises.
+
+    Callback queries expire within seconds and this gate polls on an hourly cron, so this call
+    essentially always fails with "query is too old". It is purely cosmetic — the decision is
+    already recorded by the time it runs — but when it raised it killed the run before state was
+    committed, and every approval was lost. Swallowing here rather than at each call site, because
+    there is no caller for whom a failed spinner should be fatal.
+    """
+    try:
+        _call("answerCallbackQuery", callback_query_id=callback_id, text=text)
+    except RuntimeError as exc:
+        log.info("callback ack skipped (expected on a cron): %s", exc)
 
 
 def poll_updates() -> list[dict]:

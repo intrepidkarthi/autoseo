@@ -100,10 +100,7 @@ def process_updates() -> int:
         # always fails with "query is too old". That used to raise, which killed the run *after*
         # the decision was recorded but *before* the state was snapshotted and committed, so every
         # approval was silently lost. Presentation failures must never cost a decision.
-        try:
-            client.answer_callback(cb["id"], label)
-        except RuntimeError as exc:
-            log.info("callback ack skipped (expected on a cron): %s", exc)
+        client.answer_callback(cb["id"], label)
         try:
             client.edit_card(message_id, render(with_item) + f"\n\n<b>— {label}</b>")
         except RuntimeError as exc:
