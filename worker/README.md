@@ -62,26 +62,28 @@ wrangler secret put WEBHOOK_SECRET       # from step 2
 
 ## 4. Point Telegram at it
 
-```bash
-curl -s "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
-  -H 'content-type: application/json' \
-  -d '{
-        "url": "https://autoseo-gate.<subdomain>.workers.dev",
-        "secret_token": "<WEBHOOK_SECRET>",
-        "allowed_updates": ["callback_query", "message"]
-      }'
-```
-
-Expect `{"ok":true,"result":true,"description":"Webhook was set"}`.
-
-Verify:
+Open the worker's own setup route in a browser, or curl it:
 
 ```bash
-curl -s "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo" | python3 -m json.tool
+curl -s https://autoseo-gate.<subdomain>.workers.dev/setup | python3 -m json.tool
 ```
 
-`pending_update_count` should be 0 and `last_error_message` absent. If you see
-`Wrong response from the webhook: 403`, the secret does not match.
+The worker calls `setWebhook` using the credentials it already holds, so the bot token and webhook
+secret never have to be copied anywhere. Expect `"telegram": {"ok": true, ...}`.
+
+This route is intentionally unauthenticated and safe to be: the target URL comes from the request's
+own origin, never from user input, so the only thing anyone can achieve by hitting it is pointing
+the bot at this same worker — the correct state. It cannot redirect the bot elsewhere.
+
+Check health any time:
+
+```bash
+curl -s https://autoseo-gate.<subdomain>.workers.dev/status | python3 -m json.tool
+```
+
+`pending_update_count` should be 0 and `last_error_message` absent. `Wrong response from the
+webhook: 403` means the worker's `WEBHOOK_SECRET` does not match what Telegram was given — re-run
+`/setup` to resynchronise them.
 
 ## 5. Test
 

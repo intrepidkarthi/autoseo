@@ -28,6 +28,46 @@ const DECISION_LABEL = {
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+
+    /**
+     * GET /setup — register this worker as the Telegram webhook, using the credentials this worker
+     * already holds. Nobody has to copy a bot token or a webhook secret anywhere, which is the
+     * whole point: those values live in Cloudflare and are write-only, so moving them by hand means
+     * pasting them somewhere they should not be.
+     *
+     * Deliberately unauthenticated, because it is safe to be. The target URL is derived from this
+     * request's own origin, never from user input, so the only thing a stranger can accomplish is
+     * re-pointing the bot at this same worker — which is the correct state. It cannot be used to
+     * redirect the bot elsewhere.
+     */
+    if (request.method === "GET" && url.pathname === "/setup") {
+      const res = await fetch(
+        `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/setWebhook`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            url: url.origin,
+            secret_token: env.WEBHOOK_SECRET,
+            allowed_updates: ["callback_query", "message"],
+          }),
+        },
+      );
+      const body = await res.json();
+      // Telegram's reply carries no credentials, so it is safe to surface verbatim.
+      return Response.json({ target: url.origin, telegram: body });
+    }
+
+    /** GET /status — webhook health, with the token stripped from Telegram's reply. */
+    if (request.method === "GET" && url.pathname === "/status") {
+      const res = await fetch(
+        `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getWebhookInfo`,
+      );
+      const body = await res.json();
+      return Response.json(body);
+    }
+
     if (request.method !== "POST") {
       return new Response("autoseo gate webhook", { status: 200 });
     }
