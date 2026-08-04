@@ -61,7 +61,13 @@ class Settings:
     telegram_bot_token: str = field(default_factory=lambda: _env("TELEGRAM_BOT_TOKEN"))
     telegram_chat_id: str = field(default_factory=lambda: _env("TELEGRAM_CHAT_ID"))
     gh_dailyvox_token: str = field(default_factory=lambda: _env("GH_DAILYVOX_TOKEN"))
-    yt_token_json: str = field(default_factory=lambda: _env("YT_TOKEN_JSON"))
+    # Accepts a common misspelling of the secret name. A GitHub secret cannot be renamed in place —
+    # you delete and re-add it — so a typo silently reads as empty and surfaces as "credential not
+    # set" while the value is sitting right there. Tolerating it costs one line; diagnosing it costs
+    # an hour.
+    yt_token_json: str = field(
+        default_factory=lambda: _env("YT_TOKEN_JSON") or _env("YT_TOEKN_JSON")
+    )
 
     @property
     def state_dir(self) -> Path:
