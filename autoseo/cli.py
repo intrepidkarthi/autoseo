@@ -16,6 +16,7 @@
     autoseo draft [--top N] [--queue]       write posts against measured demand
     autoseo publish [--dry-run]             open PRs for approved drafts
     autoseo video --topic "..."             generate a Short (script + render)
+    autoseo youtube-auth                    one-time YouTube OAuth, run locally
     autoseo delist                          plan the noindex for orphaned clusters
     autoseo check FILE                      run the quality gate over a draft
     autoseo snapshot / restore              state <-> state/*.csv (git-mergeable)
@@ -428,6 +429,10 @@ def main(argv: list[str] | None = None) -> int:
     p_vid.add_argument("--script-only", action="store_true", help="write the script, skip rendering")
     p_vid.add_argument("--queue", action="store_true", help="send to the Telegram gate when done")
 
+    p_yt = sub.add_parser("youtube-auth", help="one-time YouTube OAuth (run locally, not in CI)")
+    p_yt.add_argument("--client-secret", type=Path, default=Path("client_secret.json"))
+    p_yt.add_argument("--check", action="store_true", help="describe an existing token.json")
+
     sub.add_parser("delist", help="plan the noindex for the orphaned page clusters")
 
     p_chk = sub.add_parser("check", help="run the quality gate over a file")
@@ -499,6 +504,13 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "publish":
             _run_publish(args)
+
+        elif args.command == "youtube-auth":
+            from autoseo.publish import youtube_auth
+            if args.check:
+                youtube_auth.describe_token()
+            else:
+                youtube_auth.authorise(args.client_secret)
 
         elif args.command == "video":
             _run_video(args)

@@ -16,6 +16,8 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 # Heavy and only needed when rendering video, so kept out of the default install: every other
 # workflow would otherwise pay ~200 MB of onnxruntime on each run.
 media = ["kokoro-onnx>=0.4", "numpy>=1.26", "soundfile>=0.12"]
+# Only for the one-time local YouTube consent flow; CI never runs it.
+auth = ["google-auth-oauthlib>=1.2"]
 
 [project.scripts]
 autoseo = "autoseo.cli:main"
