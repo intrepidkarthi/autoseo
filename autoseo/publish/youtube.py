@@ -40,7 +40,29 @@ def _credentials() -> Credentials:
             "token.json, then add its contents to the publishing environment. See SETUP.md step 8 — "
             "and set the OAuth consent screen to 'In production' first, or the token expires in 7 days."
         )
-    creds = Credentials.from_authorized_user_info(json.loads(settings.yt_token_json), SCOPES)
+    try:
+        info = json.loads(settings.yt_token_json)
+    except ValueError as exc:
+        raise ConfigError("YT_TOKEN_JSON is not valid JSON — paste the whole file.") from exc
+
+    # The two files produced during setup look alike and are easy to swap. client_secret.json has a
+    # single top-level "installed" key; token.json has client_id/refresh_token at the top level.
+    # Google's own error for this ("Authorized user info was not in the expected format") does not
+    # say which file you supplied, so name it here.
+    if "installed" in info or "web" in info:
+        raise ConfigError(
+            "YT_TOKEN_JSON contains client_secret.json, not token.json. The client secret is the "
+            "file you downloaded from the console; token.json is what `autoseo youtube-auth` wrote "
+            "after you consented. Paste that one instead."
+        )
+    missing = {"refresh_token", "client_id", "client_secret"} - set(info)
+    if missing:
+        raise ConfigError(
+            f"YT_TOKEN_JSON is missing {', '.join(sorted(missing))}. "
+            "Re-run `autoseo youtube-auth` and paste the full contents of token.json."
+        )
+
+    creds = Credentials.from_authorized_user_info(info, SCOPES)
     if not creds.valid and creds.expired and creds.refresh_token:
         creds.refresh(Request())
     return creds
