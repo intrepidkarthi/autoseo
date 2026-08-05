@@ -65,8 +65,29 @@ def _slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:60]
 
 
+# The renderer keys pages by `cluster` for its internal cross-links. Anything unrecognised still
+# renders; it just links less usefully.
+CLUSTERS = ("voice", "privacy", "twin", "compare", "howto")
+
+
+def _cluster_for(query: str) -> str:
+    q = query.lower()
+    if any(w in q for w in ("vs", "alternative", "compare")):
+        return "compare"
+    if any(w in q for w in ("private", "privacy", "offline", "secure", "encrypt")):
+        return "privacy"
+    if any(w in q for w in ("twin", "personality", "predict")):
+        return "twin"
+    if any(w in q for w in ("how", "start", "prompt")):
+        return "howto"
+    return "voice"
+
+
 def _prompt(action: Action, retry_notes: str = "") -> str:
     fix = f"\n\nA previous attempt was rejected. Fix these specifically:\n{retry_notes}" if retry_notes else ""
+    slug = _slugify(action.query)
+    cluster = _cluster_for(action.query)
+    query = action.query
     return f"""{BRAND}
 
 {STYLE}
@@ -86,13 +107,19 @@ Requirements:
 - Do not invent statistics, studies, prices or reviews. If you would need a number you do not have,
   write the sentence without it.
 
-Return ONLY markdown in exactly this shape, no preamble:
+Return ONLY markdown in exactly this shape, no preamble. The frontmatter keys are not negotiable —
+the site's renderer skips any file missing `slug`, silently:
 
 ---
-title: <under 60 characters, contains the query naturally>
-description: <under 155 characters, the answer in one sentence>
-date: {dt.date.today().isoformat()}
+slug: {slug}
+title: "<under 60 characters, contains the query naturally>"
+meta_description: "<under 155 characters, the answer in one sentence>"
+target_queries: ["{query}"]
+voice: karthik
+cluster: {cluster}
 ---
+
+# <the title again, as an H1>
 
 <body>{fix}"""
 
@@ -105,7 +132,12 @@ def _parse(raw: str) -> tuple[str, str, str]:
         return "", "", text
     front, body = m.groups()
     title = (re.search(r"^title:\s*(.+)$", front, re.M) or [None, ""])[1].strip().strip('"')
-    desc = (re.search(r"^description:\s*(.+)$", front, re.M) or [None, ""])[1].strip().strip('"')
+    desc = (re.search(r"^meta_description:\s*(.+)$", front, re.M)
+            or re.search(r"^description:\s*(.+)$", front, re.M) or [None, ""])[1].strip().strip('"')
+    # `slug` is what the renderer keys on — without it the file is skipped in silence, which is how
+    # PR #68 merged and produced a 404.
+    if not re.search(r"^slug:\s*\S+", front, re.M):
+        return "", "", text
     return title, desc, text
 
 
@@ -121,8 +153,9 @@ def write(action: Action, tier: llm.Tier = llm.Tier.FREE) -> Draft | None:
         raw = llm.complete(_prompt(action, notes), tier=tier)
         title, description, markdown = _parse(raw)
         if not title:
-            log.warning("attempt %d: no frontmatter in output", attempt)
-            notes = "Output must begin with the --- frontmatter block. It did not."
+            log.warning("attempt %d: frontmatter missing or has no slug", attempt)
+            notes = ("Output must begin with a --- frontmatter block containing slug, title, "
+                     "meta_description, target_queries, voice and cluster. It did not.")
             continue
 
         body = re.sub(r"^---.*?---\s*", "", markdown, flags=re.S)
