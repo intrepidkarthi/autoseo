@@ -46,7 +46,7 @@ BACKOFF_SECONDS = (5, 20, 60)
 
 
 def complete(prompt: str, tier: Tier = Tier.FREE, temperature: float = 0.85,
-             max_tokens: int = 4096) -> str:
+             max_tokens: int = 16384) -> str:
     """One completion. Temperature defaults high: low temperature produces the metronomic,
     uniformly-hedged prose the quality gate is built to reject."""
     if not settings.gemini_api_key:
@@ -77,7 +77,14 @@ def _once(model: str, prompt: str, temperature: float, max_tokens: int) -> str:
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
                 "temperature": temperature,
+                # Generous because current Flash models spend output tokens on internal reasoning
+                # before emitting any text. A 4096 budget produced a 344-word article that stopped
+                # mid-sentence — the visible output was truncated by thinking, not by the model
+                # having finished.
                 "maxOutputTokens": max_tokens,
+                # Ask for no reasoning budget at all. Ignored by models that do not support it,
+                # which is why the token ceiling above is raised as well rather than instead.
+                "thinkingConfig": {"thinkingBudget": 0},
             },
         },
         timeout=180.0,
@@ -93,7 +100,12 @@ def _once(model: str, prompt: str, temperature: float, max_tokens: int) -> str:
         raise RuntimeError(f"Gemini {resp.status_code}: {detail[:300]}")
 
     candidate = (resp.json().get("candidates") or [{}])[0]
+    finish = candidate.get("finishReason", "")
     text = "".join(p.get("text", "") for p in candidate.get("content", {}).get("parts", []))
     if not text.strip():
-        raise RuntimeError(f"Gemini returned empty text (finishReason={candidate.get('finishReason')})")
+        raise RuntimeError(f"Gemini returned empty text (finishReason={finish})")
+    if finish == "MAX_TOKENS":
+        # Surfacing this matters: truncated output reads as a finished piece until you reach the
+        # end, and the quality gate then reports "too short" without saying why.
+        log.warning("output hit the token ceiling (%d) and was truncated", max_tokens)
     return text.strip()
