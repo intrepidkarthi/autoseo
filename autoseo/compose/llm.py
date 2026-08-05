@@ -81,10 +81,9 @@ def _once(model: str, prompt: str, temperature: float, max_tokens: int) -> str:
                 # before emitting any text. A 4096 budget produced a 344-word article that stopped
                 # mid-sentence — the visible output was truncated by thinking, not by the model
                 # having finished.
+                # No thinkingConfig here: this endpoint rejects it with "400 Request contains an
+                # invalid argument" rather than ignoring it, so the raised ceiling is the whole fix.
                 "maxOutputTokens": max_tokens,
-                # Ask for no reasoning budget at all. Ignored by models that do not support it,
-                # which is why the token ceiling above is raised as well rather than instead.
-                "thinkingConfig": {"thinkingBudget": 0},
             },
         },
         timeout=180.0,
