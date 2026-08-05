@@ -31,10 +31,17 @@ class Tier(StrEnum):
     PREMIUM = "premium"  # opt-in, for long-form where quality justifies spend
 
 
+# Ordered fallback chains, not single models. Free-tier capacity is shared and gemini-flash-latest
+# returns 503 for minutes at a time — retrying the same model harder does not help, because the
+# congestion is per-model. Moving to a different one usually succeeds immediately.
+#
+# Aliases first: pinning a version rots (gemini-2.5-flash is still listed by ListModels but 404s for
+# new keys). Concrete ids follow as a floor in case an alias is itself unavailable.
 MODELS = {
-    Tier.FREE: "gemini-flash-latest",
-    Tier.CHEAP: "gemini-flash-latest",
-    Tier.PREMIUM: "gemini-pro-latest",
+    Tier.FREE: ["gemini-flash-latest", "gemini-flash-lite-latest",
+                "gemini-2.0-flash", "gemini-3.1-flash-lite"],
+    Tier.CHEAP: ["gemini-flash-latest", "gemini-2.0-flash"],
+    Tier.PREMIUM: ["gemini-pro-latest", "gemini-flash-latest"],
 }
 
 
@@ -42,7 +49,7 @@ MODELS = {
 # pipeline that dies on the first one is not unattended. Backoff is generous because the retry costs
 # nothing and the alternative is a lost run.
 RETRY_STATUSES = {429, 500, 502, 503, 504}
-BACKOFF_SECONDS = (5, 20, 60)
+BACKOFF_SECONDS = (5, 15)
 
 
 def complete(prompt: str, tier: Tier = Tier.FREE, temperature: float = 0.85,
@@ -54,19 +61,26 @@ def complete(prompt: str, tier: Tier = Tier.FREE, temperature: float = 0.85,
             "GEMINI_API_KEY is not set. Free at https://aistudio.google.com/apikey"
         )
 
-    model = MODELS[tier]
+    chain = MODELS[tier]
     last_error = ""
-    for attempt, wait in enumerate((*BACKOFF_SECONDS, None), start=1):
-        try:
-            return _once(model, prompt, temperature, max_tokens)
-        except RuntimeError as exc:
-            last_error = str(exc)
-            transient = any(f"Gemini {s}" in last_error for s in RETRY_STATUSES)
-            if not transient or wait is None:
-                raise
-            log.warning("attempt %d: %s — retrying in %ds", attempt, last_error[:80], wait)
-            time.sleep(wait)
-    raise RuntimeError(last_error)
+    for model_index, model in enumerate(chain):
+        for attempt, wait in enumerate((*BACKOFF_SECONDS, None), start=1):
+            try:
+                if model_index:
+                    log.info("using fallback model %s", model)
+                return _once(model, prompt, temperature, max_tokens)
+            except RuntimeError as exc:
+                last_error = str(exc)
+                transient = any(f"Gemini {s}" in last_error for s in RETRY_STATUSES)
+                if not transient:
+                    raise
+                if wait is None:
+                    log.warning("%s exhausted retries — trying the next model", model)
+                    break
+                log.warning("%s attempt %d: %s — retrying in %ds",
+                            model, attempt, last_error[:70], wait)
+                time.sleep(wait)
+    raise RuntimeError(f"every model in the {tier} chain failed. Last: {last_error}")
 
 
 def _once(model: str, prompt: str, temperature: float, max_tokens: int) -> str:
