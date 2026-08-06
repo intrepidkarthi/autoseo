@@ -22,6 +22,7 @@ import httpx
 from autoseo.compose.blog import Draft
 from autoseo.core.config import ConfigError, settings
 from autoseo.core.log import get_logger
+from autoseo.publish import blog_index
 
 log = get_logger(__name__)
 
@@ -127,6 +128,19 @@ def _render(draft: Draft) -> dict[str, str]:
         files[f"{SITE_DIR}/public/blog/{draft.slug}.html"] = html.read_text(encoding="utf-8")
         if sitemap.exists():
             files[f"{SITE_DIR}/public/sitemap-articles.xml"] = sitemap.read_text(encoding="utf-8")
+
+        # Link it from the index. Nothing generates that file — generate_pages.py prints entries
+        # for manual pasting — so without this the page exists and is completely unreachable by a
+        # reader, which is exactly how the first published article looked "missing" despite
+        # returning 200.
+        index = _get(f"/repos/{SITE_REPO}/contents/{blog_index.INDEX_PATH}?ref={BASE_BRANCH}")
+        current = base64.b64decode(index["content"]).decode("utf-8")
+        updated = blog_index.insert(
+            current, draft.slug, draft.title, draft.description,
+            cluster=blog_index.cluster_from_markdown(draft.markdown),
+        )
+        if updated != current:
+            files[blog_index.INDEX_PATH] = updated
 
     log.info("rendered %d file(s) for %s", len(files), draft.slug)
     return files
