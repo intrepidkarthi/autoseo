@@ -152,15 +152,31 @@ def publish(draft: Draft, dry_run: bool = False) -> str:
 
     base_sha = _get(f"/repos/{SITE_REPO}/git/ref/heads/{BASE_BRANCH}")["object"]["sha"]
 
-    # Refuse rather than overwrite. A slug collision means we are about to replace a page that
-    # already ranks, which is a far worse outcome than skipping today's post.
-    try:
-        existing = _get(f"/repos/{SITE_REPO}/contents/{path}?ref={BASE_BRANCH}")
-        if existing:
-            raise RuntimeError(f"{path} already exists on {BASE_BRANCH} — refusing to overwrite")
-    except httpx.HTTPStatusError as exc:
-        if exc.response.status_code != 404:
+    # Refuse to replace a page that actually ranks; allow replacing source that renders nothing.
+    #
+    # The first version of this guard keyed on the markdown file alone, and then blocked the fix for
+    # its own earlier mistake: PR #68 merged markdown with frontmatter the renderer skips, so the
+    # file existed while the page 404'd, and "already exists — refusing to overwrite" prevented
+    # publishing a working version. What deserves protection is a live page, not an inert file.
+    def _exists(repo_path: str) -> bool:
+        try:
+            return bool(_get(f"/repos/{SITE_REPO}/contents/{repo_path}?ref={BASE_BRANCH}"))
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                return False
             raise
+
+    html_path = f"{SITE_DIR}/public/blog/{draft.slug}.html"
+    if _exists(html_path):
+        raise RuntimeError(
+            f"{html_path} already exists on {BASE_BRANCH} — that page is live, refusing to "
+            f"overwrite it. Rewriting an existing page is a different operation from publishing "
+            f"a new one and should be done deliberately."
+        )
+    if _exists(path):
+        log.warning(
+            "%s exists on %s but renders no page — replacing the orphaned source", path, BASE_BRANCH
+        )
 
     _post(f"/repos/{SITE_REPO}/git/refs",
           {"ref": f"refs/heads/{branch}", "sha": base_sha})
