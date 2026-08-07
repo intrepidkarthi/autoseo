@@ -50,6 +50,12 @@ class Settings:
     inspect_limit: int = field(
         default_factory=lambda: int(_env("AUTOSEO_INSPECT_LIMIT", "300") or 300)
     )
+    # The channel every upload must land on: youtube.com/@dailyvoxapp. videos.insert has no
+    # "which channel" parameter — it uploads to whichever channel the OAuth token resolved to at
+    # consent time — so this is checked against the token rather than sent with the request.
+    yt_channel_id: str = field(
+        default_factory=lambda: _env("AUTOSEO_YT_CHANNEL_ID", "UCr6TG_pDNzGdmHiCwgCk_-w")
+    )
     monthly_cap_usd: Decimal = field(
         default_factory=lambda: Decimal(_env("AUTOSEO_MONTHLY_CAP_USD", "5.00") or "5.00")
     )

@@ -91,6 +91,19 @@ def mark_sent(item_id: int, message_id: int) -> None:
         conn.execute("UPDATE queue_item SET message_id = ? WHERE id = ?", (message_id, item_id))
 
 
+def record_result(item_id: int, **fields) -> None:
+    """Merge published-artifact identifiers (video id, PR url) back into the item's meta.
+
+    Without this the only record of what an upload produced is the CI log, which is exactly the
+    wrong place to look when you need to find and delete a video that went somewhere unintended.
+    """
+    with session() as conn:
+        row = conn.execute("SELECT meta FROM queue_item WHERE id = ?", (item_id,)).fetchone()
+        meta = json.loads((row["meta"] if row else "") or "{}")
+        meta.update(fields)
+        conn.execute("UPDATE queue_item SET meta = ? WHERE id = ?", (json.dumps(meta), item_id))
+
+
 def decide(item_id: int, status: Status, by: str = "telegram") -> None:
     with session() as conn:
         conn.execute(

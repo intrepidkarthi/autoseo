@@ -16,6 +16,7 @@
     autoseo draft [--top N] [--queue]       write posts against measured demand
     autoseo publish [--dry-run]             open PRs for approved drafts
     autoseo video --topic "..."             generate a Short (script + render)
+    autoseo relink                          link live blog pages the index has orphaned
     autoseo youtube-auth                    one-time YouTube OAuth, run locally
     autoseo delist                          plan the noindex for orphaned clusters
     autoseo check FILE                      run the quality gate over a draft
@@ -238,6 +239,7 @@ def _run_publish(args) -> None:
                 queue.decide(item.id, Status.FAILED, by="publish")
                 continue
             if not args.dry_run:
+                queue.record_result(item.id, video_id=vid)
                 queue.decide(item.id, Status.POSTED, by="publish")
                 print(f"  https://youtube.com/watch?v={vid}")
             continue
@@ -256,6 +258,7 @@ def _run_publish(args) -> None:
             queue.decide(item.id, Status.FAILED, by="publish")
             continue
         if not args.dry_run:
+            queue.record_result(item.id, pr_url=url)
             queue.decide(item.id, Status.POSTED, by="publish")
             print(f"  {url}")
 
@@ -421,6 +424,11 @@ def main(argv: list[str] | None = None) -> int:
     p_pub = sub.add_parser("publish", help="open PRs for approved drafts")
     p_pub.add_argument("--dry-run", action="store_true")
 
+    p_relink = sub.add_parser(
+        "relink", help="find live blog pages the index links to nowhere, and link them"
+    )
+    p_relink.add_argument("--dry-run", action="store_true")
+
     p_vid = sub.add_parser("video", help="generate a Short: script, voiceover, footage, render")
     p_vid.add_argument("--topic", required=True)
     p_vid.add_argument("--terms", default="journal writing calm morning routine",
@@ -504,6 +512,12 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "publish":
             _run_publish(args)
+
+        elif args.command == "relink":
+            from autoseo.publish import blog as publisher
+            url = publisher.relink(dry_run=args.dry_run)
+            if url:
+                print(f"  {url}")
 
         elif args.command == "youtube-auth":
             from autoseo.publish import youtube_auth

@@ -146,6 +146,97 @@ def _render(draft: Draft) -> dict[str, str]:
     return files
 
 
+INDEX_PAGES = [blog_index.INDEX_PATH] + [
+    f"{SITE_DIR}/public/blog/page/{n}.html" for n in range(2, 8)
+]
+
+
+def find_orphans() -> dict[str, tuple[str, str]]:
+    """Return {slug: (title, description)} for live pages no index page links to.
+
+    An article that renders but is linked from nowhere is worse than one that 404s: it returns 200,
+    it sits in the sitemap, and every check short of actually looking at /blog says it shipped. That
+    is how `personal-digital-twin` spent a day live and unreachable — it was published before the
+    index step existed, so nothing was wrong, there was simply nothing linking to it.
+    """
+    import html as htmllib
+    import re
+
+    listing = _get(f"/repos/{SITE_REPO}/contents/{SITE_DIR}/public/blog?ref={BASE_BRANCH}")
+    slugs = {
+        e["name"][:-5] for e in listing
+        if e["type"] == "file" and e["name"].endswith(".html") and e["name"] != "index.html"
+    }
+
+    linked: set[str] = set()
+    for page in INDEX_PAGES:
+        blob = _get(f"/repos/{SITE_REPO}/contents/{page}?ref={BASE_BRANCH}")
+        linked |= set(re.findall(
+            r'href="/blog/([a-z0-9-]+)"', base64.b64decode(blob["content"]).decode("utf-8")
+        ))
+
+    orphans: dict[str, tuple[str, str]] = {}
+    for slug in sorted(slugs - linked):
+        page = _get(f"/repos/{SITE_REPO}/contents/{SITE_DIR}/public/blog/{slug}.html"
+                    f"?ref={BASE_BRANCH}")
+        doc = base64.b64decode(page["content"]).decode("utf-8")
+        title = re.search(r"<title>(.*?)</title>", doc, re.S)
+        desc = re.search(r'<meta name="description" content="(.*?)"', doc, re.S)
+        orphans[slug] = (
+            htmllib.unescape(title.group(1).strip()) if title else slug.replace("-", " ").title(),
+            htmllib.unescape(desc.group(1).strip()) if desc else "",
+        )
+    return orphans
+
+
+def relink(dry_run: bool = False) -> str:
+    """Link every orphaned live page from the index, as one PR. Returns the PR URL, or ""."""
+    orphans = find_orphans()
+    if not orphans:
+        print("  No orphans — every live article page is linked from the index.")
+        return ""
+
+    print(f"\n  {len(orphans)} live page(s) linked from nowhere:")
+    for slug, (title, _) in orphans.items():
+        print(f"      /blog/{slug}  —  {title}")
+
+    index_blob = _get(f"/repos/{SITE_REPO}/contents/{blog_index.INDEX_PATH}?ref={BASE_BRANCH}")
+    updated = base64.b64decode(index_blob["content"]).decode("utf-8")
+    for slug, (title, description) in orphans.items():
+        updated = blog_index.insert(updated, slug, title, description)
+
+    if dry_run:
+        print("\n  would add the above to the top of the blog index (no PR opened).\n")
+        return ""
+
+    branch = f"autoseo/relink-{dt.date.today().isoformat()}"
+    base_sha = _get(f"/repos/{SITE_REPO}/git/ref/heads/{BASE_BRANCH}")["object"]["sha"]
+    _post(f"/repos/{SITE_REPO}/git/refs", {"ref": f"refs/heads/{branch}", "sha": base_sha})
+    _put(f"/repos/{SITE_REPO}/contents/{blog_index.INDEX_PATH}", {
+        "message": f"blog: link {len(orphans)} orphaned page(s) from the index",
+        "content": base64.b64encode(updated.encode()).decode(),
+        "branch": branch,
+        "sha": index_blob["sha"],
+    })
+
+    listed = "\n".join(f"- [/blog/{s}](https://getdailyvox.com/blog/{s}) — {t}"
+                       for s, (t, _) in orphans.items())
+    pr = _post(f"/repos/{SITE_REPO}/pulls", {
+        "title": f"blog: link {len(orphans)} orphaned page(s) from the index",
+        "head": branch, "base": BASE_BRANCH, "draft": False,
+        "body": f"""These pages are live and in the sitemap, but no index page links to them, so a
+reader browsing /blog cannot reach them:
+
+{listed}
+
+Found by `autoseo relink`, which compares the rendered pages under `public/blog/` against the links
+on all seven index pages. Pagination is not rebalanced — page one gains the entries.""",
+    })
+    url = pr["html_url"]
+    log.info("opened %s", url)
+    return url
+
+
 def publish(draft: Draft, dry_run: bool = False) -> str:
     """Render, branch, commit every generated file, open a PR. Returns the PR URL."""
     branch = f"autoseo/{draft.slug}-{dt.date.today().isoformat()}"

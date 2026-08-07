@@ -29,7 +29,13 @@ from autoseo.core.log import get_logger
 
 log = get_logger(__name__)
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+# readonly is here only so the channel the token resolves to can be read back before uploading.
+# Without it channels.list(mine=True) 403s and the destination channel is unknowable — which is how
+# the first Short ended up on a personal channel with nothing reporting it.
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly",
+]
 CATEGORY_PEOPLE_AND_BLOGS = "22"
 
 
@@ -66,6 +72,46 @@ def _credentials() -> Credentials:
     if not creds.valid and creds.expired and creds.refresh_token:
         creds.refresh(Request())
     return creds
+
+
+def resolve_channel(creds: Credentials | None = None) -> tuple[str, str]:
+    """Return (channel_id, title) for the channel this token uploads to."""
+    youtube = build("youtube", "v3", credentials=creds or _credentials(), cache_discovery=False)
+    items = youtube.channels().list(part="snippet", mine=True).execute().get("items", [])
+    if not items:
+        raise ConfigError(
+            "This token resolves to a Google account with no YouTube channel at all. Re-run "
+            "`autoseo youtube-auth` and pick the DailyVox channel at the 'Choose a channel' step."
+        )
+    return items[0]["id"], items[0]["snippet"]["title"]
+
+
+def assert_channel(creds: Credentials | None = None) -> str:
+    """Refuse to upload unless the token points at the DailyVox channel.
+
+    videos.insert takes no channel argument. The destination is fixed when you consent: Google shows
+    an account picker, and for a Brand Account channel a *second* 'Choose a channel' step. Accepting
+    the default there binds the token to your personal channel, and every later upload silently goes
+    to the wrong place — the API reports success, the video is simply somewhere else. There is no way
+    to redirect it afterwards (onBehalfOfContentOwner is CMS-partner only), so the only defence is
+    checking before the upload rather than discovering it after.
+    """
+    expected = settings.yt_channel_id
+    actual, title = resolve_channel(creds)
+    if not expected:
+        log.warning("AUTOSEO_YT_CHANNEL_ID is unset — uploading to %r (%s) unchecked", title, actual)
+        return actual
+    if actual != expected:
+        raise ConfigError(
+            f"Refusing to upload: this token controls the channel {title!r} ({actual}), not the "
+            f"expected DailyVox channel ({expected}).\n\n"
+            "The token was minted against the wrong channel. Re-run `autoseo youtube-auth` and at "
+            "the 'Choose a channel' step pick the DailyVox brand channel (@dailyvoxapp) rather than "
+            "the personal account offered first, then replace YT_TOKEN_JSON in the publishing "
+            "environment."
+        )
+    log.info("channel verified: %s (%s)", title, actual)
+    return actual
 
 
 def fetch_render(run_id: str, artifact: str = "short", dest_dir: Path = Path("state/media")) -> Path:
@@ -111,9 +157,15 @@ def upload(video: Path, title: str, description: str, tags: list[str] | None = N
            privacy: str = "private", synthetic: bool = False, dry_run: bool = False) -> str:
     """Upload and return the video id. Defaults to private: a bad first upload on a small channel
     is worth more caution than the day of delay costs."""
+    # Verified even on a dry run: "would upload" is worthless if it would have gone to the wrong
+    # channel, and this is the one check that has to hold before anything irreversible happens.
+    creds = _credentials()
+    channel = assert_channel(creds)
+
     if dry_run:
         print(f"\n  would upload : {video.name} ({video.stat().st_size / 1_048_576:.1f} MB)")
         print(f"  title        : {title}")
+        print(f"  to channel   : {channel}")
         print(f"  privacy      : {privacy}   synthetic disclosure: {synthetic}")
         print(f"  description  :\n{description[:300]}\n")
         return ""
@@ -133,7 +185,7 @@ def upload(video: Path, title: str, description: str, tags: list[str] | None = N
         },
     }
 
-    youtube = build("youtube", "v3", credentials=_credentials(), cache_discovery=False)
+    youtube = build("youtube", "v3", credentials=creds, cache_discovery=False)
     media = MediaFileUpload(str(video), chunksize=-1, resumable=True)
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
 
