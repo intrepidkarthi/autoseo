@@ -60,14 +60,16 @@ expect 0 "autoseo report"            -- "$CLI" report
 expect 0 "autoseo brief"             -- "$CLI" brief --top 3
 expect 0 "autoseo outreach"          -- "$CLI" outreach --top 3
 expect 0 "autoseo opportunity"       -- "$CLI" opportunity
-expect 0 "autoseo gate --status"     -- "$CLI" gate --status
+expect 0 "autoseo status"            -- "$CLI" status
 expect 0 "autoseo aeo --dry-run"     -- "$CLI" aeo --dry-run
+expect 0 "autoseo delist"            -- "$CLI" delist
 expect 0 "autoseo snapshot"          -- "$CLI" snapshot
 
 step "3. failure paths must fail loudly, not silently"
 # A missing credential has to exit non-zero with an actionable message. Silent success on
 # no data is how this project previously shipped a dead feature.
 ( unset GSC_SERVICE_ACCOUNT_JSON; expect 2 "autoseo gsc without credentials" -- "$CLI" gsc )
+( unset GH_DAILYVOX_TOKEN; expect 2 "autoseo apply without the site token" -- "$CLI" apply )
 expect 2 "unknown subcommand"        -- "$CLI" definitely-not-a-command
 
 step "4. direct invocation — the layer most commits touch"
@@ -107,7 +109,139 @@ assert snapshot.TABLES, "snapshot has no tables registered"
 print(f"    brief={len(actions)} actions  outreach={len(targets)} targets", file=sys.stderr)
 EOF
 
-step "5. snapshot round-trip must be lossless"
+step "5. the autonomous loop — caps, ledger, and page edits"
+# Nothing here touches the network. These are the parts that now run with nobody watching:
+# the caps that replaced the approval, and the two functions that edit a live page.
+"$PY" - <<'EOF' && ok "policy, ledger and page edits behave" || bad "autonomous loop layer failed"
+import re
+from autoseo.act import ledger, onpage, policy
+from autoseo.publish import page
+
+# --- caps. A cap that does not count what is already queued is not a cap: plan would compose three
+# posts and apply would ship all three inside one morning.
+budget, why = policy.post_budget()
+assert budget <= policy.MAX_POSTS_PER_DAY, f"budget {budget} exceeds the daily cap"
+before = budget
+item_id = ledger.plan(ledger.Item(kind=ledger.Kind.POST, title="smoke", body="x",
+                                  rationale="smoke test", meta={"slug": "smoke-test"}))
+after, _ = policy.post_budget()
+assert after == max(0, before - 1), f"queued post did not consume budget: {before} -> {after}"
+assert "smoke-test" in policy.cooling_down(), "a planned page is not inside the cooldown window"
+ledger.drop(item_id, "smoke test")
+assert policy.post_budget()[0] == before, "dropping did not release the budget"
+# Leave no trace: state/queue_item.csv is committed, and a smoke row in it would be indistinguishable
+# from a real decision when someone reads the history six weeks from now.
+from autoseo.core.db import session as _session
+with _session() as _c:
+    _c.execute("DELETE FROM queue_item WHERE id = ?", (item_id,))
+
+# --- pause switch. The one control left; if it silently stopped working nothing would say so.
+import os
+os.environ["AUTOSEO_PAUSE"] = "1"
+assert policy.paused(), "AUTOSEO_PAUSE=1 did not pause the loop"
+del os.environ["AUTOSEO_PAUSE"]
+assert not policy.paused(), "the pause did not clear"
+
+# --- candidate selection must never propose pagination as an article to retitle
+for c in onpage.candidates(days=90):
+    assert not c.slug.isdigit(), f"pagination selected as a candidate: {c.url}"
+    assert "/blog/page/" not in c.url, f"pagination selected as a candidate: {c.url}"
+
+# --- page edits, against markup shaped like the real pages
+DOC = '''<html><head>
+  <title>Old Title</title>
+  <meta name="description" content="old description">
+  <meta property="og:title" content="Old Title">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"BlogPosting","headline":"Old Title",
+   "description":"old description","dateModified":"2020-01-01"}
+  </script>
+</head><body><main><article class="blog-article"><div class="article-body">
+  <p>Body copy that must survive untouched.</p>
+  <div class="article-cta"><h3>Try it</h3></div>
+</div></article></main></body></html>'''
+
+new = page.retitle(DOC, 'Fixed "Title" & Co', "A better description of the page.")
+assert "<title>Fixed &quot;Title&quot; &amp; Co</title>" in new, "title tag not rewritten or not escaped"
+assert 'content="A better description of the page."' in new, "meta description not rewritten"
+assert "Body copy that must survive untouched." in new, "retitle changed the body"
+import json
+ld = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', new, re.S).group(1))
+assert ld["headline"] == 'Fixed "Title" & Co', "structured data disagrees with the title tag"
+assert ld["dateModified"] != "2020-01-01", "dateModified not bumped"
+
+block = "## Frequently asked questions\n\n### Does it work offline?\n\nYes, entirely on device.\n\n### Where is data stored?\n\nOn the phone."
+pairs = page.parse_faq(block)
+assert len(pairs) == 2, f"parsed {len(pairs)} Q/A pairs, expected 2"
+faq = page.append_faq(DOC, pairs)
+assert faq.index("Frequently asked questions") < faq.index('class="article-cta"'), \
+    "FAQ inserted after the call to action"
+assert '"@type": "FAQPage"' in faq, "FAQPage structured data not added"
+assert "Body copy that must survive untouched." in faq, "append_faq changed the body"
+try:
+    page.append_faq(faq, pairs)
+except RuntimeError:
+    pass
+else:
+    raise AssertionError("appending a second FAQ block was allowed")
+EOF
+
+step "6. the quality gate — every article goes through this and nothing else"
+# The gate is the only thing between the model and the live site. Two properties matter: it strips
+# what has one correct fix, and it blocks what does not.
+"$PY" - <<'EOF' && ok "gate strips marks, blocks fingerprints, passes clean prose" || bad "quality gate failed"
+from autoseo.quality import gate, marks
+
+# The scanner must be present. A provenance check that silently no-ops would record a clean
+# verdict for a check that never ran — the exact failure the empty duplication corpus already had.
+assert marks.SCANNER.exists(), f"vendored scanner missing at {marks.SCANNER}"
+
+ZWSP, NBSP = "​", " "
+dirty = f"""---
+slug: probe
+generator: ChatGPT
+---
+
+# A probe
+
+Great question! DailyVox{ZWSP}transcribes on{NBSP}device. Studies show it matters.
+See https://example.com/x?utm_source=chatgpt.com for more. Written by [Your Name].
+"""
+v = gate.evaluate(dirty, context="section", check_duplication=False)
+assert not v.passed, "contaminated draft passed the gate"
+blocked = " ".join(v.reasons).lower()
+for expected in ("placeholder", "chatbot artifact", "vague attribution", "sycophancy"):
+    assert expected in blocked, f"{expected!r} not blocked — reasons were: {v.reasons}"
+
+# The utm parameter is stripped rather than blocked, and that split is the design: a tracking
+# param has exactly one correct fix, an unfilled placeholder has none that a machine may apply.
+assert "utm_source=chatgpt" not in v.text, "AI utm parameter survived into the returned text"
+assert any("utm" in w.lower() or "fingerprint" in w.lower() for w in v.warnings), \
+    f"utm strip not reported — warnings were: {v.warnings}"
+
+# Sanitised text is what callers publish, so the marks must actually be gone from it.
+assert ZWSP not in v.text, "zero-width space survived into the returned text"
+assert NBSP not in v.text, "no-break space survived into the returned text"
+assert "generator: ChatGPT" not in v.text, "provenance key survived into the returned text"
+assert v.marks_stripped >= 2, f"expected marks stripped, got {v.marks_stripped}"
+
+# Load-bearing joiners must survive: stripping these mangles emoji and Tamil.
+keeps = marks.sanitise("family 👨‍👩‍👧 and தமிழ்")
+assert keeps.kept >= 2, f"contextual joiners were stripped ({keeps.kept} kept)"
+assert "👨‍👩‍👧" in keeps.text, "emoji ZWJ sequence was broken"
+
+# And the house style must not trip it. Short sentences next to long ones are the voice profile,
+# not a defect — an earlier draft of the fragmentation rule flagged exactly this.
+house = ("Turn on airplane mode. Speak. The transcript appears. That is the whole test, and it is "
+         "the only one I trust, because it is the only one you can run without taking my word for "
+         "anything at all.")
+report = __import__("autoseo.quality.slop", fromlist=["slop"]).analyse(house, context="section")
+assert not report.p0, f"house style blocked: {[f.rule for f in report.p0]}"
+assert not any(f.rule == "dramatic fragmentation" for f in report.flags), \
+    "varied short sentences flagged as dramatic fragmentation"
+EOF
+
+step "7. snapshot round-trip must be lossless"
 "$PY" - <<'EOF' && ok "CSV round-trip lossless" || bad "CSV round-trip lost rows"
 import os
 from autoseo.core import snapshot

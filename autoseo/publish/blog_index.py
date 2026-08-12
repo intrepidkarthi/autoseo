@@ -87,6 +87,30 @@ def insert(index_html: str, slug: str, title: str, description: str,
     return index_html[: match.start()] + block + index_html[match.start():].lstrip(" \t")
 
 
+def update(index_html: str, slug: str, title: str, description: str) -> str:
+    """Rewrite an existing entry's headline and blurb in place.
+
+    Retitling an article and leaving the index showing the old headline is worse than not retitling
+    it: the listing and the page disagree, and the listing is what a reader sees first. Anchored on
+    the entry's own anchor tag, and returns the input unchanged if that entry is not there.
+    """
+    pattern = re.compile(
+        rf'(<a href="/blog/{re.escape(slug)}" class="blog-list-item">.*?)'
+        r"(<h2>)(.*?)(</h2>\s*<p>)(.*?)(</p>)",
+        re.S,
+    )
+    match = pattern.search(index_html)
+    if not match:
+        log.info("%s is not listed on the index — nothing to update", slug)
+        return index_html
+    return pattern.sub(
+        lambda m: (m.group(1) + m.group(2) + htmllib.escape(title) + m.group(4)
+                   + htmllib.escape(description) + m.group(6)),
+        index_html,
+        count=1,
+    )
+
+
 def cluster_from_markdown(markdown: str) -> str:
     m = re.search(r"^cluster:\s*(\S+)", markdown, re.M)
     return m.group(1).strip() if m else "voice"

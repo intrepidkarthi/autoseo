@@ -158,14 +158,17 @@ def write(action: Action, tier: llm.Tier = llm.Tier.FREE) -> Draft | None:
                      "meta_description, target_queries, voice and cluster. It did not.")
             continue
 
-        body = re.sub(r"^---.*?---\s*", "", markdown, flags=re.S)
-        verdict = gate.evaluate(body, context="blog")
+        # The whole file, frontmatter included. `marks` needs the raw text to find provenance keys
+        # and invisible characters wherever they landed; `slop` strips the frontmatter itself
+        # before judging prose. Publishing `verdict.text` rather than `markdown` is what makes the
+        # sanitising real — re-deriving the string here would put the stripped characters back.
+        verdict = gate.evaluate(markdown, context="blog")
         log.info("attempt %d: %s", attempt, verdict.summary())
 
         if verdict.passed:
             return Draft(
                 slug=_slugify(action.query), title=title, description=description,
-                markdown=markdown, target_query=action.query, evidence=action.evidence,
+                markdown=verdict.text, target_query=action.query, evidence=action.evidence,
                 verdict=verdict,
             )
         notes = "\n".join(f"- {r}" for r in verdict.reasons)

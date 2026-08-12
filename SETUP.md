@@ -15,12 +15,16 @@ Create two environments, put each secret in exactly one:
 
 | Environment | Secrets | Used by |
 |---|---|---|
-| `compose` | `GSC_SERVICE_ACCOUNT_JSON`, `BING_WEBMASTER_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `GA4_PROPERTY_ID`, `ASC_*` | `collect.yml`, `plan.yml`, `gate.yml`, `measure.yml` |
-| `publishing` | `GH_DAILYVOX_TOKEN`, `GH_SECRETS_TOKEN`, `YT_*`, `IG_*` | `publish.yml` **only** |
+| `compose` | `GSC_SERVICE_ACCOUNT_JSON`, `BING_WEBMASTER_API_KEY`, `GEMINI_API_KEY` | the `plan` job of `seo.yml` |
+| `publishing` | `GH_DAILYVOX_TOKEN` (`YT_*` parked) | the `apply` job of `seo.yml` **only** |
 
 **To create one:** repo → Settings → Environments → *New environment* → name it → *Add environment secret*.
-Set **`publishing` to require a reviewer (you)** — *Environment protection rules → Required reviewers* — so any
-change to that workflow needs explicit approval before it runs with posting credentials.
+
+**Neither environment may have a required reviewer.** `publishing` had one while every run was meant to pause
+for a person; it was removed with the rest of the gates. A required reviewer on a daily unattended job is not
+a safety feature, it is a job that never runs — every night's work would sit in the Actions UI waiting. If you
+ever see the `apply` job stuck on *Review pending*, that rule has come back: Settings → Environments →
+publishing → uncheck *Required reviewers*.
 
 Why environments and not plain repo secrets: a workflow declares `environment: compose` and then *cannot*
 reference a publishing secret. The security boundary becomes GitHub-enforced rather than documented.
@@ -120,47 +124,53 @@ signal, not just a second-string search engine.
 
 ---
 
-# PHASE 2 — Telegram gate (~5 min)
+# PHASE 2 — no approval channel (0 min)
 
-## 5. `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` → environment `compose`
+There is no Telegram bot, no webhook and no Cloudflare worker. There used to be all three; they were the
+approval loop, and the approval loop is gone. If you have `TELEGRAM_BOT_TOKEN` sitting in the `compose`
+environment from before, delete it — nothing reads it.
 
-1. Open Telegram, search **@BotFather**, start a chat
-2. Send `/newbot`
-3. Display name: `AutoSEO` (anything)
-4. Username: must be unique and end in `bot` — e.g. `dailyvox_autoseo_bot`
-5. BotFather replies with the **token** (`1234567890:AAG...`) → that's `TELEGRAM_BOT_TOKEN`
-6. **Now open your new bot and send it `/start`.** Bots cannot message you first — skip this and every card
-   silently fails to deliver.
-7. Search **@userinfobot**, send it any message → it replies with your numeric **Id** → that's
-   `TELEGRAM_CHAT_ID`
+The controls that replaced it need no credential at all:
 
-No webhook, no public URL, no hosting — we poll `getUpdates` on a `*/20` cron.
+| | |
+|---|---|
+| stop everything | repo → Settings → Variables → `AUTOSEO_PAUSE = 1`, or commit a `state/PAUSE` file |
+| see what it did | `autoseo status`, or the `state/queue_item.csv` diff in any `apply:` commit |
+| undo something | `git revert` the commit on `intrepidkarthi/dailyvox` |
 
 ---
 
 # PHASE 3 — blog publishing (~5 min)
 
-## 6. `GH_DAILYVOX_TOKEN` → environment `publishing`
+## 5. `GH_DAILYVOX_TOKEN` → environment `publishing`
 
 1. GitHub → your avatar → **Settings** → **Developer settings** (bottom of left nav)
 2. **Personal access tokens → Fine-grained tokens** → **Generate new token**
-3. Name: `autoseo → dailyvox PRs` · Expiration: 90 days
+3. Name: `autoseo → dailyvox` · Expiration: 90 days
 4. **Resource owner:** `intrepidkarthi`
 5. **Repository access:** *Only select repositories* → **`intrepidkarthi/dailyvox`**
 6. **Repository permissions:**
    - **Contents:** Read and write
-   - **Pull requests:** Read and write
-   - leave everything else at *No access*
+   - leave everything else at *No access* — pull-request access is no longer needed, since the loop
+     commits directly to `main`
 7. **Generate token** → copy it now, it's shown once
 8. GitHub → `autoseo` → Environments → **`publishing`** → `GH_DAILYVOX_TOKEN`
 
-Scoped to one repo, and the agent opens PRs rather than committing to `main` by policy.
+Scoped to one repo, and inside that repo the loop can only write four path prefixes — enforced in
+`publish/site.py`, checked before any commit is sent.
+
+**This token expires every 90 days.** When it does, `apply` fails loudly with a 401 and the loop keeps
+measuring but stops shipping. It is the single most likely way this quietly stops working.
 
 ---
 
-# PHASE 4 — social publishing
+# PHASE 4 — social publishing *(parked)*
 
-## 7. `YT_CLIENT_SECRET_JSON` + `YT_TOKEN_JSON` → environment `publishing` (~15 min)
+> **Nothing below is scheduled.** Video and social generation are switched off; the code is still in the repo
+> and the commands still run locally, but no workflow calls them. Skip this whole phase unless you are turning
+> one of them back on. References to Telegram in this section are historical — there is no bot any more.
+
+## 6. `YT_CLIENT_SECRET_JSON` + `YT_TOKEN_JSON` → environment `publishing` (~15 min)
 
 Reuse the `autoseo` Cloud project.
 
@@ -252,28 +262,31 @@ degrades rather than breaks.
 
 ---
 
-## Summary — to start Phase 0
+## Summary — everything the loop actually needs
 
 | # | Secret | Env | Time |
 |---|---|---|---|
 | 1 | `GSC_SERVICE_ACCOUNT_JSON` — service account added as **Owner** in Search Console | `compose` | ~15 min |
 | 2 | `GEMINI_API_KEY` | `compose` | ~2 min |
 | 3 | `BING_WEBMASTER_API_KEY` | `compose` | ~1 min |
+| 4 | `GH_DAILYVOX_TOKEN` — fine-grained, `dailyvox` only, Contents: read+write | `publishing` | ~5 min |
 
-Phase 0 only reads — it writes no content and publishes nothing — so it's safe to run the moment these exist.
+Four secrets. With the first three and no fourth, the loop measures, decides and composes, and ships nothing —
+`apply` exits 2 with a message naming the missing token. That is a legitimate way to run it for a week if you
+want to read `autoseo status` before letting it write.
 
 ### Running cost
 
 | Line | Monthly |
 |---|---|
-| Hosting, blog PR, YouTube, Instagram, GSC, Bing, GA4, Telegram, IndexNow, LLM, X (manual) | **$0** |
-| fal.ai — optional, Instagram stills only | $0–3 |
+| Hosting, GitHub Actions, GSC, Bing, Gemini free tier, IndexNow | **$0** |
 
 ---
 
-## Two things to decide, not create
+## Decisions already made, recorded here so they are not re-litigated
 
-1. **Blog PR target** — PRs against `main` on `intrepidkarthi/dailyvox`, or a `content/` branch you merge in
-   batches? Default: `main`, one PR per post, you merge.
-2. **`/for/` + `/in/` cull method** — `410 Gone` or `noindex`? I lean **410** (faster, unambiguous), but it's
-   irreversible, so Phase 0's per-cluster indexation data should settle it. Can wait ~a week.
+1. **Direct commits, not pull requests.** A PR is a place for a person to look, and there is no person in the
+   loop. Undo is `git revert` on one commit, which is faster and more complete than closing a PR.
+2. **`noindex`, not `410`, for `/for/` and `/in/`.** Reversible, needs no file deletion, and if it turns out
+   to be wrong the fix is deleting a config block rather than restoring 1,507 files from git. Applied
+   automatically by `autoseo delist --apply`, which the `apply` job runs every morning until it is on.

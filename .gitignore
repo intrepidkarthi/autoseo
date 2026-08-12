@@ -33,3 +33,6 @@ state/tmp/
 # rendered media is a build artifact, not state
 state/media/
 state/models/
+
+# The duplication index is a cache, not state: 5.7 MB rebuilt from the live site on every run.
+state/corpus_shingle.csv

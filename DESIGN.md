@@ -1,20 +1,26 @@
 # autoseo — Design
 
-Automated blog + social publishing and SEO/AEO measurement for DailyVox.
-Runs entirely on GitHub Actions. No server. Target cost ~$1–5/month.
+SEO for getdailyvox.com, run without a person in the loop. Measure, decide, fix, publish, on a daily
+schedule. Runs entirely on GitHub Actions. No server, $0/month.
+
+Video and social publishing are **parked** — the code is still here, nothing schedules it.
 
 ---
 
 ## 1. Principles
 
-1. **Statistics decide allocation, the LLM decides craft.** Scheduling is arithmetic — a bandit does it for
-   $0, deterministically, auditably. The LLM writes copy and judges freshness. Nothing else.
-2. **Nothing publishes without human approval** until a channel earns autonomy per-channel.
-3. **A module that reads the open web never holds publishing credentials.** This is the prompt-injection
-   firewall and it is enforced by *workflow-level secret scoping*, not by convention.
+1. **Statistics decide allocation, the LLM decides craft.** What to work on is arithmetic over Search
+   Console data — free, deterministic, auditable. The model writes copy and nothing else.
+2. **Caps replace the gatekeeper.** There is no approval step. What stands in its place is a quality gate
+   that blocks, publishing caps that are enforced in code, a cooldown per page, and a kill switch. A
+   person tapping *approve* was, in practice, a rate limiter; the rate limits are now explicit.
+3. **A module that reads the open web never holds publishing credentials.** The prompt-injection firewall,
+   enforced by binding each job to a different GitHub Environment. This survived the removal of the human
+   gate because it never depended on it.
 4. **Vendor, don't depend.** Third-party MIT code is copied in with its header, pinned, and listed in
    `VENDOR.md`. No upstream churn, no submodules.
-5. **Every automated decision explains itself.** A card that can't say *why* is a bug.
+5. **Every automated decision explains itself.** The ledger row carries the evidence that produced it. With
+   nobody watching in real time, the record *is* the oversight.
 6. **Free collectors are never gated by budget.** The measurement series must never have a hole.
 
 ---
@@ -23,185 +29,198 @@ Runs entirely on GitHub Actions. No server. Target cost ~$1–5/month.
 
 ```
 autoseo/
-├── .github/workflows/          # the only schedulers; each loads a DIFFERENT secret set
-│   ├── collect.yml             # 06:00 IST  — measurement            [READ-ONLY creds]
-│   ├── plan.yml                # 06:30 IST  — decide, draft, notify  [LLM + Telegram send]
-│   ├── gate.yml                # */20       — poll approvals         [Telegram only]
-│   ├── publish.yml             # hourly     — publish approved       [WRITE creds, no web reads]
-│   └── measure.yml             # weekly     — AEO panel + ranks      [READ-ONLY creds]
+├── .github/workflows/
+│   └── seo.yml                 # 06:00 IST daily. Two jobs, different secret sets:
+│                               #   plan   [compose env]    — measure, decide, compose
+│                               #   apply  [publishing env] — commit to the site repo
 │
 ├── autoseo/
 │   ├── core/
 │   │   ├── config.py           # env → typed settings. Single source of truth.
-│   │   ├── db.py               # SQLite connection + schema migrations
-│   │   ├── models.py           # dataclasses: Draft, ScheduledPost, Metric, Probe, Decision
-│   │   └── log.py              # structured logging; redacts anything secret-shaped
+│   │   ├── db.py               # SQLite connection + schema
+│   │   ├── snapshot.py         # db ⇄ state/*.csv, the git-mergeable persistence
+│   │   └── log.py              # structured logging
 │   │
 │   ├── collect/                # ← reads the world. NO write credentials, ever.
-│   │   ├── base.py             # Collector protocol
 │   │   ├── gsc.py              # Search Analytics API
 │   │   ├── inspect.py          # URL Inspection API (2,000/day) → indexed vs not
 │   │   ├── bing.py             # Bing Webmaster Tools API
-│   │   ├── ga4.py              # GA4 Data API, incl. AI-referrer segmentation
-│   │   ├── appstore.py         # App Store Connect — installs (the north star)
-│   │   └── platform_stats.py   # pull back per-post engagement for the bandit
+│   │   ├── inventory.py        # sitemap → URL inventory, bucketed by cluster
+│   │   └── diagnose.py         # isolate where GSC impressions go missing
 │   │
 │   ├── decide/                 # ← pure functions. No network, no LLM, no credentials.
-│   │   ├── opportunity.py      # GSC gap query → content backlog
-│   │   ├── bandit.py           # Thompson sampling over factored arms
-│   │   ├── constraints.py      # hard limits; overrides the bandit unconditionally
-│   │   └── planner.py          # orchestrates the above → a day_plan
+│   │   ├── brand.py            # brand / competitor-internal / irrelevant classification
+│   │   ├── opportunity.py      # striking distance, CTR gaps, content gaps
+│   │   ├── brief.py            # ranked actions with evidence
+│   │   └── outreach.py         # pages worth being listed on, from real citations
 │   │
-│   ├── compose/                # ← touches LLM APIs. No publishing credentials.
-│   │   ├── llm.py              # provider-agnostic router (tiered: free → cheap → premium)
-│   │   ├── dedup.py            # semantic freshness check vs the content log
+│   ├── act/                    # ← the loop
+│   │   ├── plan.py             # decide → compose → gate → ledger.  Publishes nothing.
+│   │   ├── apply.py            # ledger → commits.  Composes nothing, reads no open web.
+│   │   ├── onpage.py           # which live pages to fix, and the composed fix
+│   │   ├── policy.py           # the caps, the cooldown, the kill switch
+│   │   └── ledger.py           # what was decided, why, and what happened
+│   │
+│   ├── compose/
+│   │   ├── llm.py              # provider-agnostic, tiered: free → cheap → premium
 │   │   ├── blog.py             # → markdown for render_articles.py
-│   │   ├── social.py           # → per-platform copy
-│   │   └── prompts/            # brand guardrails + per-format templates
+│   │   └── video.py            # parked
 │   │
-│   ├── quality/                # ← the pre-publish gate. Regex + arithmetic, so $0.
+│   ├── quality/                # ← the gate that blocks. Regex + arithmetic, so $0.
+│   │   ├── marks.py            # invisible Unicode, paste fingerprints, frontmatter provenance
 │   │   ├── slop.py             # AI-ism rules, length floor, truncation, stylometry, hard-nos
-│   │   ├── plagiarism.py       # shingled 5-grams vs the 1,722-page corpus (hashes only)
+│   │   ├── plagiarism.py       # shingled 5-grams vs the live corpus (hashes only)
 │   │   └── gate.py             # P0 blocks; P1 must reach 6
 │   │
-│   ├── media/
-│   │   ├── tts.py              # Kokoro-82M (Apache-2.0), CPU, on-runner
-│   │   ├── render.py           # thin wrapper over vendor/mpt
-│   │   └── image.py            # HTML→PNG default; fal.ai optional
-│   │
-│   ├── gate/
-│   │   ├── cards.py            # build the self-explaining approval card
-│   │   ├── send.py             # push cards to Telegram
-│   │   └── poll.py             # getUpdates → resolve approvals (persisted offset)
-│   │
 │   ├── publish/                # ← holds write credentials. NEVER reads the open web.
-│   │   ├── base.py             # Publisher protocol + registry + DeliveryMode
-│   │   ├── manual.py           # DeliveryMode.MANUAL — copy-paste-ready card to Telegram
-│   │   ├── blog.py             # GitHub Contents API → PR on intrepidkarthi/dailyvox
-│   │   ├── youtube.py          # adapted from relay/autopilot/
-│   │   ├── instagram.py        # Instagram API with Instagram Login
-│   │   └── reddit.py           # credential for metrics first; posting stays off
+│   │   ├── site.py             # git data API: one atomic commit per action, path-allowlisted
+│   │   ├── blog.py             # render → commit; retitle; append a section; relink orphans
+│   │   ├── page.py             # surgical head edits for pages with no markdown source
+│   │   ├── blog_index.py       # insert/update the entry on /blog
+│   │   ├── delist.py           # noindex headers for the dead clusters
+│   │   ├── indexnow.py         # submit changed URLs to Bing, Yandex, Seznam, Naver
+│   │   └── youtube.py          # parked
 │   │
-│   ├── aeo/
-│   │   ├── panel.yaml          # ~50 buyer-intent prompts
-│   │   └── probe.py            # Gemini grounding (free tier) → citation extraction
-│   │
-│   └── budget/
-│       └── ledger.py           # spend accounting + tiered degradation
+│   ├── aeo/                    # buyer-question panel vs Gemini grounding → citations
+│   └── media/                  # parked: TTS, footage, ffmpeg compositing
 │
-├── worker/                     # Cloudflare worker: Telegram webhook -> repository_dispatch
-├── vendor/mpt/                 # vendored MoneyPrinterTurbo modules (MIT, headers intact)
-├── state/                      # SQLite + JSON snapshots, committed each run
+├── vendor/
+│   ├── render_articles.py       # the site's own renderer, vendored
+│   └── scan_marks.py            # the write-like-me marks scanner, vendored byte-for-byte
+├── state/                      # CSV snapshots, committed each run
 ├── DESIGN.md · SETUP.md · VENDOR.md · LICENSE
 ```
 
 ### The security boundary (principle 3, made concrete)
 
-| Workflow | Reads open web? | Holds publish creds? | Secrets loaded |
-|---|---|---|---|
-| `collect.yml` | no (APIs only) | **no** | GSC, Bing, GA4, App Store (`compose`) |
-| `plan.yml` | **yes** (research/scan) | **no** | LLM keys, Telegram bot token |
-| `gate.yml` | no | no | Telegram bot token |
-| `publish.yml` | **no** | **yes** | GitHub PAT, YouTube, Instagram |
-| `measure.yml` | yes (AEO probes) | **no** | Gemini, SERP (`compose`) |
+| Job | Reads open web? | Runs the model? | Holds publish creds? | Secrets loaded |
+|---|---|---|---|---|
+| `plan` | **yes** (own pages, AEO grounding) | yes | **no** | GSC, Bing, Gemini (`compose`) |
+| `apply` | **no** | **no** | **yes** | GitHub PAT (`publishing`) |
 
-`plan.yml` reads untrusted content but cannot publish. `publish.yml` can publish but only ever consumes rows
-already written to SQLite and approved by a human. A prompt injection landing in `plan.yml` has no path to a
-posting credential.
+`plan` reads untrusted content but cannot publish. `apply` can publish but only ever executes rows already
+written to the ledger, and makes no model call of its own — the copy it commits was fixed at compose time.
+A prompt injection landing in `plan` has no path to a posting credential.
+
+This is the *only* structural rule left. It matters more now than it did under the gate, not less: there is
+no longer a human reading the output before it ships.
 
 ---
 
-## 3. Key interfaces
+## 3. The loop
 
-Three protocols keep the system extensible. Adding a platform is one file plus a registry line.
-
-```python
-# collect/base.py
-class Collector(Protocol):
-    name: str
-    def collect(self, since: date) -> list[Metric]: ...
-
-# publish/base.py
-class DeliveryMode(Enum):
-    API    = "api"       # autoseo posts it
-    MANUAL = "manual"    # autoseo delivers copy-paste-ready text to Telegram; you post it
-
-class Publisher(Protocol):
-    platform: str
-    mode: DeliveryMode
-    def validate(self, item: ScheduledPost) -> None:   # raise before spending anything
-    def publish(self, item: ScheduledPost) -> PublishResult: ...
-    def fetch_stats(self, external_id: str) -> Metric | None: ...   # closes the bandit loop
-
-# compose/llm.py
-class LLMProvider(Protocol):
-    def complete(self, prompt: str, tier: Tier) -> Completion: ...
+```
+  plan  (compose env)                          apply  (publishing env)
+  ────────────────────                         ───────────────────────
+  inventory + GSC + Bing + URL Inspection
+  refresh the duplication corpus from live
+  brief: rank actions by est. click gain
+      │
+      ├── on-page: pages ranked but not clicked
+      │     → compose title + meta description
+      │     → validate: length, query terms, slop
+      │
+      ├── on-page: pages on page two, no FAQ
+      │     → compose 3 Q&A
+      │     → quality gate
+      │
+      └── new post: demand with no page close enough
+            → compose 700-1000 words
+            → quality gate: slop, length, truncation,
+              duplication vs the live corpus
+      │
+      ▼
+   ledger row (planned) ───────────────────►  read the ledger
+   + evidence, + what the gate decided        delist:  noindex the dead clusters
+                                              relink:  link orphaned live pages
+                                              post:    render → commit md + html + sitemap + index
+                                              meta:    rewrite head + structured data
+                                              faq:     insert a section before the CTA
+                                                   │
+                                                   ▼
+                                              one atomic commit per action on
+                                              intrepidkarthi/dailyvox@main
+                                              → Vercel deploys
 ```
 
-`Tier` is `FREE | CHEAP | PREMIUM`. The router picks a provider per tier, and the budget governor can force
-everything down a tier without any code change.
+Two kinds of blog page exist, and the fixer handles both. 8 pages have markdown in `content/articles/` and
+are rendered by the vendored `render_articles.py`; editing their HTML directly would be reverted on the next
+render, so the markdown is the source. The other 134 are committed HTML with no source anywhere in the site
+repo — and they earn every impression the blog gets, so `publish/page.py` edits their head metadata in place.
 
-### Manual channels are first-class, not a fallback
+### What stops it
 
-Some channels are better off human-executed — X (the API now costs money and founder voice benefits from a
-human beat), Quora (no publishing API exists), Reddit (account may be shadow-filtered; posting stays off until
-warm-up rules are met). For these, `DeliveryMode.MANUAL` means **everything upstream is identical** — the
-bandit picks the slot, constraints apply, the LLM drafts, the card explains itself. Only the last step differs:
-instead of an API call, Telegram gets a **copy-paste-ready message** and a *Posted / Skipped* button.
+| Control | Where | Effect |
+|---|---|---|
+| quality gate | `quality/gate.py`, at compose time | P0 blocks outright; 6+ P1 tells block |
+| provenance marks | `quality/marks.py` + `vendor/scan_marks.py` | invisible carriers stripped; placeholders block |
+| duplication | `quality/plagiarism.py` | ≥28% shingle overlap with a live page blocks |
+| empty corpus | `act/plan.py` | no corpus → no new posts at all, since nothing can be checked |
+| daily / weekly cap | `act/policy.py` | ≤1 post/day, ≤3/week, counting queued *and* shipped |
+| page cooldown | `act/policy.py` | a page edited in the last 30 days is not touched again |
+| staleness | `act/apply.py` | a draft composed 14+ days ago is dropped, not shipped |
+| path allowlist | `publish/site.py` | a commit outside four path prefixes raises, never sends |
+| overwrite guard | `publish/blog.py` | refuses to replace a live page with a "new" post |
+| kill switch | `AUTOSEO_PAUSE` or `state/PAUSE` | both halves stop before doing anything |
 
-Two requirements that fall out of this:
-- **Plain text, no leading markdown characters.** `CONTENT-ENGINE.md` is explicit that Karthik strips those by
-  hand otherwise. Manual cards render as literal paste-ready text, not Telegram markdown.
-- **Feedback without an API.** Without X API access there is no read path for engagement, so manual channels
-  learn from *Posted vs Skipped* (a strong, free signal) plus an optional 48-hour "how did it do?" prompt with
-  three buckets — flopped / normal / good. Coarse, but enough for a bandit.
+### Key interfaces
+
+```python
+# compose/llm.py
+def complete(prompt: str, tier: Tier = Tier.FREE) -> str      # FREE | CHEAP | PREMIUM
+
+# publish/site.py
+def commit(files: dict[str, str], message: str) -> str        # one atomic commit, or "" for no-op
+
+# act/ledger.py
+def plan(item: Item) -> int
+def planned(kind: str | None = None) -> list[Item]
+def ship(item_id: int, commit_url: str) -> None
+```
 
 ---
 
-## 4. Data model (SQLite, committed to the repo)
+## 4. Data model (SQLite, snapshotted to committed CSV)
 
 | Table | Purpose |
 |---|---|
-| `gsc_daily` | query × page × impressions, clicks, position, CTR |
-| `url_index_status` | per-URL indexed / canonical / rich-result state |
-| `opportunity_queries` | rising impressions, position 8–30, no dedicated page → the backlog |
-| `platform_metrics` | per-post engagement, pulled back after publish |
-| `day_plan` | one row per decision: platform, format, pillar, slot, **evidence**, est_cost |
-| `drafts` | generated copy awaiting approval |
-| `post_queue` | approval state: `policy`, `approved_by`, `approved_at`, `rejected_reason` |
-| `post_log` | what actually went out, with external IDs |
-| `bandit_arms` | Beta posteriors (α, β) per arm |
-| `aeo_probe` | per prompt × engine × run: mentioned, cited, rank, cited_urls |
-| `spend_ledger` | provider, operation, units, usd, ts |
+| `gsc_page_daily` | per page × day: impressions, clicks, position, CTR |
+| `gsc_query_daily` | per query × day — the complete view of demand |
+| `gsc_page_query` | the page↔query mapping. Lossy by nature; never used to measure volume |
+| `url_inventory` | one row per URL, with its cluster and sitemap membership |
+| `url_index_status` | per-URL indexed / canonical / coverage state, from URL Inspection |
+| `bing_daily` | Bing Webmaster totals |
+| `aeo_probe` | per question × engine × run: mentioned, cited |
+| `aeo_citation` | every source an answer engine cited — the outreach target list |
+| `queue_item` | the ledger: what was decided, the evidence, and what happened |
+| `corpus_shingle` | hashed 5-grams of the live site. A cache — never committed, rebuilt each run |
+| `run_log` | every command, exit state, and error |
 
-Committing state back each run gives free persistence, a git-history audit log, and it keeps GitHub's
-60-day scheduled-workflow timer alive.
+State is committed as sorted CSV, not as the SQLite file. Git merges CSV line by line; committing the binary
+cost a rejected push, two unresolvable conflicts, a commit recovered from the reflog, and a silently wiped
+16-month backfill. Committing state each run also keeps GitHub's 60-day scheduled-workflow timer alive.
 
 ---
 
 ## 5. Decision engine
 
-**Factored arms** (a full cross-product would overfit at this data volume):
-`platform×format` · `time_slot` · `pillar` — scored separately with Beta posteriors, then combined.
+Today: **estimated click gain**, per (page, query). `impressions × (CTR at a plausible position − CTR now)`,
+using a standard position→CTR curve. Deliberately crude — it exists to rank actions against each other, not
+to forecast traffic. Brand, competitor-internal and irrelevant queries are excluded from acquisition analysis;
+including them once produced a confident, wrong recommendation to rewrite `/about`'s title.
 
-**Reward** = engagement normalised *within* platform, with App Store installs as a slow global multiplier.
-**Telegram rejections are negative reward** — in the first months this is the highest-quality signal available.
-
-**Cold start:** priors are seeded from `marketing/CONTENT-ENGINE.md` (IST time windows, "Reels >> static",
-"links in body hurt reach"). The engine reproduces the existing playbook and diverges only on evidence.
-~20% of slots reserved for exploration.
-
-**Constraints override the bandit unconditionally:** platform rate/cost caps; no repeated pillar consecutively
-per platform; Reddit sub-queue and shadow-filter warm-up rules; and **throttle-down** — if recent posts
-underperform a platform's own baseline, reduce frequency there. "Post nothing today" is a valid output.
+Parked: the multi-armed bandit. It needs a feedback loop — publish, wait, measure the same page again — and
+that loop only exists now that publishing is automatic. Six weeks of ledger rows paired with position data is
+the input it was always waiting for.
 
 ---
 
 ## 6. Quality gate — plagiarism and AI-slop
 
-**No draft reaches the Telegram card without passing.** DailyVox sells architectural integrity; obviously
-machine-written copy costs more brand credit than the reach is worth. Scores ride along on every card that
-does pass, so the human gate sees them.
+**Nothing is composed past this.** It used to decide what reached a human; now it decides what ships. DailyVox
+sells architectural integrity; obviously machine-written copy costs more brand credit than the reach is worth.
+The verdict is recorded on the ledger row, which is where the reasoning has to live when nobody reads it in
+the moment.
 
 The useful realisation: **most of this is deterministic.** Word lists, densities, ratios and fingerprints are
 regex and arithmetic — no tokens, no latency, no cost. A model is only needed for the handful of genuine
@@ -239,13 +258,16 @@ strict; `technical-blog` exempts `robust`/`comprehensive`/`ecosystem` where they
   A near-exact match on another domain blocks. Free at this volume.
 
 ### `gate.py`
-`P0 → block` · `P1 ≥ threshold → block` · `P1 below threshold or P2 → warn, card shows the flags`.
-A blocked draft returns to `compose/` for one automatic rewrite pass; if it fails twice, it's dropped and the
-slot is logged as skipped rather than filled with something worse.
+`P0 → block` · `P1 ≥ threshold → block` · `P1 below threshold or P2 → warn, recorded on the ledger row`.
+A blocked draft returns to `compose/` for one automatic rewrite pass with the gate's own complaints as
+instructions; if it fails twice, it's dropped and the slot is logged as skipped rather than filled with
+something worse.
 
 **One honest caveat, carried from the skill itself:** these are signals, not proof. Independent audits put
-false-positive rates above 60% on non-native English writing. That's exactly why the gate feeds a *human*
-approval card rather than auto-publishing on a green score.
+false-positive rates above 60% on non-native English writing. Under the old design that was the argument for
+feeding a human card rather than auto-publishing. Autonomously, it cuts the other way — the gate is now
+*conservative*, and a false positive costs a skipped slot rather than a bad page. That is the right direction
+for the error to run when nobody is reading the output.
 
 ---
 
@@ -269,17 +291,17 @@ which covers the entire AEO panel at weekly cadence. `PREMIUM` is opt-in; the sy
 | Phase | Deliverable | Cost |
 |---|---|---|
 | 0 ✅ | `core/`, `collect/{inventory,gsc,inspect,bing}` → real indexation ratio | $0 |
-| 1 | **finish the de-listing** — see below. No code, highest ROI available | $0 |
-| 2 ✅ | `quality/` — slop + plagiarism gate. Built *before* anything can publish, not after | $0 |
-| 3 ✅ | `gate/` — Telegram cards, approval state | $0 |
-| 4 ✅ | `publish/blog.py` — PR to dailyvox, IndexNow ping | $0 |
-| 5 | `publish/{youtube,instagram,manual}.py` + scheduler v1 (priors + constraints) | $0 |
-| 6 | `decide/bandit.py` — turn on after ~4–6 weeks of data; back-test before trusting | $0 |
-| 7 | `media/` + `vendor/mpt` — video from real screen recordings | $0 |
-| 8 | `aeo/` — the prompt panel | $0 |
+| 1 ✅ | `quality/` — slop + plagiarism gate. Built *before* anything can publish, not after | $0 |
+| 2 ✅ | `publish/blog.py` — render, commit, link from the index | $0 |
+| 3 ✅ | `aeo/` — the buyer-question panel and citation extraction | $0 |
+| 4 ✅ | `act/` — the autonomous loop: caps, ledger, on-page fixer, direct commits | $0 |
+| 5 ✅ | **finish the de-listing** — `delist --apply`, now automatic. Highest ROI available | $0 |
+| 6 | `decide/bandit.py` — after ~6 weeks of ledger rows paired with position data | $0 |
+| 7 | video and social — parked deliberately, not blocked | $0 |
 
 `quality/` is deliberately ahead of every publishing phase. A gate added after the pipeline works is a gate
-that gets bypassed the first time it's inconvenient.
+that gets bypassed the first time it's inconvenient. Phases 3 and 4 are the ones the removal of the human
+gate depended on: the approval was doing work, and it had to be replaced by something before it could go.
 
 ### Phase 1 in detail — the de-listing is only half done
 
@@ -318,30 +340,22 @@ The security boundary in §2 is **enforced, not documented**, using GitHub **Env
 
 | Environment | Secrets | Used by |
 |---|---|---|
-| `compose` | `GSC_SERVICE_ACCOUNT_JSON`, `BING_WEBMASTER_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `GA4_PROPERTY_ID`, `ASC_*` | `collect.yml`, `plan.yml`, `gate.yml`, `measure.yml` |
-| `publishing` | `GH_DAILYVOX_TOKEN`, `GH_SECRETS_TOKEN`, `YT_*`, `IG_*` | `publish.yml` **only** |
+| `compose` | `GSC_SERVICE_ACCOUNT_JSON`, `BING_WEBMASTER_API_KEY`, `GEMINI_API_KEY` | the `plan` job |
+| `publishing` | `GH_DAILYVOX_TOKEN` (`YT_*` parked) | the `apply` job **only** |
 
 Two environments, not three. An earlier draft split read-only collectors from LLM keys, but that
 distinction bought nothing: a Gemini key is not a publishing credential, and its worst case (spend) is
-already covered by the budget governor. The boundary that carries weight is publishing vs everything else,
+already covered by the free tier. The boundary that carries weight is publishing vs everything else,
 and that one is absolute.
 
-A workflow declares `environment: read` and simply cannot reference a publishing secret — the boundary becomes
-a GitHub-enforced property rather than a naming convention. `publishing` also gets a **required reviewer**
-(you), so any change to that workflow needs an explicit approval before it can run with those secrets.
+A job declares `environment: compose` and simply cannot reference a publishing secret — the boundary is a
+GitHub-enforced property rather than a naming convention.
 
-### The one rotating credential — Instagram
-Everything else is static. The Instagram long-lived token expires every 60 days and must be *exchanged* for a
-new value, which has to persist somewhere. Three options, and the tradeoff is real:
-
-| Option | Verdict |
-|---|---|
-| **Write back to the Actions secret** via a fine-grained PAT scoped to `autoseo` with `secrets: write` only | ✅ **Chosen.** Nothing secret touches the repo. The PAT is narrow and holds no posting power of its own |
-| Commit the token encrypted (SOPS/age) into `state/` | ❌ Ciphertext in a *public* repo, preserved in git history forever. Wrong story for a privacy-branded project |
-| Refresh by hand every 60 days | ❌ Will be forgotten; this is the most common way IG automation dies |
-
-`publish/instagram.py` refreshes weekly (tokens are refreshable after 24 h, so it never gets close to expiry)
-and alerts via Telegram if a refresh fails.
+**Neither environment has a required reviewer**, and that is deliberate. One was configured on `publishing`
+when every run was meant to pause for a person. It was removed when the gates were: a "required reviewer" on
+a daily unattended job is not a safety feature, it is a job that never runs. What protects that credential now
+is the allowlist in `publish/site.py` — four path prefixes, checked before any commit is sent — plus the fact
+that the job holding the token never reads the open web or calls a model.
 
 ### Local development
 A gitignored `.env`, generated from `.env.example`. `core/config.py` reads env vars identically in both places,

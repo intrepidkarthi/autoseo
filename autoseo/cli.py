@@ -1,27 +1,44 @@
 """autoseo command line.
 
+The loop:
+
+    autoseo run [--dry-run]                 measure, decide, fix, publish — the whole cycle
+    autoseo plan [--dry-run] [--days N]     decide and compose; publishes nothing
+    autoseo apply [--dry-run]               commit what plan composed, to the site repo
+    autoseo status                          caps, ledger, and what happens on the next run
+
+Measurement:
+
     autoseo inventory [--public-dir PATH]   build the URL list (sitemap + optional local public/)
-    autoseo gsc [--days N]                  pull Search Console search analytics
+    autoseo gsc [--days N] [--backfill]     pull Search Console search analytics
     autoseo inspect [--limit N]             rotate through URL Inspection (sitemap URLs only)
-    autoseo inspect --sample-orphans N      one-time sample of the de-listed clusters
     autoseo bing                            pull Bing Webmaster stats
-    autoseo gsc --backfill                  pull the full 16-month history
-    autoseo opportunity [--days N]          where the leverage is
+    autoseo collect                         gsc + bing + inspect + report
+    autoseo report                          per-cluster indexation ratio
+    autoseo diagnose                        isolate where GSC impressions go missing
+
+Decision:
+
     autoseo brief [--days N] [--top N]      ranked actions with evidence
-    autoseo gate [--test-card|--status]     send cards, process approvals
+    autoseo opportunity [--days N]          striking distance, CTR gaps, content gaps
     autoseo aeo [--tier core|extended|all]  ask buyer questions, record what gets cited
     autoseo outreach [--days N]             pages worth getting listed on
-    autoseo report                          print the indexation report
-    autoseo index-corpus --public-dir P     shingle the site for duplication checks
-    autoseo draft [--top N] [--queue]       write posts against measured demand
-    autoseo publish [--dry-run]             open PRs for approved drafts
-    autoseo video --topic "..."             generate a Short (script + render)
-    autoseo relink                          link live blog pages the index has orphaned
-    autoseo youtube-auth                    one-time YouTube OAuth, run locally
-    autoseo delist                          plan the noindex for orphaned clusters
+
+Site and quality:
+
+    autoseo relink [--dry-run]              link live blog pages the index has orphaned
+    autoseo delist [--apply]                noindex the de-listed clusters
     autoseo check FILE                      run the quality gate over a draft
-    autoseo snapshot / restore              state <-> state/*.csv (git-mergeable)
-    autoseo collect                         gsc + bing + inspect + report  (what CI runs)
+    autoseo index-corpus [--from-live]      shingle the site for duplication checks
+
+State:
+
+    autoseo snapshot / restore              database <-> state/*.csv (git-mergeable)
+
+Parked (video and social are switched off; the code stays, nothing schedules it):
+
+    autoseo video --topic "..."             generate a Short (script + render), locally
+    autoseo youtube-auth                    one-time YouTube OAuth, run locally
 """
 
 from __future__ import annotations
@@ -123,8 +140,75 @@ def _print_outreach(days: int, top: int) -> None:
     print()
 
 
+def _print_brief(days: int, top: int) -> None:
+    from autoseo.decide import brief
+
+    actions = brief.build(days)
+    print(f"\n=== ACTIONS — ranked by estimated click gain, last {days}d ===")
+    if not actions:
+        print("  Nothing actionable. Either there is no data yet, or no query has enough demand.")
+    for a in actions[:top]:
+        tgt = a.target.replace("https://getdailyvox.com", "") or "(none)"
+        print(f"\n  [{a.priority}] {a.kind}  ~+{a.est_click_gain:.0f} clicks/90d")
+        print(f"      query : {a.query}")
+        print(f"      page  : {tgt}")
+        print(f"      why   : {a.evidence}")
+        for s in a.steps:
+            print(f"        - {s}")
+
+    gaps = brief.aeo_gaps(days)
+    print("\n=== ANSWER-ENGINE GAPS — asked, competitors named, we are not ===")
+    if not gaps:
+        print("  None recorded. Run `autoseo aeo` to measure.")
+    for g in gaps[:top]:
+        print(f"\n  [{g.priority}] {g.query}")
+        print(f"      {g.evidence}")
+
+    ex = brief.excluded(days)
+    print("\n=== EXCLUDED from acquisition analysis ===")
+    for kind, items in ex.items():
+        if not items:
+            continue
+        total = sum(i for _, i in items)
+        names = ", ".join(q for q, _ in items[:4])
+        print(f"  {kind:<12}{total:>6.0f} imp across {len(items):>3}  ({names})")
+    print()
+
+
+def _print_status() -> None:
+    from autoseo.act import ledger, policy
+    from autoseo.quality import plagiarism
+
+    print("\n=== POLICY — what the loop is allowed to do next ===")
+    print(policy.describe())
+
+    print("\n=== LEDGER — last 30 days ===")
+    rows = ledger.summary(days=30)
+    if not rows:
+        print("  nothing planned or shipped")
+    for kind, status, n in rows:
+        print(f"  {kind:<10}{status:<10}{n:>4}")
+
+    recent = ledger.recent(limit=8)
+    if recent:
+        print("\n=== RECENT ===")
+        for item in recent:
+            when = (item.decided_at or item.created or "")[:16]
+            url = item.meta.get("commit") or item.meta.get("error", "")
+            print(f"  {when}  {item.status:<8}{item.kind:<7}{item.title[:44]}")
+            if url:
+                print(f"      {str(url)[:100]}")
+
+    n = plagiarism.corpus_size()
+    stamp = plagiarism.indexed_at() or "never"
+    print(f"\n  duplication corpus: {n} page(s), indexed {stamp}")
+    if not n:
+        print("  WARNING: the corpus is empty, so the duplication check passes everything.")
+    print()
+
+
 def _run_video(args) -> None:
-    """Script -> voiceover -> footage -> render. Every step free."""
+    """Script -> voiceover -> footage -> render. Parked: nothing schedules this."""
     from autoseo.compose import video as composer
 
     spec = composer.write(args.topic, search_terms=args.terms)
@@ -146,216 +230,47 @@ def _run_video(args) -> None:
     clips = footage.fetch(spec.search_terms, count=max(3, len(segments) // 2), out_dir=work)
     out = render.render(clips, work / "voice.wav", srt, args.out, segments)
     print(f"\n  rendered {out}  ({out.stat().st_size / 1_048_576:.1f} MB)")
-
-    if args.queue:
-        import os as _os
-
-        from autoseo.gate import cards, queue
-        from autoseo.gate.queue import Item, get
-        item_id = queue.add(Item(
-            kind="video", channel="youtube", title=spec.title,
-            body=spec.script, rationale=f"Topic: {spec.topic} | {spec.words} words",
-            meta={
-                "description": spec.description,
-                "synthetic": True,
-                # The publish job runs on a different runner, so it fetches the render from this
-                # run's artifact rather than from a path that will not exist.
-                "run_id": _os.environ.get("GITHUB_RUN_ID", ""),
-                "artifact": "short",
-            },
-        ))
-        try:
-            cards.send_video_now(get(item_id), out)
-            print("  sent to telegram for approval")
-        except Exception as exc:  # noqa: BLE001 — queued regardless; the gate cron will retry
-            print(f"  queued, but could not send now: {exc}")
+    print("  upload is manual while video is parked.")
 
 
-def _run_draft(args) -> None:
-    """Draft against the highest-value measured opportunities, and optionally queue for approval."""
-    import json as _json
+def _run_loop(args) -> None:
+    """The whole cycle in one command: measure, decide, compose, ship.
 
-    from autoseo.compose import blog
-    from autoseo.decide import brief
-    from autoseo.gate import queue
-    from autoseo.gate.queue import Item
+    CI splits this across two jobs so the composing half never holds the publishing token. Run
+    locally it is one process, which needs every credential at once — that is the difference, and
+    the only one.
+    """
+    from autoseo.act import apply as applier
+    from autoseo.act import plan as planner
 
-    actions = [a for a in brief.build(days=90) if a.kind == "improve-page"][: args.top]
-    if not actions:
-        print("  No reachable opportunities. Nothing worth writing today.")
-        return
-
-    for action in actions:
-        print(f"\n  drafting for '{action.query}' (position {action.position:.1f})")
-        draft = blog.write(action)
-        if not draft:
-            print("    dropped — failed the quality gate twice")
-            continue
-        print(f"    {draft.title}")
-        print(f"    {draft.verdict.summary()}")
-        if args.dry_run:
-            print(f"\n{draft.markdown[:500]}\n    ...")
-            continue
-        if args.queue:
-            queue.add(Item(
-                kind="blog", channel="blog", title=draft.title,
-                body=draft.markdown[:3000],
-                rationale=f"{action.evidence} | {draft.verdict.summary()}",
-                meta={"slug": draft.slug, "query": action.query,
-                      "markdown": draft.markdown, "description": draft.description,
-                      "evidence": action.evidence},
-            ))
-            print("    queued for approval")
-
-
-def _run_publish(args) -> None:
-    """Open PRs for blog items that were approved in Telegram."""
-    from autoseo.compose.blog import Draft
-    from autoseo.gate import queue
-    from autoseo.gate.queue import Status
-    from autoseo.publish import blog as publisher
-    from autoseo.quality import gate as qgate
-
-    items = [i for i in queue.approved_unposted() if i.channel in ("blog", "youtube")]
-    if not items:
-        print("  Nothing approved and waiting.")
-        return
-
-    for item in items:
-        if item.channel == "youtube":
-            from autoseo.publish import youtube
+    if not args.skip_collect:
+        from autoseo.collect import bing, gsc, inspect, inventory
+        for label, fn in (
+            ("inventory", lambda: inventory.build(None)),
+            ("gsc", lambda: gsc.collect(days=10)),
+            ("bing", bing.collect),
+            ("inspect", lambda: inspect.collect(limit=None)),
+        ):
             try:
-                video = youtube.fetch_render(item.meta.get("run_id", ""),
-                                             item.meta.get("artifact", "short"))
-                vid = youtube.upload(
-                    video, item.title, item.meta.get("description", ""),
-                    privacy="private",
-                    # The narration is machine-generated, so YouTube requires the disclosure.
-                    synthetic=bool(item.meta.get("synthetic")),
-                    dry_run=args.dry_run,
-                )
-            except Exception as exc:  # noqa: BLE001 — one bad item must not stop the rest
-                log.error("youtube upload failed for %s: %s", item.title, exc)
-                queue.decide(item.id, Status.FAILED, by="publish")
-                continue
-            if not args.dry_run:
-                queue.record_result(item.id, video_id=vid)
-                queue.decide(item.id, Status.POSTED, by="publish")
-                print(f"  https://youtube.com/watch?v={vid}")
-            continue
+                fn()
+            except Exception as exc:  # noqa: BLE001 — measure what you can; decide on what you have
+                log.error("%s failed: %s", label, exc)
+                _record_run(f"run/{label}", ok=False, detail=repr(exc))
+                print(f"  WARNING: {label} failed ({str(exc)[:90]}) — continuing on stored data")
+        _print_report()
 
-        meta = item.meta
-        draft = Draft(
-            slug=meta.get("slug", ""), title=item.title,
-            description=meta.get("description", ""), markdown=meta.get("markdown", item.body),
-            target_query=meta.get("query", ""), evidence=meta.get("evidence", ""),
-            verdict=qgate.Verdict(passed=True),
-        )
-        try:
-            url = publisher.publish(draft, dry_run=args.dry_run)
-        except Exception as exc:  # noqa: BLE001 — one bad item must not stop the rest
-            log.error("publish failed for %s: %s", item.title, exc)
-            queue.decide(item.id, Status.FAILED, by="publish")
-            continue
-        if not args.dry_run:
-            queue.record_result(item.id, pr_url=url)
-            queue.decide(item.id, Status.POSTED, by="publish")
-            print(f"  {url}")
+    print("\n=== PLAN ===")
+    planned = planner.run(days=args.days, dry_run=args.dry_run)
+    print(f"\n  planned: {planned.posts} post(s), {planned.meta} retitle(s), {planned.faq} FAQ(s)")
+    for s in planned.skipped:
+        print(f"  skipped: {s}")
 
-
-def _run_gate(args) -> None:
-    from autoseo.gate import cards, client, queue
-    from autoseo.gate.queue import Item
-
-    if args.raw:
-        # Deliberately does NOT advance the offset — inspecting the queue must not consume it.
-        import json as _json
-        from autoseo.gate.client import _call
-        # Isolate which parameter suppresses the result: same method, four variants.
-        for label, kw in [
-            ("no params            ", {}),
-            ("limit=100            ", {"limit": 100}),
-            ("timeout=0,limit=100  ", {"timeout": 0, "limit": 100}),
-            ("offset=31484907      ", {"timeout": 0, "limit": 100, "offset": 31484907}),
-        ]:
-            try:
-                r = _call("getUpdates", **kw)
-                print(f"    {label} -> {len(r)} update(s) {[u.get('update_id') for u in r]}")
-            except Exception as exc:
-                print(f"    {label} -> ERROR {exc}")
-        updates = _call("getUpdates", limit=100)
-        print(f"\n  {len(updates)} pending update(s)")
-        for u in updates:
-            kind = "callback_query" if "callback_query" in u else \
-                   "message" if "message" in u else ",".join(k for k in u if k != "update_id")
-            detail = ""
-            if cb := u.get("callback_query"):
-                detail = f" data={cb.get('data')!r} msg={(cb.get('message') or {}).get('message_id')}"
-            elif m := u.get("message"):
-                detail = f" text={(m.get('text') or '')[:30]!r}"
-            print(f"    id={u['update_id']}  {kind}{detail}")
-        print()
-        return
-
-    if args.status:
-        print("\n" + client.dump_state())
-        with_counts = {}
-        from autoseo.core.db import session
-        with session() as conn:
-            for r in conn.execute("SELECT status, COUNT(*) n FROM queue_item GROUP BY status"):
-                with_counts[r["status"]] = r["n"]
-        print(f"  queue: {with_counts or 'empty'}\n")
-        return
-
-    if args.test_card:
-        queue.add(Item(
-            kind="test", channel="test", title="autoseo gate is live",
-            body="If you can see this and the buttons work, the approval loop is connected. "
-                 "Nothing publishes without a decision recorded here.",
-            rationale="Sent by `autoseo gate --test-card` to verify end-to-end delivery.",
-        ))
-
-    if args.queue_outreach:
-        from autoseo.decide import outreach
-        from autoseo.gate import compose_outreach
-        targets = outreach.build(days=30)
-        drafts = compose_outreach.queue_top(targets, limit=args.queue_outreach)
-        for d in drafts:
-            queue.add(d)
-        print(f"  queued {len(drafts)} outreach pitch(es)")
-
-    if args.update:
-        processed = cards.process_one(args.update)
-    else:
-        processed = cards.process_updates()
-    sent = cards.send_pending()
-    print(f"  decisions processed: {processed}   cards sent: {sent}")
-
-
-def _print_brief(days: int, top: int) -> None:
-    from autoseo.decide import brief
-
-    actions = brief.build(days)
-    print(f"\n=== ACTIONS — ranked by estimated click gain, last {days}d ===")
-    if not actions:
-        print("  Nothing actionable. Either there is no data yet, or no query has enough demand.")
-    for a in actions[:top]:
-        tgt = a.target.replace("https://getdailyvox.com", "") or "(none)"
-        print(f"\n  [{a.priority}] {a.kind}  ~+{a.est_click_gain:.0f} clicks/90d")
-        print(f"      query : {a.query}")
-        print(f"      page  : {tgt}")
-        print(f"      why   : {a.evidence}")
-        for s in a.steps:
-            print(f"        - {s}")
-
-    ex = brief.excluded(days)
-    print("\n=== EXCLUDED from acquisition analysis ===")
-    for kind, items in ex.items():
-        if not items:
-            continue
-        total = sum(i for _, i in items)
-        names = ", ".join(q for q, _ in items[:4])
-        print(f"  {kind:<12}{total:>6.0f} imp across {len(items):>3}  ({names})")
+    print("\n=== APPLY ===")
+    applied = applier.run(dry_run=args.dry_run)
+    print(f"\n  shipped {len(applied.shipped)}, failed {len(applied.failed)}, "
+          f"dropped {len(applied.dropped)}")
+    for f in applied.failed:
+        print(f"  FAILED: {f}")
     print()
 
 
@@ -364,6 +279,23 @@ def main(argv: list[str] | None = None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
 
+    # --- the loop ---------------------------------------------------------------------------
+    p_run = sub.add_parser("run", help="measure, decide, fix, publish — the whole cycle")
+    p_run.add_argument("--days", type=int, default=90, help="analysis window")
+    p_run.add_argument("--dry-run", action="store_true", help="decide and print, change nothing")
+    p_run.add_argument("--skip-collect", action="store_true",
+                       help="use stored measurement instead of pulling fresh data")
+
+    p_plan = sub.add_parser("plan", help="decide and compose; publishes nothing")
+    p_plan.add_argument("--days", type=int, default=90)
+    p_plan.add_argument("--dry-run", action="store_true")
+
+    p_apply = sub.add_parser("apply", help="commit what plan composed, to the site repo")
+    p_apply.add_argument("--dry-run", action="store_true")
+
+    sub.add_parser("status", help="caps, ledger, and what happens on the next run")
+
+    # --- measurement ------------------------------------------------------------------------
     p_inv = sub.add_parser("inventory", help="build the URL inventory")
     p_inv.add_argument("--public-dir", type=Path, default=None,
                        help="local path to the site's public/ dir, to find URLs missing from the sitemap")
@@ -372,35 +304,6 @@ def main(argv: list[str] | None = None) -> int:
     p_gsc.add_argument("--days", type=int, default=10)
     p_gsc.add_argument("--backfill", action="store_true",
                        help="walk the full 16-month retention window in monthly chunks")
-
-    p_opp = sub.add_parser("opportunity", help="where the leverage is: striking distance, CTR, gaps")
-    p_opp.add_argument("--days", type=int, default=90)
-
-    p_aeo = sub.add_parser("aeo", help="run the buyer-question panel against Gemini grounding")
-    p_aeo.add_argument("--tier", default="core", choices=["core", "extended", "all"])
-    p_aeo.add_argument("--repeats", type=int, default=3)
-    p_aeo.add_argument("--dry-run", action="store_true")
-    p_aeo.add_argument("--list-models", action="store_true")
-    p_aeo.add_argument("--model", default=None)
-
-    p_gate = sub.add_parser("gate", help="send pending cards and process approvals")
-    p_gate.add_argument("--test-card", action="store_true", help="queue and send one test card")
-    p_gate.add_argument("--queue-outreach", type=int, default=0, metavar="N",
-                        help="draft pitches for the top N outreach targets")
-    p_gate.add_argument("--status", action="store_true")
-    p_gate.add_argument("--update", metavar="JSON",
-                        help="process one Telegram update handed in by the webhook dispatch "
-                             "(a webhook disables getUpdates, so the payload must be passed in)")
-    p_gate.add_argument("--raw", action="store_true",
-                        help="dump what getUpdates actually returns, without consuming it")
-
-    p_out = sub.add_parser("outreach", help="pages worth getting listed on, ranked")
-    p_out.add_argument("--days", type=int, default=30)
-    p_out.add_argument("--top", type=int, default=10)
-
-    p_brief = sub.add_parser("brief", help="ranked actions with evidence — the decision, not the data")
-    p_brief.add_argument("--days", type=int, default=90)
-    p_brief.add_argument("--top", type=int, default=8)
 
     p_ins = sub.add_parser("inspect", help="rotate through the URL Inspection API")
     p_ins.add_argument("--limit", type=int, default=None)
@@ -413,51 +316,98 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("bing", help="pull Bing Webmaster stats")
     sub.add_parser("report", help="print the indexation report")
-    p_idx = sub.add_parser("index-corpus", help="shingle the existing site for duplication checks")
-    p_idx.add_argument("--public-dir", type=Path, required=True)
-
-    p_draft = sub.add_parser("draft", help="write a post against the top measured opportunity")
-    p_draft.add_argument("--top", type=int, default=1, help="how many opportunities to draft for")
-    p_draft.add_argument("--queue", action="store_true", help="send drafts to the Telegram gate")
-    p_draft.add_argument("--dry-run", action="store_true")
-
-    p_pub = sub.add_parser("publish", help="open PRs for approved drafts")
-    p_pub.add_argument("--dry-run", action="store_true")
-
-    p_relink = sub.add_parser(
-        "relink", help="find live blog pages the index links to nowhere, and link them"
-    )
-    p_relink.add_argument("--dry-run", action="store_true")
-
-    p_vid = sub.add_parser("video", help="generate a Short: script, voiceover, footage, render")
-    p_vid.add_argument("--topic", required=True)
-    p_vid.add_argument("--terms", default="journal writing calm morning routine",
-                       help="stock footage search terms")
-    p_vid.add_argument("--out", type=Path, default=Path("state/media/short.mp4"))
-    p_vid.add_argument("--script-only", action="store_true", help="write the script, skip rendering")
-    p_vid.add_argument("--queue", action="store_true", help="send to the Telegram gate when done")
-
-    p_yt = sub.add_parser("youtube-auth", help="one-time YouTube OAuth (run locally, not in CI)")
-    p_yt.add_argument("--client-secret", type=Path, default=Path("client_secret.json"))
-    p_yt.add_argument("--check", action="store_true", help="describe an existing token.json")
-
-    sub.add_parser("delist", help="plan the noindex for the orphaned page clusters")
-
-    p_chk = sub.add_parser("check", help="run the quality gate over a file")
-    p_chk.add_argument("path", type=Path)
-
-    sub.add_parser("snapshot", help="write state/*.csv from the database")
-    sub.add_parser("restore", help="rebuild the database from state/*.csv")
 
     p_all = sub.add_parser("collect", help="gsc + bing + inspect + report")
     p_all.add_argument("--limit", type=int, default=None)
     p_all.add_argument("--days", type=int, default=10)
 
+    # --- decision ---------------------------------------------------------------------------
+    p_brief = sub.add_parser("brief", help="ranked actions with evidence — the decision, not the data")
+    p_brief.add_argument("--days", type=int, default=90)
+    p_brief.add_argument("--top", type=int, default=8)
+
+    p_opp = sub.add_parser("opportunity", help="where the leverage is: striking distance, CTR, gaps")
+    p_opp.add_argument("--days", type=int, default=90)
+
+    p_aeo = sub.add_parser("aeo", help="run the buyer-question panel against Gemini grounding")
+    p_aeo.add_argument("--tier", default="core", choices=["core", "extended", "all"])
+    p_aeo.add_argument("--repeats", type=int, default=3)
+    p_aeo.add_argument("--dry-run", action="store_true")
+    p_aeo.add_argument("--list-models", action="store_true")
+    p_aeo.add_argument("--model", default=None)
+
+    p_out = sub.add_parser("outreach", help="pages worth getting listed on, ranked")
+    p_out.add_argument("--days", type=int, default=30)
+    p_out.add_argument("--top", type=int, default=10)
+
+    # --- site and quality -------------------------------------------------------------------
+    p_relink = sub.add_parser(
+        "relink", help="find live blog pages the index links to nowhere, and link them"
+    )
+    p_relink.add_argument("--dry-run", action="store_true")
+
+    p_del = sub.add_parser("delist", help="noindex the orphaned page clusters")
+    p_del.add_argument("--apply", action="store_true",
+                       help="commit the headers to the site (default: print the plan)")
+    p_del.add_argument("--dry-run", action="store_true")
+
+    p_chk = sub.add_parser("check", help="run the quality gate over a file")
+    p_chk.add_argument("path", type=Path)
+
+    p_idx = sub.add_parser("index-corpus", help="shingle the existing site for duplication checks")
+    p_idx.add_argument("--public-dir", type=Path, default=None,
+                       help="local checkout of the site's public/ directory")
+    p_idx.add_argument("--from-live", action="store_true",
+                       help="fetch the sitemap URLs over HTTP instead (what CI uses)")
+    p_idx.add_argument("--force", action="store_true", help="re-index even if it is fresh")
+
+    # --- state ------------------------------------------------------------------------------
+    sub.add_parser("snapshot", help="write state/*.csv from the database")
+    sub.add_parser("restore", help="rebuild the database from state/*.csv")
+
+    # --- parked -----------------------------------------------------------------------------
+    p_vid = sub.add_parser("video", help="[parked] generate a Short: script, voiceover, render")
+    p_vid.add_argument("--topic", required=True)
+    p_vid.add_argument("--terms", default="journal writing calm morning routine",
+                       help="stock footage search terms")
+    p_vid.add_argument("--out", type=Path, default=Path("state/media/short.mp4"))
+    p_vid.add_argument("--script-only", action="store_true", help="write the script, skip rendering")
+
+    p_yt = sub.add_parser("youtube-auth", help="[parked] one-time YouTube OAuth, run locally")
+    p_yt.add_argument("--client-secret", type=Path, default=Path("client_secret.json"))
+    p_yt.add_argument("--check", action="store_true", help="describe an existing token.json")
+
     args = parser.parse_args(argv)
     settings.state_dir.mkdir(parents=True, exist_ok=True)
+    exit_code = 0
 
     try:
-        if args.command == "inventory":
+        if args.command == "run":
+            _run_loop(args)
+
+        elif args.command == "plan":
+            from autoseo.act import plan as planner
+            result = planner.run(days=args.days, dry_run=args.dry_run)
+            print(f"\n  planned: {result.posts} post(s), {result.meta} retitle(s), "
+                  f"{result.faq} FAQ(s)")
+            for s in result.skipped:
+                print(f"  skipped: {s}")
+            print()
+
+        elif args.command == "apply":
+            from autoseo.act import apply as applier
+            result = applier.run(dry_run=args.dry_run)
+            print(f"\n  shipped {len(result.shipped)}, failed {len(result.failed)}, "
+                  f"dropped {len(result.dropped)}")
+            for f in result.failed:
+                print(f"  FAILED: {f}")
+            print()
+            exit_code = 1 if result.failed else 0
+
+        elif args.command == "status":
+            _print_status()
+
+        elif args.command == "inventory":
             from autoseo.collect import inventory
             counts = inventory.build(args.public_dir)
             for cluster, n in sorted(counts.items(), key=lambda kv: -kv[1]):
@@ -485,9 +435,6 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "outreach":
             _print_outreach(args.days, args.top)
 
-        elif args.command == "gate":
-            _run_gate(args)
-
         elif args.command == "brief":
             _print_brief(args.days, args.top)
 
@@ -507,36 +454,27 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "report":
             _print_report()
 
-        elif args.command == "draft":
-            _run_draft(args)
-
-        elif args.command == "publish":
-            _run_publish(args)
-
         elif args.command == "relink":
             from autoseo.publish import blog as publisher
-            url = publisher.relink(dry_run=args.dry_run)
-            if url:
+            if url := publisher.relink(dry_run=args.dry_run):
                 print(f"  {url}")
-
-        elif args.command == "youtube-auth":
-            from autoseo.publish import youtube_auth
-            if args.check:
-                youtube_auth.describe_token()
-            else:
-                youtube_auth.authorise(args.client_secret)
-
-        elif args.command == "video":
-            _run_video(args)
 
         elif args.command == "delist":
             from autoseo.publish import delist
-            print("\n" + delist.render_patch(delist.build_plan()) + "\n")
+            if args.apply:
+                if url := delist.apply(dry_run=args.dry_run):
+                    print(f"  {url}")
+            else:
+                print("\n" + delist.render_patch(delist.build_plan()) + "\n")
 
         elif args.command == "index-corpus":
             from autoseo.quality import plagiarism
-            n = plagiarism.build_index(args.public_dir)
-            print(f"  indexed {n} pages")
+            if args.public_dir:
+                n = plagiarism.build_index(args.public_dir)
+            else:
+                n = plagiarism.refresh_from_live(max_age_days=0 if args.force else
+                                                 plagiarism.CORPUS_MAX_AGE_DAYS)
+            print(f"  indexed {n} pages" if n else "  corpus is already fresh")
 
         elif args.command == "check":
             from autoseo.quality import gate
@@ -547,7 +485,7 @@ def main(argv: list[str] | None = None) -> int:
             for w in v.warnings[:8]:
                 print(f"    warn   {w}")
             print()
-            return 0 if v.passed else 1
+            exit_code = 0 if v.passed else 1
 
         elif args.command == "snapshot":
             from autoseo.core import snapshot
@@ -566,6 +504,16 @@ def main(argv: list[str] | None = None) -> int:
             inspect.collect(limit=args.limit)
             _print_report()
 
+        elif args.command == "video":
+            _run_video(args)
+
+        elif args.command == "youtube-auth":
+            from autoseo.publish import youtube_auth
+            if args.check:
+                youtube_auth.describe_token()
+            else:
+                youtube_auth.authorise(args.client_secret)
+
     except ConfigError as exc:
         log.error("%s", exc)
         _record_run(args.command, ok=False, detail=str(exc))
@@ -575,8 +523,8 @@ def main(argv: list[str] | None = None) -> int:
         _record_run(args.command, ok=False, detail=repr(exc))
         return 1
 
-    _record_run(args.command, ok=True)
-    return 0
+    _record_run(args.command, ok=exit_code == 0)
+    return exit_code
 
 
 if __name__ == "__main__":

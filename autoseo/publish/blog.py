@@ -1,87 +1,62 @@
-"""Publish an approved draft as a pull request on the site repo.
+"""Turn a decision into a commit on the site repo.
 
-A PR, never a direct commit. The Telegram gate approves the *words*; the PR is where you see the
-actual diff — the file path, the frontmatter, what it does to the repo — before anything reaches
-getdailyvox.com. Two gates for the one channel that touches the domain, because a bad blog post is
-the only output here that can hurt the site's standing in search.
+Every write goes through one function — `render` — which runs the site's own `render_articles.py`
+over the *whole* articles directory and returns every file that must be committed. That is not
+convenience. Committing markdown alone publishes nothing: Vercel serves `public/` with
+`buildCommand: null`, so no build step ever converts it. PR #68 merged and produced a 404 for
+exactly that reason.
 
-The draft is written to `content/articles/<slug>.md`, which is the path the site's existing
-`render_articles.py` reads. That keeps one rendering path: posts published this way get the same
-schema, styling and internal links as the seven articles already using it.
+The whole directory is *rendered* — the renderer builds cross-article links and rewrites
+`sitemap-articles.xml` from the full set, so it needs every article present — but only the pages
+that actually changed are *committed*. 134 of the 142 pages under `public/blog/` have no markdown
+source at all, and re-emitting everything the renderer produces would quietly replace pages it did
+not author.
+
+Three things have to happen for an article to be published here, and each was silently optional
+before this module: the markdown exists, the HTML is rendered, and the index links to it. All three
+or none.
 """
 
 from __future__ import annotations
 
-import base64
-import datetime as dt
 import os
+import re
 from pathlib import Path
 
 import httpx
 
 from autoseo.compose.blog import Draft
-from autoseo.core.config import ConfigError, settings
 from autoseo.core.log import get_logger
-from autoseo.publish import blog_index
+from autoseo.publish import blog_index, page, site
+from autoseo.publish.site import BASE_BRANCH, CONTENT_DIR, SITE_DIR
 
 log = get_logger(__name__)
 
-API = "https://api.github.com"
-SITE_REPO = "intrepidkarthi/dailyvox"
-SITE_DIR = "solyn/website"
-CONTENT_DIR = f"{SITE_DIR}/content/articles"
-BASE_BRANCH = "main"
+
+def fetch_articles() -> dict[str, str]:
+    """{slug: markdown} for every article currently in the site repo."""
+    articles: dict[str, str] = {}
+    for entry in site.list_dir(CONTENT_DIR):
+        if not entry["name"].endswith(".md"):
+            continue
+        blob = httpx.get(entry["download_url"], timeout=60.0)
+        blob.raise_for_status()
+        articles[entry["name"].removesuffix(".md")] = blob.text
+    return articles
 
 
-def _headers() -> dict[str, str]:
-    if not settings.gh_dailyvox_token:
-        raise ConfigError(
-            "GH_DAILYVOX_TOKEN is not set. Create a fine-grained PAT scoped to "
-            f"{SITE_REPO} with Contents: read+write and Pull requests: read+write, "
-            "then add it to the publishing environment. See SETUP.md step 6."
-        )
-    return {
-        "authorization": f"Bearer {settings.gh_dailyvox_token}",
-        "accept": "application/vnd.github+json",
-        "user-agent": "autoseo",
-    }
+def render(changes: dict[str, str]) -> dict[str, str]:
+    """Render the site's articles with `changes` ({slug: markdown}) applied.
 
-
-def _get(path: str) -> dict:
-    r = httpx.get(f"{API}{path}", headers=_headers(), timeout=60.0)
-    r.raise_for_status()
-    return r.json()
-
-
-def _post(path: str, body: dict) -> dict:
-    r = httpx.post(f"{API}{path}", headers=_headers(), json=body, timeout=60.0)
-    if r.status_code >= 400:
-        raise RuntimeError(f"GitHub {r.status_code} on {path}: {r.text[:300]}")
-    return r.json()
-
-
-def _put(path: str, body: dict) -> dict:
-    r = httpx.put(f"{API}{path}", headers=_headers(), json=body, timeout=60.0)
-    if r.status_code >= 400:
-        raise RuntimeError(f"GitHub {r.status_code} on {path}: {r.text[:300]}")
-    return r.json()
-
-
-def _render(draft: Draft) -> dict[str, str]:
-    """Run the site's own renderer over the whole articles directory.
-
-    Committing markdown alone publishes nothing: Vercel serves public/ with buildCommand: null, so
-    no build step ever converts it. PR #68 merged and produced a 404 for exactly that reason.
-
-    The renderer needs every article present, not just the new one, because it builds cross-article
-    cluster links and rewrites sitemap-articles.xml from the full set. So existing markdown is
-    fetched from the repo, the new file added, and the whole directory rendered — which also means
-    the sitemap is correct rather than missing the new page.
-
-    Returns {repo_path: content} for everything that must be committed.
+    Returns {repo_path: content} covering the changed markdown, every rendered page, and the
+    sitemap. Callers hand the result to `site.commit`, which drops anything identical to what is
+    already on main — so unchanged pages cost nothing and the diff shows only what really moved.
     """
     import subprocess
     import tempfile
+
+    articles = fetch_articles()
+    articles.update(changes)
 
     files: dict[str, str] = {}
     with tempfile.TemporaryDirectory() as tmp:
@@ -90,14 +65,10 @@ def _render(draft: Draft) -> dict[str, str]:
         src.mkdir(parents=True)
         out.mkdir(parents=True)
 
-        for entry in _get(f"/repos/{SITE_REPO}/contents/{CONTENT_DIR}?ref={BASE_BRANCH}"):
-            if entry["name"].endswith(".md"):
-                blob = httpx.get(entry["download_url"], timeout=60.0)
-                blob.raise_for_status()
-                (src / entry["name"]).write_text(blob.text, encoding="utf-8")
-
-        (src / f"{draft.slug}.md").write_text(draft.markdown, encoding="utf-8")
-        files[f"{CONTENT_DIR}/{draft.slug}.md"] = draft.markdown
+        for slug, markdown in articles.items():
+            (src / f"{slug}.md").write_text(markdown, encoding="utf-8")
+        for slug, markdown in changes.items():
+            files[f"{CONTENT_DIR}/{slug}.md"] = markdown
 
         sitemap = root / "public" / "sitemap-articles.xml"
         result = subprocess.run(
@@ -113,38 +84,153 @@ def _render(draft: Draft) -> dict[str, str]:
 
         # The renderer skips any file without a `slug:` key and says nothing about it. That is how
         # PR #68 merged and served a 404: no error anywhere, just a missing page. Fail here instead.
-        html = out / f"{draft.slug}.html"
-        if not html.exists():
-            raise RuntimeError(
-                f"renderer produced no {draft.slug}.html — the page would 404. The most likely "
-                f"cause is missing or malformed frontmatter; the renderer requires a `slug:` key "
-                f"and skips files without one silently."
-            )
-        if sitemap.exists() and draft.slug not in sitemap.read_text(encoding="utf-8"):
-            raise RuntimeError(
-                f"{draft.slug} rendered but is absent from sitemap-articles.xml — publishing it "
-                f"would leave the page undiscoverable."
-            )
-        files[f"{SITE_DIR}/public/blog/{draft.slug}.html"] = html.read_text(encoding="utf-8")
+        for slug in changes:
+            html = out / f"{slug}.html"
+            if not html.exists():
+                raise RuntimeError(
+                    f"renderer produced no {slug}.html — the page would 404. The most likely cause "
+                    f"is missing or malformed frontmatter; the renderer requires a `slug:` key and "
+                    f"skips files without one silently."
+                )
+            if sitemap.exists() and slug not in sitemap.read_text(encoding="utf-8"):
+                raise RuntimeError(
+                    f"{slug} rendered but is absent from sitemap-articles.xml — publishing it "
+                    f"would leave the page undiscoverable."
+                )
+
+        # Only the changed slugs' pages are committed, never the whole rendered directory. The
+        # renderer is one of several things that has written to public/blog over the site's life —
+        # 134 of the 142 pages there have no markdown source at all — so re-emitting everything it
+        # produces would quietly replace pages it did not author.
+        for slug in changes:
+            path = out / f"{slug}.html"
+            files[f"{SITE_DIR}/public/blog/{slug}.html"] = path.read_text(encoding="utf-8")
         if sitemap.exists():
             files[f"{SITE_DIR}/public/sitemap-articles.xml"] = sitemap.read_text(encoding="utf-8")
 
-        # Link it from the index. Nothing generates that file — generate_pages.py prints entries
-        # for manual pasting — so without this the page exists and is completely unreachable by a
-        # reader, which is exactly how the first published article looked "missing" despite
-        # returning 200.
-        index = _get(f"/repos/{SITE_REPO}/contents/{blog_index.INDEX_PATH}?ref={BASE_BRANCH}")
-        current = base64.b64decode(index["content"]).decode("utf-8")
-        updated = blog_index.insert(
-            current, draft.slug, draft.title, draft.description,
-            cluster=blog_index.cluster_from_markdown(draft.markdown),
-        )
-        if updated != current:
-            files[blog_index.INDEX_PATH] = updated
-
-    log.info("rendered %d file(s) for %s", len(files), draft.slug)
+    log.info("rendered %d file(s) from %d change(s)", len(files), len(changes))
     return files
 
+
+def publish(draft: Draft, dry_run: bool = False) -> str:
+    """Publish a new post: markdown, rendered pages, sitemap, index link. One commit."""
+    html_path = f"{SITE_DIR}/public/blog/{draft.slug}.html"
+
+    # Refuse to replace a page that actually ranks; allow replacing source that renders nothing.
+    #
+    # The first version of this guard keyed on the markdown file alone, and then blocked the fix for
+    # its own earlier mistake: PR #68 merged markdown with frontmatter the renderer skips, so the
+    # file existed while the page 404'd, and "already exists — refusing to overwrite" prevented
+    # publishing a working version. What deserves protection is a live page, not an inert file.
+    if site.exists(html_path):
+        raise RuntimeError(
+            f"{html_path} already exists on {BASE_BRANCH} — that page is live, refusing to "
+            f"overwrite it. Rewriting an existing page is a different operation from publishing "
+            f"a new one and should be done deliberately."
+        )
+    if site.exists(f"{CONTENT_DIR}/{draft.slug}.md"):
+        log.warning("%s.md exists but renders no page — replacing the orphaned source", draft.slug)
+
+    files = render({draft.slug: draft.markdown})
+
+    # Link it from the index. Nothing in the site repo generates that file, so without this step the
+    # page exists and is completely unreachable by a reader — which is exactly how the first
+    # published article looked "missing" despite returning 200.
+    index = site.read_text(blog_index.INDEX_PATH)
+    if index is None:
+        raise RuntimeError(f"{blog_index.INDEX_PATH} not found — cannot link the new post")
+    files[blog_index.INDEX_PATH] = blog_index.insert(
+        index, draft.slug, draft.title, draft.description,
+        cluster=blog_index.cluster_from_markdown(draft.markdown),
+    )
+
+    return site.commit(
+        files,
+        f"blog: {draft.title}\n\n"
+        f"Target query: {draft.target_query}\n"
+        f"Why: {draft.evidence}\n"
+        f"Quality gate: {draft.verdict.summary()}\n\n"
+        f"Written and published by autoseo against measured search demand.",
+        dry_run=dry_run,
+    )
+
+
+# --- edits to pages that are already live ------------------------------------------------------
+
+FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.S)
+
+
+def _set_frontmatter(markdown: str, **fields: str) -> str:
+    """Replace frontmatter values, preserving key order and everything not named."""
+    m = FRONTMATTER.match(markdown)
+    if not m:
+        raise RuntimeError("article markdown has no frontmatter block")
+    front = m.group(1)
+    for key, value in fields.items():
+        escaped = value.replace('"', "'")
+        line = f'{key}: "{escaped}"'
+        if re.search(rf"^{key}:", front, re.M):
+            front = re.sub(rf"^{key}:.*$", line, front, count=1, flags=re.M)
+        else:
+            front += f"\n{line}"
+    return f"---\n{front}\n---\n" + markdown[m.end():]
+
+
+def retitle(slug: str, title: str, description: str, rationale: str,
+            dry_run: bool = False) -> str:
+    """Rewrite one page's title and meta description, everywhere they appear.
+
+    Two paths, because the blog has two kinds of page. Where markdown exists it is the source and
+    the HTML is derived from it — editing the HTML there would be reverted the next time that
+    article is rendered. Where it does not, the HTML *is* the source.
+    """
+    markdown = site.read_text(f"{CONTENT_DIR}/{slug}.md")
+    if markdown is not None:
+        updated = _set_frontmatter(markdown, title=title, meta_description=description)
+        # The H1 usually restates the title. Leaving it saying something else makes the page and
+        # its search result disagree, which is the problem this edit exists to fix.
+        updated = re.sub(r"^#\s+.+$", f"# {title}", updated, count=1, flags=re.M)
+        files = render({slug: updated})
+    else:
+        html_path = f"{SITE_DIR}/public/blog/{slug}.html"
+        doc = site.read_text(html_path)
+        if doc is None:
+            raise RuntimeError(
+                f"neither {slug}.md nor {slug}.html is in the site repo — nothing to retitle"
+            )
+        files = {html_path: page.retitle(doc, title, description)}
+
+    if index := site.read_text(blog_index.INDEX_PATH):
+        files[blog_index.INDEX_PATH] = blog_index.update(index, slug, title, description)
+
+    return site.commit(
+        files, f"seo: retitle /blog/{slug}\n\n{rationale}\n\nnew title: {title}", dry_run=dry_run
+    )
+
+
+def append_section(slug: str, block: str, rationale: str, dry_run: bool = False) -> str:
+    """Append an FAQ section to a page. Additive — existing copy is never touched."""
+    markdown = site.read_text(f"{CONTENT_DIR}/{slug}.md")
+    if markdown is not None:
+        if block.strip() in markdown:
+            log.info("%s already contains this section", slug)
+            return ""
+        files = render({slug: markdown.rstrip() + "\n\n" + block.strip() + "\n"})
+    else:
+        html_path = f"{SITE_DIR}/public/blog/{slug}.html"
+        doc = site.read_text(html_path)
+        if doc is None:
+            raise RuntimeError(
+                f"neither {slug}.md nor {slug}.html is in the site repo — nothing to append to"
+            )
+        files = {html_path: page.append_faq(doc, page.parse_faq(block))}
+
+    return site.commit(
+        files, f"seo: add an FAQ section to /blog/{slug}\n\n{rationale}", dry_run=dry_run
+    )
+
+
+# --- the blog index ----------------------------------------------------------------------------
 
 INDEX_PAGES = [blog_index.INDEX_PATH] + [
     f"{SITE_DIR}/public/blog/page/{n}.html" for n in range(2, 8)
@@ -160,26 +246,20 @@ def find_orphans() -> dict[str, tuple[str, str]]:
     index step existed, so nothing was wrong, there was simply nothing linking to it.
     """
     import html as htmllib
-    import re
 
-    listing = _get(f"/repos/{SITE_REPO}/contents/{SITE_DIR}/public/blog?ref={BASE_BRANCH}")
     slugs = {
-        e["name"][:-5] for e in listing
+        e["name"][:-5] for e in site.list_dir(f"{SITE_DIR}/public/blog")
         if e["type"] == "file" and e["name"].endswith(".html") and e["name"] != "index.html"
     }
 
     linked: set[str] = set()
-    for page in INDEX_PAGES:
-        blob = _get(f"/repos/{SITE_REPO}/contents/{page}?ref={BASE_BRANCH}")
-        linked |= set(re.findall(
-            r'href="/blog/([a-z0-9-]+)"', base64.b64decode(blob["content"]).decode("utf-8")
-        ))
+    for index_page in INDEX_PAGES:
+        if doc := site.read_text(index_page):
+            linked |= set(re.findall(r'href="/blog/([a-z0-9-]+)"', doc))
 
     orphans: dict[str, tuple[str, str]] = {}
     for slug in sorted(slugs - linked):
-        page = _get(f"/repos/{SITE_REPO}/contents/{SITE_DIR}/public/blog/{slug}.html"
-                    f"?ref={BASE_BRANCH}")
-        doc = base64.b64decode(page["content"]).decode("utf-8")
+        doc = site.read_text(f"{SITE_DIR}/public/blog/{slug}.html") or ""
         title = re.search(r"<title>(.*?)</title>", doc, re.S)
         desc = re.search(r'<meta name="description" content="(.*?)"', doc, re.S)
         orphans[slug] = (
@@ -190,7 +270,7 @@ def find_orphans() -> dict[str, tuple[str, str]]:
 
 
 def relink(dry_run: bool = False) -> str:
-    """Link every orphaned live page from the index, as one PR. Returns the PR URL, or ""."""
+    """Link every orphaned live page from the index, in one commit. Returns the commit URL."""
     orphans = find_orphans()
     if not orphans:
         print("  No orphans — every live article page is linked from the index.")
@@ -200,130 +280,18 @@ def relink(dry_run: bool = False) -> str:
     for slug, (title, _) in orphans.items():
         print(f"      /blog/{slug}  —  {title}")
 
-    index_blob = _get(f"/repos/{SITE_REPO}/contents/{blog_index.INDEX_PATH}?ref={BASE_BRANCH}")
-    updated = base64.b64decode(index_blob["content"]).decode("utf-8")
+    index = site.read_text(blog_index.INDEX_PATH)
+    if index is None:
+        raise RuntimeError(f"{blog_index.INDEX_PATH} not found")
+    updated = index
     for slug, (title, description) in orphans.items():
         updated = blog_index.insert(updated, slug, title, description)
 
-    if dry_run:
-        print("\n  would add the above to the top of the blog index (no PR opened).\n")
-        return ""
-
-    branch = f"autoseo/relink-{dt.date.today().isoformat()}"
-    base_sha = _get(f"/repos/{SITE_REPO}/git/ref/heads/{BASE_BRANCH}")["object"]["sha"]
-    _post(f"/repos/{SITE_REPO}/git/refs", {"ref": f"refs/heads/{branch}", "sha": base_sha})
-    _put(f"/repos/{SITE_REPO}/contents/{blog_index.INDEX_PATH}", {
-        "message": f"blog: link {len(orphans)} orphaned page(s) from the index",
-        "content": base64.b64encode(updated.encode()).decode(),
-        "branch": branch,
-        "sha": index_blob["sha"],
-    })
-
-    listed = "\n".join(f"- [/blog/{s}](https://getdailyvox.com/blog/{s}) — {t}"
-                       for s, (t, _) in orphans.items())
-    pr = _post(f"/repos/{SITE_REPO}/pulls", {
-        "title": f"blog: link {len(orphans)} orphaned page(s) from the index",
-        "head": branch, "base": BASE_BRANCH, "draft": False,
-        "body": f"""These pages are live and in the sitemap, but no index page links to them, so a
-reader browsing /blog cannot reach them:
-
-{listed}
-
-Found by `autoseo relink`, which compares the rendered pages under `public/blog/` against the links
-on all seven index pages. Pagination is not rebalanced — page one gains the entries.""",
-    })
-    url = pr["html_url"]
-    log.info("opened %s", url)
-    return url
-
-
-def publish(draft: Draft, dry_run: bool = False) -> str:
-    """Render, branch, commit every generated file, open a PR. Returns the PR URL."""
-    branch = f"autoseo/{draft.slug}-{dt.date.today().isoformat()}"
-    path = f"{CONTENT_DIR}/{draft.slug}.md"
-
-    files = _render(draft)
-
-    if dry_run:
-        print(f"\n  would create branch : {branch}")
-        print("  would commit        :")
-        for f in files:
-            print(f"      {f}")
-        print(f"  title               : {draft.title}")
-        print(f"  target query        : {draft.target_query}")
-        print(f"  quality             : {draft.verdict.summary()}")
-        print(f"\n{draft.markdown[:700]}\n  ...\n")
-        return ""
-
-    base_sha = _get(f"/repos/{SITE_REPO}/git/ref/heads/{BASE_BRANCH}")["object"]["sha"]
-
-    # Refuse to replace a page that actually ranks; allow replacing source that renders nothing.
-    #
-    # The first version of this guard keyed on the markdown file alone, and then blocked the fix for
-    # its own earlier mistake: PR #68 merged markdown with frontmatter the renderer skips, so the
-    # file existed while the page 404'd, and "already exists — refusing to overwrite" prevented
-    # publishing a working version. What deserves protection is a live page, not an inert file.
-    def _exists(repo_path: str) -> bool:
-        try:
-            return bool(_get(f"/repos/{SITE_REPO}/contents/{repo_path}?ref={BASE_BRANCH}"))
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code == 404:
-                return False
-            raise
-
-    html_path = f"{SITE_DIR}/public/blog/{draft.slug}.html"
-    if _exists(html_path):
-        raise RuntimeError(
-            f"{html_path} already exists on {BASE_BRANCH} — that page is live, refusing to "
-            f"overwrite it. Rewriting an existing page is a different operation from publishing "
-            f"a new one and should be done deliberately."
-        )
-    if _exists(path):
-        log.warning(
-            "%s exists on %s but renders no page — replacing the orphaned source", path, BASE_BRANCH
-        )
-
-    _post(f"/repos/{SITE_REPO}/git/refs",
-          {"ref": f"refs/heads/{branch}", "sha": base_sha})
-
-    for repo_path, content in files.items():
-        # Existing files (the sitemap) need their blob sha to update rather than create.
-        sha = None
-        try:
-            sha = _get(f"/repos/{SITE_REPO}/contents/{repo_path}?ref={branch}").get("sha")
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code != 404:
-                raise
-        body = {
-            "message": f"blog: {draft.title}",
-            "content": base64.b64encode(content.encode()).decode(),
-            "branch": branch,
-        }
-        if sha:
-            body["sha"] = sha
-        _put(f"/repos/{SITE_REPO}/contents/{repo_path}", body)
-
-    body = f"""Drafted by autoseo against measured search demand, and approved in Telegram before
-this PR was opened.
-
-**Target query:** `{draft.target_query}`
-**Why:** {draft.evidence}
-**Quality gate:** {draft.verdict.summary()}
-
-Includes the rendered HTML and the regenerated sitemap, not just the markdown. The site is served
-with `buildCommand: null`, so nothing converts markdown at deploy time — committing the source alone
-produces a 404, which is what happened with #68.
-
-Review the copy before merging — the gate checks for AI-writing tells and duplication against the
-existing 1,722 pages, but it cannot tell you whether the piece is *right*."""
-
-    pr = _post(f"/repos/{SITE_REPO}/pulls", {
-        "title": f"blog: {draft.title}",
-        "head": branch,
-        "base": BASE_BRANCH,
-        "body": body,
-        "draft": False,
-    })
-    url = pr["html_url"]
-    log.info("opened %s", url)
-    return url
+    listed = ", ".join(sorted(orphans))
+    return site.commit(
+        {blog_index.INDEX_PATH: updated},
+        f"blog: link {len(orphans)} orphaned page(s) from the index\n\n"
+        f"Live and in the sitemap, but reachable from no index page: {listed}.\n"
+        f"Found by comparing public/blog/*.html against the links on all index pages.",
+        dry_run=dry_run,
+    )

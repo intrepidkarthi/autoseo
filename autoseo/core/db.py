@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autoseo.core.config import settings
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 SCHEMA = """
 -- Phase 0: measurement -------------------------------------------------------
@@ -146,9 +146,11 @@ CREATE TABLE IF NOT EXISTS aeo_citation (
 );
 CREATE INDEX IF NOT EXISTS ix_aeo_citation_domain ON aeo_citation(domain);
 
--- The approval queue. `policy` exists from day one so per-channel autonomy is a config change
--- rather than a rewrite; `rationale` is required because an approval given without a stated reason
--- is not an approval, and leaves no way to correct the logic that produced the item.
+-- The ledger: every action the loop decided to take, why, and what happened. It began as an
+-- approval queue and kept its shape when the approvals went away, because the columns that
+-- mattered were never about permission — `rationale` is required because an action that cannot
+-- explain itself is a bug, and `decided_at` / `decided_by` are what make a bad week auditable
+-- after the fact. `message_id` is vestigial: it held the Telegram message a card was sent as.
 CREATE TABLE IF NOT EXISTS queue_item (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     created     TEXT NOT NULL,
@@ -166,22 +168,6 @@ CREATE TABLE IF NOT EXISTS queue_item (
 );
 CREATE INDEX IF NOT EXISTS ix_queue_status ON queue_item(status);
 CREATE INDEX IF NOT EXISTS ix_queue_message ON queue_item(message_id);
-
--- Telegram bookkeeping: the discovered chat id and the update offset. Persisting the offset is what
--- makes a retried poll safe — without it a re-run could act on the same approval twice.
-CREATE TABLE IF NOT EXISTS gate_state (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-
--- Update ids already acted on. Telegram's offset alone proved unreliable here: a call with
--- offset=N returned zero while the same call without an offset returned two updates with ids > N,
--- and those two approvals were then lost. The payload is a human decision, so losing one is not
--- acceptable — we read without an offset and dedupe against this table instead.
-CREATE TABLE IF NOT EXISTS gate_seen (
-    update_id INTEGER PRIMARY KEY,
-    ts        TEXT NOT NULL
-);
 
 -- Shingle index of the existing site, for duplication checking. Hashes only: the index stays small
 -- enough to commit and reveals nothing about page content. Built locally from public/, used in CI.

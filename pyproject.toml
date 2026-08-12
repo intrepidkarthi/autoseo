@@ -1,7 +1,7 @@
 [project]
 name = "autoseo"
 version = "0.1.0"
-description = "Automated blog + social publishing and SEO/AEO measurement for DailyVox"
+description = "Autonomous SEO for DailyVox: measure, decide, fix, publish — no approval step"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
@@ -32,6 +32,9 @@ packages = ["autoseo"]
 [tool.ruff]
 line-length = 110
 target-version = "py312"
+# Vendored code is copied byte-for-byte so it can be re-copied wholesale on upgrade. Linting it
+# would produce fixes that make the next re-copy a merge.
+extend-exclude = ["vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

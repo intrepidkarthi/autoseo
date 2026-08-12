@@ -94,6 +94,61 @@ def vercel_headers(plan: Plan) -> list[dict]:
     ]
 
 
+def applied(vercel_json: str) -> bool:
+    """Is the noindex block already on the site?"""
+    import json as _json
+    try:
+        headers = _json.loads(vercel_json).get("headers") or []
+    except ValueError:
+        return False
+    sources = {h.get("source") for h in headers}
+    return all(h["source"] in sources for h in vercel_headers(build_plan()))
+
+
+def apply(dry_run: bool = False) -> str:
+    """Merge the noindex headers into the site's vercel.json. One commit, idempotent.
+
+    This is the highest-ROI action available to the whole system and it sat as printed text for
+    weeks because it needed someone to paste it. 1,507 pages have been returning 200 with every
+    crawler allowed, contributing to site-wide quality signals, since the day they were pulled from
+    the sitemap — sitemap removal withdraws a discovery hint and nothing more.
+    """
+    from autoseo.publish import site
+
+    path = f"{site.SITE_DIR}/vercel.json"
+    raw = site.read_text(path)
+    if raw is None:
+        raise RuntimeError(f"{path} not found in {site.SITE_REPO} — cannot apply the noindex")
+
+    config = json.loads(raw)
+    headers = config.setdefault("headers", [])
+    existing = {h.get("source") for h in headers if isinstance(h, dict)}
+    plan = build_plan()
+    added = [h for h in vercel_headers(plan) if h["source"] not in existing]
+    if not added:
+        print("  noindex headers are already on the site — nothing to do.")
+        return ""
+
+    headers.extend(added)
+    body = json.dumps(config, indent=2) + "\n"
+
+    why = "\n".join(f"  /{c}/  {REMOVE[c]}" for c in REMOVE)
+    survivors = ""
+    if plan.survivors:
+        survivors = (f"\n\n{len(plan.survivors)} page(s) inside these clusters still earn "
+                     f"impressions; they are switched off with the rest and are worth rewriting "
+                     f"into real pages if that traffic matters.")
+    return site.commit(
+        {path: body},
+        f"seo: noindex the de-listed clusters\n\n"
+        f"X-Robots-Tag: noindex, nofollow on:\n{why}\n\n"
+        f"Removing them from the sitemap only withdrew a discovery hint — the pages still return "
+        f"200 and are still crawled. robots.txt deliberately keeps allowing them: Google has to "
+        f"crawl a page to see the header.{survivors}",
+        dry_run=dry_run,
+    )
+
+
 def render_patch(plan: Plan) -> str:
     """A human-readable summary plus the exact JSON to paste."""
     lines = [

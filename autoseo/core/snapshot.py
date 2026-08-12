@@ -37,10 +37,11 @@ TABLES: tuple[str, ...] = (
     "spend_ledger",
     "run_log",
     "queue_item",
-    "gate_state",
-    "gate_seen",
-    "corpus_shingle",
 )
+# corpus_shingle is deliberately absent. Committing it cost 5.7 MB per refresh — a full rewrite of
+# the file every time any page changes, which is most weeks. It is a cache, not state: `plan`
+# rebuilds it from the live site in about a minute, so it is always fresher than a committed copy
+# would have been anyway.
 
 # Sort keys chosen to be stable and to group related rows together in the diff.
 SORT_KEYS: dict[str, str] = {
@@ -55,8 +56,6 @@ SORT_KEYS: dict[str, str] = {
     "spend_ledger": "ts, id",
     "run_log": "started, id",
     "queue_item": "id",
-    "gate_state": "key",
-    "gate_seen": "update_id",
     "corpus_shingle": "url",
 }
 

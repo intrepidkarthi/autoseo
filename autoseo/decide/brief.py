@@ -139,6 +139,68 @@ def build(days: int = 90, min_impressions: float = 15) -> list[Action]:
     return actions
 
 
+def aeo_gaps(days: int = 90, min_runs: int = 2) -> list[Action]:
+    """Buyer questions where an answer engine names competitors and never names us.
+
+    Google is not the only place a decision gets made any more, and it is the only one this module
+    measured. The AEO panel has been recording the answer-engine side since day one — every run,
+    for every question, whether DailyVox was mentioned and whether it was cited — and nothing read
+    it. As of the last panel that is 0 mentions across every question, against Day One, Rosebud,
+    Apple Journal and Daylio named in nearly all of them.
+
+    That is a content gap with the same shape as a GSC content gap: proven demand, nothing of ours
+    answering it. It is scored separately rather than folded into the click-gain ranking, because
+    there is no impression volume to multiply and inventing one would make the two incomparable in
+    a way that hides which channel a decision came from.
+    """
+    import json as _json
+
+    cutoff = (dt.date.today() - dt.timedelta(days=days)).isoformat()
+    gaps: list[Action] = []
+
+    with session() as conn:
+        rows = conn.execute(
+            """
+            SELECT question_id, question, COUNT(*) runs,
+                   SUM(mentioned) mentions, SUM(cited) cites, MAX(competitors) competitors
+            FROM aeo_probe
+            WHERE ts >= ?
+            GROUP BY question_id
+            HAVING runs >= ? AND mentions = 0
+            """,
+            (cutoff, min_runs),
+        ).fetchall()
+
+    for r in rows:
+        try:
+            competitors = _json.loads(r["competitors"] or "[]")
+        except ValueError:
+            competitors = []
+        named = ", ".join(competitors[:4]) or "no one consistently"
+        gaps.append(Action(
+            priority=0, kind="aeo-gap", target="(no page answers this)",
+            query=r["question"], impressions=0.0, clicks=0.0, position=0.0,
+            # Ranked among themselves by how contested the question is: a question where four
+            # products get named is one where the engine has an answer shape and we are absent
+            # from it, which is more tractable than one nobody wins.
+            est_click_gain=float(len(competitors)),
+            evidence=(
+                f"Asked {r['runs']} times, DailyVox mentioned 0 times. The engine names "
+                f"{named} instead. Answer-engine demand with nothing of ours answering it."
+            ),
+            steps=[
+                "Write a page that answers the question in the first 100 words",
+                "Carry an FAQ block so the page is quotable as a unit",
+                "Name the alternatives fairly — a page that only praises us does not get cited",
+            ],
+        ))
+
+    gaps.sort(key=lambda a: -a.est_click_gain)
+    for i, a in enumerate(gaps, 1):
+        a.priority = i
+    return gaps
+
+
 def excluded(days: int = 90, min_impressions: float = 15) -> dict[str, list[tuple[str, float]]]:
     """What was filtered out and why — so the exclusions stay auditable rather than invisible."""
     start, end = _window(days)

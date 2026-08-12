@@ -5,7 +5,7 @@ description: Run, build, test, drive or smoke-test autoseo — the SEO/AEO measu
 
 # Running autoseo
 
-`autoseo` is a Python CLI plus two GitHub Actions workflows. There is no server, no GUI and no
+`autoseo` is a Python CLI plus one GitHub Actions workflow. There is no server, no GUI and no
 long-running process — every command runs to completion and exits.
 
 **The one thing to know: it runs fully offline with no credentials.** `state/*.csv` is committed, so
@@ -33,18 +33,19 @@ this session did not verify Linux.
 ## Run (agent path)
 
 ```bash
-bash .claude/skills/run-autoseo/smoke.sh            # full: reinstall + 13 checks
+bash .claude/skills/run-autoseo/smoke.sh            # full: reinstall + 15 checks
 bash .claude/skills/run-autoseo/smoke.sh --quick    # skip reinstall
 ```
 
-Exits non-zero if anything fails. Last verified run: **13 passed, 0 failed**.
+Exits non-zero if anything fails. Last verified run: **15 passed, 0 failed**.
 
 It covers the two layers commits here actually touch:
 
-1. **CLI surface** — `report`, `brief`, `outreach`, `opportunity`, `gate --status`,
+1. **CLI surface** — `report`, `brief`, `outreach`, `opportunity`, `status`, `delist`,
    `aeo --dry-run`, `snapshot`, plus the failure paths.
-2. **Direct invocation** — `decide/*` and `core/*` called as functions. Most changes here are to
-   pure functions over the database, so this is the faster loop for a targeted fix.
+2. **Direct invocation** — `decide/*`, `core/*`, and the autonomous layer: the caps, the ledger,
+   and the two functions that edit a live page. Most changes here are to pure functions over the
+   database, so this is the faster loop for a targeted fix.
 
 To drive one thing by hand:
 
@@ -53,7 +54,15 @@ rm -f state/autoseo.db && .venv/bin/autoseo restore   # ALWAYS first — see Got
 .venv/bin/autoseo report            # indexation by cluster
 .venv/bin/autoseo brief --top 5     # ranked actions with evidence
 .venv/bin/autoseo outreach --top 5  # pages worth getting listed on
-.venv/bin/autoseo gate --status     # queue + telegram state
+.venv/bin/autoseo status            # caps, ledger, what happens on the next run
+```
+
+The loop itself, without touching anything:
+
+```bash
+.venv/bin/autoseo plan --dry-run    # decide and compose, print instead of queueing
+.venv/bin/autoseo apply --dry-run   # print every commit that would be made
+.venv/bin/autoseo run --dry-run     # both, with a fresh collection first
 ```
 
 Direct invocation, for a change to a pure function:
@@ -74,8 +83,8 @@ They are normally run by CI, not locally.
 |---|---|
 | `autoseo gsc [--backfill]`, `autoseo inspect`, `autoseo report` (fresh data) | `GSC_SERVICE_ACCOUNT_JSON` |
 | `autoseo bing` | `BING_WEBMASTER_API_KEY` |
-| `autoseo aeo` | `GEMINI_API_KEY` |
-| `autoseo gate` (sending) | `TELEGRAM_BOT_TOKEN` |
+| `autoseo aeo`, `autoseo plan` (composing) | `GEMINI_API_KEY` |
+| `autoseo apply`, `autoseo relink`, `autoseo delist --apply` | `GH_DAILYVOX_TOKEN` |
 
 Locally they read a gitignored `.env` (see `.env.example`); in CI they come from the `compose`
 GitHub Environment. `autoseo aeo --dry-run` exercises the panel logic with no key and no cost.
@@ -83,12 +92,16 @@ GitHub Environment. `autoseo aeo --dry-run` exercises the panel logic with no ke
 ## Run in CI
 
 ```bash
-gh workflow run collect.yml --repo intrepidkarthi/autoseo -f inspect_limit=50 -f aeo_tier=skip
-gh workflow run gate.yml    --repo intrepidkarthi/autoseo -f test_card=true
+gh workflow run seo.yml --repo intrepidkarthi/autoseo -f dry_run=true       # safe: changes nothing
+gh workflow run seo.yml --repo intrepidkarthi/autoseo -f inspect_limit=50
 ```
 
-`collect.yml` runs daily at 00:30 UTC; `gate.yml` every 20 minutes. Both `autoseo restore` at the
-start and `autoseo snapshot` at the end, then commit `state/`.
+`seo.yml` runs daily at 00:30 UTC. Two jobs: `plan` (environment `compose` — measures, decides,
+composes, writes ledger rows) and `apply` (environment `publishing` — commits to the site repo).
+Both `autoseo restore` at the start and `autoseo snapshot` at the end, then commit `state/`.
+
+**Neither job pauses for a human, by design.** If `apply` is sitting on *Review pending*, a required
+reviewer has been re-added to the `publishing` environment and every night's work is stuck behind it.
 
 ## Gotchas
 
@@ -121,8 +134,17 @@ These are the ones that cost real time here.
   `vertexaisearch.cloud.google.com/grounding-api-redirect/...` with the real domain in the chunk
   *title*. Parsing the URI yields Google's host for every citation; the skip-list then discards
   every outreach target and the feature returns nothing. `db.migrate()` repairs this.
-- **Telegram bots cannot message first.** Until you send `/start` to the bot, `gate` logs
-  `No chat id` and delivers nothing — the run still exits 0.
+- **Only 8 of the 142 blog pages have markdown.** The other 134 are committed HTML with no source
+  anywhere in the site repo, and they earn every impression the blog gets. `publish/blog.py` picks
+  the path per page; `publish/page.py` is the HTML one. An on-page fixer restricted to the markdown
+  8 would look correct and never fire — those 8 have zero impressions in 90 days between them.
+- **The duplication corpus is not committed.** It is 5.7 MB and would be rewritten most weeks, so
+  `plan` rebuilds it from the live site each run. Consequence: locally it is empty until you run
+  `autoseo index-corpus --from-live`, and with an empty corpus `plan` refuses to write new posts at
+  all rather than write unchecked ones.
+- **The caps count queued work, not just shipped work.** `policy.post_budget()` subtracts items
+  still sitting in the ledger. Without that, plan could compose three posts and apply could ship all
+  three inside one morning while every individual cap still read as satisfied.
 
 ## Troubleshooting
 
@@ -131,7 +153,9 @@ These are the ones that cost real time here.
 | Every command returns empty, exit 0 | No local database | `.venv/bin/autoseo restore` |
 | `GSC returned 403` | Service account has Full, not Owner | URL Inspection needs Owner. Search Console → Settings → Users and permissions |
 | `Gemini 404: ... no longer available to new users` | Pinned model retired | `autoseo aeo --list-models`, use a listed one or the `-latest` alias |
-| `No chat id` in `gate` | Bot never messaged | Send `/start` to the bot in Telegram |
+| `apply` exits 2 immediately | `GH_DAILYVOX_TOKEN` missing or expired (90-day life) | Regenerate the fine-grained PAT, `publishing` environment |
+| `plan` composes nothing, ships nothing | Cap reached, or every page inside its 30-day cooldown | `autoseo status` says which |
+| Nothing publishes but no error | `AUTOSEO_PAUSE` set, or `state/PAUSE` exists | `autoseo status` prints PAUSED first |
 | `autoseo outreach` returns nothing but citations exist | `aeo_citation.domain` unrepaired | Reopen the db — `db.migrate()` repairs it. `smoke.sh` asserts this |
 | Exit 2 on a command that printed fine | zsh word-splitting in your test loop | Quote properly, or use bash |
 | Binary merge conflict on `state/` | An old checkout still tracks `autoseo.db` | It is gitignored now; `git rm --cached state/autoseo.db` |

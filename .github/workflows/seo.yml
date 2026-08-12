@@ -1,0 +1,185 @@
+name: seo
+
+# The whole loop, once a day, unattended. Measure, decide, compose, ship.
+#
+# Two jobs rather than one, and the split is the only structural rule left now that the approval
+# gates are gone: `plan` reads the open web and runs the model but holds no credential that can
+# change getdailyvox.com; `apply` holds that credential and makes no model calls, reads nothing
+# from the open web, and only executes what `plan` already wrote to the ledger. There is no path
+# from text the composer read to a commit on the site.
+#
+# Neither job pauses for a human. `publishing` must therefore have no required reviewer — if one is
+# configured, every run will sit waiting in the Actions UI, which is the exact behaviour this was
+# built to remove.
+#
+# To stop the loop without touching this file: create `state/PAUSE` and commit it, or set the
+# repository variable AUTOSEO_PAUSE=1.
+
+on:
+  schedule:
+    - cron: "30 0 * * *"   # 06:00 IST. GitHub cron is best-effort and often fires 10-30 min late.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Decide and print, change nothing (true/false)"
+        required: false
+        default: "false"
+      days:
+        description: "Analysis window in days"
+        required: false
+        default: "90"
+      inspect_limit:
+        description: "Sitemap URLs to inspect this run (156 total, quota 2000/day)"
+        required: false
+        default: "200"
+      aeo_tier:
+        description: "AEO panel tier: core | extended | all | skip (default: weekly, on Mondays)"
+        required: false
+        default: ""
+      backfill:
+        description: "One-time: pull the full 16-month GSC history (true/false)"
+        required: false
+        default: "false"
+
+concurrency:
+  group: autoseo-state
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # to commit state/ back — this also keeps the 60-day schedule timer alive
+
+jobs:
+  plan:
+    name: measure and compose
+    runs-on: ubuntu-latest
+    environment: compose
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Measure, decide, compose
+        env:
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+          BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AUTOSEO_INSPECT_LIMIT: ${{ github.event.inputs.inspect_limit || '200' }}
+          AUTOSEO_PAUSE: ${{ vars.AUTOSEO_PAUSE }}
+          DAYS: ${{ github.event.inputs.days || '90' }}
+          DRY: ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+        run: |
+          set -e
+          autoseo restore
+
+          if [ "${{ github.event.inputs.backfill }}" = "true" ]; then
+            autoseo gsc --backfill
+          fi
+
+          autoseo inventory
+          autoseo collect
+
+          # The AEO panel costs a few minutes of free-tier quota and moves slowly. Weekly is
+          # enough to keep the outreach list current; the input overrides it on demand.
+          TIER="${{ github.event.inputs.aeo_tier }}"
+          if [ -z "$TIER" ] && [ "$(date -u +%u)" = "1" ]; then TIER=core; fi
+          if [ -n "$TIER" ] && [ "$TIER" != "skip" ]; then
+            autoseo aeo --tier "$TIER" || echo "::warning::AEO panel failed — continuing"
+            autoseo outreach || true
+          fi
+
+          autoseo brief
+          autoseo plan --days "$DAYS" $DRY
+          autoseo status
+          autoseo snapshot
+
+      - name: Commit state
+        run: |
+          git config user.name  "autoseo[bot]"
+          git config user.email "autoseo@users.noreply.github.com"
+
+          # Concurrent runs both write state/*.csv, and git cannot merge them — an earlier attempt
+          # at `pull --rebase` hit a CSV conflict and left a detached HEAD. But the database CAN
+          # merge: `restore` upserts, so loading the remote snapshot into our db produces the union
+          # of both sides. So on rejection we take the remote files, re-merge through the app, and
+          # re-snapshot. The db is gitignored, so `reset --hard` never touches the rows being saved.
+          for attempt in 1 2 3; do
+            git add -A state/
+            if git diff --staged --quiet; then
+              echo "No state changes."
+              exit 0
+            fi
+            git commit -q -m "plan: $(date -u +%Y-%m-%dT%H:%M)"
+            if git push -q origin HEAD:main 2>/dev/null; then
+              echo "state pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected — merging remote state through the database"
+            git fetch -q origin main
+            git reset -q --hard origin/main
+            autoseo restore >/dev/null
+            autoseo snapshot >/dev/null
+          done
+          echo "::warning::could not push state after 3 attempts; it will merge on the next run"
+
+      - name: Hand the ledger to the apply job
+        uses: actions/upload-artifact@v4
+        with:
+          name: state
+          path: state/*.csv
+          retention-days: 7
+
+  apply:
+    name: commit to the site
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: publishing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      # Taken from the artifact rather than from the checkout: if the plan job could not push its
+      # state (a concurrent run, a rejected push), main does not yet contain the items about to be
+      # applied, and applying nothing would look identical to having nothing to apply.
+      - name: Take the ledger from the plan job
+        uses: actions/download-artifact@v4
+        with:
+          name: state
+          path: state
+
+      - name: Apply
+        env:
+          GH_DAILYVOX_TOKEN: ${{ secrets.GH_DAILYVOX_TOKEN }}
+          AUTOSEO_PAUSE: ${{ vars.AUTOSEO_PAUSE }}
+          DRY: ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+        run: |
+          set -e
+          autoseo restore
+          autoseo apply $DRY
+          autoseo snapshot
+
+      - name: Commit state
+        run: |
+          git config user.name  "autoseo[bot]"
+          git config user.email "autoseo@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git add -A state/
+            if git diff --staged --quiet; then echo "No state changes."; exit 0; fi
+            git commit -q -m "apply: $(date -u +%Y-%m-%dT%H:%M)"
+            if git push -q origin HEAD:main 2>/dev/null; then exit 0; fi
+            git fetch -q origin main && git reset -q --hard origin/main
+            autoseo restore >/dev/null && autoseo snapshot >/dev/null
+          done
+          echo "::warning::could not push state after 3 attempts; it will merge on the next run"

@@ -1,91 +1,135 @@
 # autoseo
 
-SEO/AEO measurement and gated content automation for [DailyVox](https://getdailyvox.com).
+SEO for [DailyVox](https://getdailyvox.com), run without a person in the loop.
+
+Every morning it measures the site, decides what is worth doing, writes the fix, checks its own work,
+and commits to the site repo. No approval step, no notification, nothing to tap.
 
 Runs entirely on GitHub Actions. No server, no database to host, ~$0/month.
 
-- **[DESIGN.md](DESIGN.md)** — architecture, module map, decision engine, quality gate
+- **[DESIGN.md](DESIGN.md)** — architecture, the loop, what stops it
 - **[SETUP.md](SETUP.md)** — every credential, with click-by-click steps
 
-## Status
+## What it does each morning
 
-The blog pipeline runs end to end: measured demand in, pull request out, four
-human gates in between.
+```
+measure     GSC · URL Inspection · Bing · sitemap inventory
+decide      rank every (page, query) by estimated click gain
+fix         ranked but not clicked      → rewrite the title and meta description
+            page two, no FAQ            → append 3 answers, with FAQPage markup
+            demand with no page close   → write a new post, 700-1000 words
+            live page linked from       → link it from /blog
+              nowhere
+            1,507 dead templated pages  → noindex headers
+check       the full write-like-me rule set, plus duplication against the live corpus
+ship        one atomic commit per fix on intrepidkarthi/dailyvox@main → Vercel deploys
+submit      IndexNow → Bing, Yandex, Seznam, Naver. Google reads the regenerated sitemap
+```
+
+## Status
 
 | | | |
 |---|---|---|
 | measurement — GSC, URL Inspection, Bing | ✅ | validated to -1.2% against a UI export |
 | AEO panel — buyer questions vs Gemini grounding | ✅ | free tier; records who gets cited instead |
 | outreach targets — pages worth being listed on | ✅ | ranked from real citations |
-| quality gate — slop, length, duplication | ✅ | 1,722-page shingle index |
-| Telegram approval, instant via Cloudflare worker | ✅ | |
-| blog publishing — PR to the site repo | ✅ | |
-| finish de-listing the orphaned pages | ⬜ | no code needed; highest ROI available |
-| social publishing (YouTube, Instagram) | ⬜ | |
-| decision engine (bandit) | ⬜ | needs ~6 weeks of performance data |
+| quality gate — write-like-me, in code | ✅ | vendored scanner; every article, no exceptions |
+| answer-engine gaps drive content | ✅ | 0 of 8 buyer questions mention us today |
+| IndexNow submission | ✅ | Bing/Yandex/Seznam/Naver; Google has no equivalent API |
+| autonomous loop — plan, apply, caps, ledger | ✅ | no approval anywhere in it |
+| on-page fixer — titles, meta descriptions, FAQ | ✅ | works on both page kinds |
+| publishing — direct commits, no PR | ✅ | ≤1/day, ≤3/week |
+| de-listing the 1,507 orphaned pages | ✅ | applied automatically |
+| decision engine (bandit) | ⬜ | needs ~6 weeks of ledger rows paired with positions |
+| video and social | ⏸️ | parked on purpose — the code stays, nothing schedules it |
 
-X, Reddit and Quora are deliberately **manual**. They reward interaction with
-other people's posts, not broadcast, and automating broadcast into them is how
-accounts get filtered.
+X, Reddit and Quora remain deliberately **manual**. They reward interaction with other people's posts,
+not broadcast, and automating broadcast into them is how accounts get filtered.
+
+## The limits, which are the interesting part
+
+Removing the approval step means removing a rate limiter, so the rate limits are now explicit and in code:
+
+| | |
+|---|---|
+| **≤1 post/day, ≤3/week** | counting queued *and* shipped, so plan can't stack a week into one morning |
+| **≤2 on-page fixes/run, ≤5/week** | changing twenty titles in a week makes it impossible to attribute any movement to any of them |
+| **30-day page cooldown** | search takes weeks to react to a title change; rewriting it daily measures nothing |
+| **empty duplication corpus → no posts** | if it can't check for self-duplication it doesn't write |
+| **14-day staleness drop** | a draft composed against numbers that have moved is dropped, not shipped |
+| **path allowlist** | a commit touching anything outside four path prefixes raises before it is sent |
+| **kill switch** | `AUTOSEO_PAUSE=1`, or commit a `state/PAUSE` file. Both halves stop immediately |
+
+## Which engines this actually moves
+
+| Engine | Measured by | Decided from | Submitted to |
+|---|---|---|---|
+| **Google** | Search Console + URL Inspection | every ranked (page, query) | sitemap + internal links — no API exists for ordinary pages |
+| **Bing / Copilot** | Bing Webmaster (site totals) | — | IndexNow, on every change |
+| **Yandex, Seznam, Naver** | — | — | IndexNow, same call |
+| **ChatGPT, Gemini, Perplexity** | the AEO panel: 50 buyer questions, who gets named | uncited questions become posts | Bing's index is the upstream for Copilot |
+
+Content alternates: two posts from Search Console demand, then one targeting a question where an
+answer engine names Day One, Rosebud and Apple Journal and never names DailyVox. Left to rank by
+evidence alone, Google would win every slot forever — it has impression counts and the answer-engine
+panel has none.
 
 ## Usage
 
-**It runs offline with no credentials.** `state/*.csv` is committed, so `restore`
-rebuilds the database from real production data and every read-only command works
-with no network and no secrets. Credentials are only needed to collect *new* data.
+**It runs offline with no credentials.** `state/*.csv` is committed, so `restore` rebuilds the database
+from real production data and every read-only command works with no network and no secrets.
+Credentials are only needed to collect *new* data or to publish.
 
 ```bash
 pip install -e .
 autoseo restore               # rebuild the db from committed state — always first
+autoseo status                # caps, ledger, what happens on the next run
 autoseo report                # per-cluster indexation ratio
 autoseo brief                 # ranked actions with evidence
 autoseo outreach              # pages worth getting listed on
 ```
 
-Writing and publishing:
+Driving the loop by hand:
 
 ```bash
-autoseo draft --top 1 --queue  # write against measured demand, send for approval
-autoseo check FILE             # run the quality gate over any draft
-autoseo publish --dry-run      # show the PR that would be opened
+autoseo run --dry-run         # the whole cycle, printing instead of committing
+autoseo plan --dry-run        # decide and compose only
+autoseo apply --dry-run       # show every commit that would be made
+autoseo check FILE            # run the quality gate over any draft
 ```
 
-Everything is verified by `bash .claude/skills/run-autoseo/smoke.sh` — 13 checks
-covering the CLI, the failure paths, direct invocation and the CSV round-trip.
+Everything is verified by `bash .claude/skills/run-autoseo/smoke.sh` — 16 checks covering the CLI,
+the failure paths, the caps, the quality gate, the page edits and the CSV round-trip.
 
-## How the blog pipeline works
+## How the two halves stay separated
 
 ```
-GSC demand  →  brief ranks by estimated click gain
-            →  brand / competitor-internal / irrelevant queries excluded
-            →  draft (Gemini free tier, 2 attempts)
-            →  quality gate: slop, length, truncation, duplication vs 1,722 pages
-            →  Telegram: full markdown as a file, inline, then a decision card
-            →  your tap
-            →  publish workflow (GitHub environment with a required reviewer)
-            →  PR on the site repo
-            →  your merge  →  Vercel deploys
+plan   [environment: compose]     reads the open web, runs the model, holds NO site credential
+  └─ writes rows to the ledger, each with its evidence and the gate's verdict
+apply  [environment: publishing]  holds the site credential, runs NO model, reads no open web
+  └─ executes those rows and commits
 ```
 
-Four independent gates. Cost: **$0** — Gemini's free tier covers drafting and the
-AEO panel; everything else is free APIs.
+A prompt injection reaching the composing half has no path to a publishing token. This was the one
+structural rule worth keeping when the human gate went away — and it matters more now, not less,
+because nothing reads the output before it ships.
 
 ## Design notes
 
-**Statistics decide allocation, the LLM decides craft.** Scheduling is a multi-armed bandit — free,
-deterministic, auditable. The model writes copy and judges freshness, nothing else.
+**Statistics decide allocation, the LLM decides craft.** What to work on is arithmetic over Search Console
+data — free, deterministic, auditable. The model writes copy and nothing else.
 
-**A module that reads the open web never holds publishing credentials.** Enforced by binding each
-workflow to a different GitHub Environment, not by convention. A prompt injection reaching the
-research step has no path to a posting token.
+**The record is the oversight.** Every action carries a rationale and lands in the ledger, snapshotted to
+committed CSV. An action that cannot explain why it happened is a bug, and with nobody watching in real
+time, that record is the only thing standing in for a person.
 
-**Nothing publishes without human approval**, per channel, until a channel earns autonomy. Every
-queued item carries a `policy` field so per-channel autonomy is a config change rather than a
-rewrite.
+**Every article goes through the same gate, and the gate is code.** `write-like-me` is a skill — instructions
+for an agent at a terminal. This pipeline publishes at 06:00 with nobody there, so the rule set runs as
+`quality/`: fingerprints, the three vocabulary tiers, structure, rhythm, and a vendored copy of the skill's
+own `scan_marks.py` for the marks that have no glyph. That last one is the reason it is vendored rather than
+described — a model asked whether its own output contains zero-width characters will say it looks clean,
+because it does.
 
-**Posts start from measured demand, never from a topic someone thought of.** The input to a draft is
-a query with real impressions where a page already sits at a reachable position.
-
-## License
-
-MIT. Third-party code is vendored rather than depended on — see `VENDOR.md` when it appears.
+**Two kinds of blog page.** 8 have markdown in `content/articles/` and are rendered; 134 are committed
+HTML with no source anywhere in the site repo — and those 134 earn every impression the blog gets. The
+fixer handles both, editing markdown where markdown is the source and HTML where it isn't.

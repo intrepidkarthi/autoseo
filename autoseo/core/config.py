@@ -64,8 +64,6 @@ class Settings:
     gsc_service_account_json: str = field(default_factory=lambda: _env("GSC_SERVICE_ACCOUNT_JSON"))
     bing_api_key: str = field(default_factory=lambda: _env("BING_WEBMASTER_API_KEY"))
     gemini_api_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
-    telegram_bot_token: str = field(default_factory=lambda: _env("TELEGRAM_BOT_TOKEN"))
-    telegram_chat_id: str = field(default_factory=lambda: _env("TELEGRAM_CHAT_ID"))
     gh_dailyvox_token: str = field(default_factory=lambda: _env("GH_DAILYVOX_TOKEN"))
     # Accepts a common misspelling of the secret name. A GitHub secret cannot be renamed in place —
     # you delete and re-add it — so a typo silently reads as empty and surfaces as "credential not

@@ -88,6 +88,80 @@ def build_index(public_dir: Path) -> int:
     return len(rows)
 
 
+CORPUS_STAMP = "corpus_indexed_at"
+CORPUS_MAX_AGE_DAYS = 7
+
+
+def indexed_at() -> str:
+    with session() as conn:
+        row = conn.execute("SELECT value FROM meta WHERE key = ?", (CORPUS_STAMP,)).fetchone()
+    return row["value"] if row else ""
+
+
+def refresh_from_live(clusters: tuple[str, ...] = ("blog", "core"),
+                      max_age_days: int = CORPUS_MAX_AGE_DAYS, limit: int = 200) -> int:
+    """Rebuild the index by fetching our own live pages. Returns pages indexed, 0 if still fresh.
+
+    The committed index was empty, which meant the duplication check quietly passed everything: an
+    unattended writer with a disabled duplication check is precisely how a site grows another 1,500
+    near-identical pages. Building it from the live sitemap rather than a local `public/` directory
+    is what makes it work in CI, where the site repo is not checked out and no credential for it
+    exists in the composing environment.
+
+    Only the clusters a new post could plausibly restate are indexed. The templated `/for/` and
+    `/in/` pages are being de-listed and are not worth the bytes in git.
+    """
+    import datetime as dt
+
+    stamp = indexed_at()
+    if stamp and corpus_size():
+        age = dt.datetime.now(dt.UTC) - dt.datetime.fromisoformat(stamp)
+        if age.days < max_age_days:
+            log.info("corpus is %d day(s) old — not refreshing", age.days)
+            return 0
+
+    import httpx
+
+    with session() as conn:
+        urls = [
+            r["url"] for r in conn.execute(
+                f"SELECT url FROM url_inventory WHERE in_sitemap = 1 AND cluster IN "
+                f"({','.join('?' * len(clusters))}) ORDER BY url LIMIT ?",
+                (*clusters, limit),
+            )
+        ]
+
+    rows: list[tuple[str, int, str]] = []
+    for url in urls:
+        try:
+            r = httpx.get(url, timeout=30.0, follow_redirects=True,
+                          headers={"user-agent": "autoseo"})
+            r.raise_for_status()
+        except Exception as exc:  # noqa: BLE001 — one unreachable page must not lose the rest
+            log.warning("corpus: %s unreachable (%s)", url, str(exc)[:60])
+            continue
+        sh = shingles(r.text)
+        if len(sh) < 50:
+            continue
+        path = "/" + url.split("//", 1)[-1].split("/", 1)[-1] if "//" in url else url
+        rows.append((path.rstrip("/") or "/", len(sh), ",".join(str(h) for h in sorted(sh))))
+
+    if not rows:
+        log.warning("corpus refresh fetched nothing — leaving the existing index in place")
+        return 0
+
+    with session() as conn:
+        conn.execute("DELETE FROM corpus_shingle")
+        conn.executemany("INSERT INTO corpus_shingle(url, n, hashes) VALUES (?,?,?)", rows)
+        conn.execute(
+            "INSERT INTO meta(key, value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET "
+            "value = excluded.value",
+            (CORPUS_STAMP, dt.datetime.now(dt.UTC).isoformat(timespec="seconds")),
+        )
+    log.info("corpus: indexed %d live page(s)", len(rows))
+    return len(rows)
+
+
 def check(text: str, top: int = 3) -> list[DuplicationHit]:
     """Compare a draft against every indexed page. Returns the closest matches, worst first."""
     draft = shingles(text)
