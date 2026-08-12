@@ -142,10 +142,26 @@ assert policy.paused(), "AUTOSEO_PAUSE=1 did not pause the loop"
 del os.environ["AUTOSEO_PAUSE"]
 assert not policy.paused(), "the pause did not clear"
 
-# --- candidate selection must never propose pagination as an article to retitle
+# --- candidate selection. Three regressions live here, all of them shipped once.
+from autoseo.decide.brand import classify
+from autoseo.decide.brief import expected_ctr
 for c in onpage.candidates(days=90):
     assert not c.slug.isdigit(), f"pagination selected as a candidate: {c.url}"
     assert "/blog/page/" not in c.url, f"pagination selected as a candidate: {c.url}"
+    # A rewrite driven by a brand query optimises a page for people already looking for us, and an
+    # empty query asks the model to target nothing while the keep-a-query-term check passes
+    # vacuously. Both selected real pages before this filter.
+    assert c.query, f"candidate with no query: {c.url}"
+    assert classify(c.query) == "acquisition", \
+        f"{classify(c.query)} query '{c.query}' selected {c.url}"
+    # Position must be the query-level one, never the page average. /blog/best-voice-journal-app
+    # averages 12.9 while sitting at 34-42 on every query it was written for — the average is
+    # manufactured by anonymised long-tail terms, and selecting on it retitled that exact page.
+    if c.kind == "meta":
+        assert c.position <= onpage.META_MAX_POSITION, \
+            f"meta candidate at position {c.position:.1f}, above the visibility threshold"
+        assert c.ctr < expected_ctr(c.position) * onpage.CTR_SHORTFALL, \
+            f"{c.url} is not actually under-clicked for its position"
 
 # --- page edits, against markup shaped like the real pages
 DOC = '''<html><head>

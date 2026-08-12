@@ -36,6 +36,7 @@ from autoseo.compose import llm
 from autoseo.compose.blog import BRAND, STYLE
 from autoseo.core.db import session
 from autoseo.core.log import get_logger
+from autoseo.decide.brand import classify
 from autoseo.decide.brief import expected_ctr
 from autoseo.quality import gate, marks, slop
 
@@ -106,33 +107,55 @@ def candidates(days: int = 90) -> list[Candidate]:
             if not slug or slug in ("index", "blog") or slug.isdigit() or "/blog/page/" in p["page"]:
                 continue
 
-            # The query the page is actually closest on. Page-average position is meaningless here:
-            # anonymised long-tail terms drag it toward the middle and hide the real standing.
-            q = conn.execute(
+            # The acquisition query the page is actually closest on. Two filters, both learned
+            # elsewhere in this codebase and both absent from the first version of this module:
+            #
+            #   brand — `/blog/how-digital-twin-learns-personality` ranks second for "getdailyvox",
+            #           which says nothing about the page. Optimising its title for a brand query
+            #           is the exact confident-and-wrong recommendation `decide/brand.py` exists to
+            #           prevent, and it selected two pages on that basis before this filter.
+            #   empty — GSC returns rows with no query string. A rewrite driven by one asks the
+            #           model to target nothing, and the "title must keep a query term" check
+            #           silently passes because there are no terms to keep.
+            query, query_pos = "", 0.0
+            for q in conn.execute(
                 """
                 SELECT query, SUM(impressions) imp,
                        SUM(impressions * position) / NULLIF(SUM(impressions), 0) pos
                 FROM gsc_page_query
                 WHERE page = ? AND date BETWEEN ? AND ?
-                GROUP BY query ORDER BY imp DESC LIMIT 1
+                GROUP BY query ORDER BY imp DESC LIMIT 10
                 """,
                 (p["page"], start, end),
-            ).fetchone()
-            query = q["query"] if q else ""
-            query_pos = (q["pos"] if q and q["pos"] else p["pos"]) or p["pos"]
+            ):
+                if q["query"] and classify(q["query"]) == "acquisition":
+                    query, query_pos = q["query"], q["pos"] or 0.0
+                    break
+            if not query:
+                continue
+            query_pos = query_pos or p["pos"]
 
             ctr = (p["clk"] / p["imp"]) if p["imp"] else 0.0
-            expected = expected_ctr(p["pos"])
+            # Judged on the position of the query the page is actually closest on, never on the
+            # page average. `/blog/best-voice-journal-app` averages 12.9 while sitting at 34-42 on
+            # every query it was written for — the average is manufactured by anonymised long-tail
+            # terms. `decide/brief.py` documents this trap by name and avoids it; the first version
+            # of this module walked straight into it and retitled that exact page on the strength of
+            # a 12.9 that does not correspond to anything a person searches for.
+            #
+            # A title rewrite only makes sense where the page is genuinely visible. At position 38
+            # nobody is failing to click a bad title; they are never seeing it.
+            expected = expected_ctr(query_pos)
 
-            if p["pos"] <= META_MAX_POSITION and ctr < expected * CTR_SHORTFALL:
+            if query_pos <= META_MAX_POSITION and ctr < expected * CTR_SHORTFALL:
                 out.append(Candidate(
                     kind="meta", slug=slug, url=p["page"], query=query,
-                    impressions=p["imp"], clicks=p["clk"], position=p["pos"],
+                    impressions=p["imp"], clicks=p["clk"], position=query_pos,
                     ctr=ctr, expected=expected,
                     est_click_gain=p["imp"] * (expected - ctr),
                     evidence=(
-                        f"{p['imp']:.0f} impressions at position {p['pos']:.1f} but "
-                        f"{ctr:.1%} CTR against {expected:.1%} expected for that position. "
+                        f"{p['imp']:.0f} impressions and position {query_pos:.1f} for "
+                        f"'{query}', but {ctr:.1%} CTR against {expected:.1%} expected there. "
                         f"Ranked, not clicked."
                     ),
                 ))
