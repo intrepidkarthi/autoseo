@@ -94,6 +94,45 @@ def vercel_headers(plan: Plan) -> list[dict]:
     ]
 
 
+def noindex_urls(paths: list[str]) -> list[dict]:
+    """Header entries for individual pages, by exact path.
+
+    Exact paths rather than a pattern, deliberately. A regex covering `/blog/journal-prompts-for-.*`
+    is three characters away from covering `/blog/.*`, and the failure mode of that typo is the
+    whole blog dropping out of the index with nobody watching. Ten explicit entries are verbose and
+    cannot over-match.
+    """
+    return [
+        {"source": p, "headers": [{"key": "X-Robots-Tag", "value": "noindex, nofollow"}]}
+        for p in sorted(paths)
+    ]
+
+
+def apply_noindex(paths: list[str], rationale: str, dry_run: bool = False) -> str:
+    """Merge per-page noindex headers into vercel.json. Idempotent."""
+    from autoseo.publish import site
+
+    path = f"{site.SITE_DIR}/vercel.json"
+    raw = site.read_text(path)
+    if raw is None:
+        raise RuntimeError(f"{path} not found in {site.SITE_REPO}")
+
+    config = json.loads(raw)
+    headers = config.setdefault("headers", [])
+    existing = {h.get("source") for h in headers if isinstance(h, dict)}
+    added = [h for h in noindex_urls(paths) if h["source"] not in existing]
+    if not added:
+        return ""
+
+    headers.extend(added)
+    listed = "\n".join(f"  {h['source']}" for h in added[:20])
+    return site.commit(
+        {path: json.dumps(config, indent=2) + "\n"},
+        f"seo: noindex {len(added)} page(s)\n\n{rationale}\n\n{listed}",
+        dry_run=dry_run,
+    )
+
+
 def applied(vercel_json: str) -> bool:
     """Is the noindex block already on the site?"""
     import json as _json

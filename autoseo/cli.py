@@ -177,7 +177,13 @@ def _print_brief(days: int, top: int) -> None:
 
 def _print_status() -> None:
     from autoseo.act import ledger, policy
+    from autoseo.collect import health
     from autoseo.quality import plagiarism
+
+    # First, because it is the ceiling on everything below it. A page that is not indexed cannot
+    # rank however good its title is.
+    print("\n=== INDEXATION — the ceiling on everything else ===")
+    print(health.describe())
 
     print("\n=== POLICY — what the loop is allowed to do next ===")
     print(policy.describe())
@@ -244,12 +250,13 @@ def _run_loop(args) -> None:
     from autoseo.act import plan as planner
 
     if not args.skip_collect:
-        from autoseo.collect import bing, gsc, inspect, inventory
+        from autoseo.collect import bing, gsc, health, inspect, inventory
         for label, fn in (
             ("inventory", lambda: inventory.build(None)),
             ("gsc", lambda: gsc.collect(days=10)),
             ("bing", bing.collect),
             ("inspect", lambda: inspect.collect(limit=None)),
+            ("health", health.record),
         ):
             try:
                 fn()
@@ -351,6 +358,11 @@ def main(argv: list[str] | None = None) -> int:
                        help="commit the headers to the site (default: print the plan)")
     p_del.add_argument("--dry-run", action="store_true")
 
+    p_prune = sub.add_parser(
+        "prune", help="blog clusters that earn nothing, and sitemap URLs that should not be there"
+    )
+    p_prune.add_argument("--days", type=int, default=90)
+
     p_chk = sub.add_parser("check", help="run the quality gate over a file")
     p_chk.add_argument("path", type=Path)
 
@@ -439,8 +451,9 @@ def main(argv: list[str] | None = None) -> int:
             _print_brief(args.days, args.top)
 
         elif args.command == "inspect":
-            from autoseo.collect import inspect
+            from autoseo.collect import health, inspect
             inspect.collect(limit=args.limit, sample_orphans=args.sample_orphans)
+            health.record()
             _print_report()
 
         elif args.command == "diagnose":
@@ -476,6 +489,21 @@ def main(argv: list[str] | None = None) -> int:
                                                  plagiarism.CORPUS_MAX_AGE_DAYS)
             print(f"  indexed {n} pages" if n else "  corpus is already fresh")
 
+        elif args.command == "prune":
+            from autoseo.decide import prune as pruner
+            dead = pruner.dead_clusters(args.days)
+            print(f"\n=== CLUSTERS EARNING NOTHING — last {args.days}d ===")
+            if not dead:
+                print("  None. Every blog cluster clears the floor.")
+            for c in dead:
+                print(f"\n  /blog/{c.prefix}*")
+                print(f"      {c.evidence}")
+                for u in c.urls[:4]:
+                    print(f"      {u.replace('https://getdailyvox.com', '')}")
+                if len(c.urls) > 4:
+                    print(f"      ... and {len(c.urls) - 4} more")
+            print()
+
         elif args.command == "check":
             from autoseo.quality import gate
             v = gate.evaluate(args.path.read_text(encoding="utf-8"))
@@ -498,10 +526,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {tbl:<20}{n:>7}")
 
         elif args.command == "collect":
-            from autoseo.collect import bing, gsc, inspect
+            from autoseo.collect import bing, gsc, health, inspect
             gsc.collect(days=args.days)
             bing.collect()
             inspect.collect(limit=args.limit)
+            health.record()
             _print_report()
 
         elif args.command == "video":

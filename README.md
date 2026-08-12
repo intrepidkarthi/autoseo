@@ -21,6 +21,9 @@ fix         ranked but not clicked      → rewrite the title and meta descripti
             live page linked from       → link it from /blog
               nowhere
             1,507 dead templated pages  → noindex headers
+            blog clusters earning zero   → noindex + drop from the sitemap
+            404s and pagination in the   → drop from the sitemap
+              sitemap
 check       the full write-like-me rule set, plus duplication against the live corpus
 ship        one atomic commit per fix on intrepidkarthi/dailyvox@main → Vercel deploys
 submit      IndexNow → Bing, Yandex, Seznam, Naver. Google reads the regenerated sitemap
@@ -38,7 +41,9 @@ submit      IndexNow → Bing, Yandex, Seznam, Naver. Google reads the regenerat
 | IndexNow submission | ✅ | Bing/Yandex/Seznam/Naver; Google has no equivalent API |
 | autonomous loop — plan, apply, caps, ledger | ✅ | no approval anywhere in it |
 | on-page fixer — titles, meta descriptions, FAQ | ✅ | works on both page kinds |
-| publishing — direct commits, no PR | ✅ | ≤1/day, ≤3/week |
+| publishing — direct commits, no PR | ✅ | daily |
+| pruning — clusters that earn nothing | ✅ | the loop subtracts as well as adds |
+| indexation tracked as a trend | ✅ | 69% today; the ceiling on everything |
 | de-listing the 1,507 orphaned pages | ✅ | applied automatically |
 | decision engine (bandit) | ⬜ | needs ~6 weeks of ledger rows paired with positions |
 | video and social | ⏸️ | parked on purpose — the code stays, nothing schedules it |
@@ -46,13 +51,22 @@ submit      IndexNow → Bing, Yandex, Seznam, Naver. Google reads the regenerat
 X, Reddit and Quora remain deliberately **manual**. They reward interaction with other people's posts,
 not broadcast, and automating broadcast into them is how accounts get filtered.
 
+## The thing to watch
+
+**94 of 140 blog pages are indexed.** A page that is not indexed cannot rank however good its title
+is, and the 30 URLs Google has "discovered — currently not indexed" are it rationing crawl budget for
+this domain. Publishing daily into that is a bet, so the loop now subtracts in the same run that it
+adds — dead clusters get noindexed and dropped from the sitemap — and `autoseo status` leads with the
+indexed ratio as a time series. If that number falls over the next few weeks, `MAX_POSTS_PER_DAY` in
+`act/policy.py` is the dial.
+
 ## The limits, which are the interesting part
 
 Removing the approval step means removing a rate limiter, so the rate limits are now explicit and in code:
 
 | | |
 |---|---|
-| **≤1 post/day, ≤3/week** | counting queued *and* shipped, so plan can't stack a week into one morning |
+| **≤1 post/day, ≤7/week** | counting queued *and* shipped, so plan can't stack a week into one morning |
 | **≤2 on-page fixes/run, ≤5/week** | changing twenty titles in a week makes it impossible to attribute any movement to any of them |
 | **30-day page cooldown** | search takes weeks to react to a title change; rewriting it daily measures nothing |
 | **empty duplication corpus → no posts** | if it can't check for self-duplication it doesn't write |
@@ -98,8 +112,9 @@ autoseo apply --dry-run       # show every commit that would be made
 autoseo check FILE            # run the quality gate over any draft
 ```
 
-Everything is verified by `bash .claude/skills/run-autoseo/smoke.sh` — 16 checks covering the CLI,
-the failure paths, the caps, the quality gate, the page edits and the CSV round-trip.
+Everything is verified by `bash .claude/skills/run-autoseo/smoke.sh` — 17 checks covering the CLI,
+the failure paths, the caps, the quality gate, the page edits, the prune guards and the
+CSV round-trip.
 
 ## How the two halves stay separated
 

@@ -169,6 +169,22 @@ CREATE TABLE IF NOT EXISTS queue_item (
 CREATE INDEX IF NOT EXISTS ix_queue_status ON queue_item(status);
 CREATE INDEX IF NOT EXISTS ix_queue_message ON queue_item(message_id);
 
+-- Indexation, as a time series rather than a snapshot.
+--
+-- `url_index_status` holds one row per URL and is overwritten on every inspection, so it can say
+-- what the ratio is today and nothing about whether it is moving. That is the wrong shape for the
+-- only number that matters here: 46 of 140 blog pages are not indexed, and every decision about
+-- whether to publish more or prune harder depends on which way that is going. One row per day per
+-- cluster, appended, never overwritten.
+CREATE TABLE IF NOT EXISTS index_health (
+    date     TEXT NOT NULL,
+    cluster  TEXT NOT NULL,
+    in_sitemap INTEGER NOT NULL DEFAULT 0,
+    checked  INTEGER NOT NULL DEFAULT 0,
+    indexed  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (date, cluster)
+);
+
 -- Shingle index of the existing site, for duplication checking. Hashes only: the index stays small
 -- enough to commit and reveals nothing about page content. Built locally from public/, used in CI.
 CREATE TABLE IF NOT EXISTS corpus_shingle (

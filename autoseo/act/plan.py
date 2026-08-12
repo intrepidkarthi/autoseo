@@ -30,6 +30,8 @@ class Planned:
     posts: int = 0
     meta: int = 0
     faq: int = 0
+    pruned: int = 0            # pages to be switched off
+    sitemap_dropped: int = 0   # URLs to stop submitting
     skipped: list[str] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
@@ -65,9 +67,99 @@ def run(days: int = 90, dry_run: bool = False) -> Planned:
     except Exception as exc:  # noqa: BLE001 — a stale corpus is survivable; a dead run is not
         log.warning("corpus refresh failed: %s", exc)
 
+    _plan_hygiene(days, result, dry_run)
     _plan_onpage(days, result, dry_run)
     _plan_posts(days, result, dry_run)
     return result
+
+
+# --- subtraction ---------------------------------------------------------------------------------
+
+def _plan_hygiene(days: int, result: Planned, dry_run: bool) -> None:
+    """What to stop submitting and what to stop publishing.
+
+    Detected here rather than in `apply` because working out whether a sitemap URL still resolves
+    means fetching it, and `apply` holds the publishing credential and reads nothing from the web.
+    The boundary is worth one extra ledger row.
+    """
+    from autoseo.decide import prune
+    from autoseo.publish import sitemap as sm
+
+    if ledger.planned(ledger.Kind.PRUNE) or ledger.planned(ledger.Kind.SITEMAP):
+        return
+
+    # --- clusters that earn nothing
+    for cluster in prune.dead_clusters(days):
+        paths = sorted(u.replace("https://getdailyvox.com", "") for u in cluster.urls)
+        print(f"\n  prune /blog/{cluster.prefix}*")
+        print(f"      {cluster.evidence}")
+        result.pruned += cluster.pages
+        if dry_run:
+            continue
+        ledger.plan(ledger.Item(
+            kind=ledger.Kind.PRUNE, title=f"noindex /blog/{cluster.prefix}* ({cluster.pages} pages)",
+            body="\n".join(paths), rationale=cluster.evidence,
+            meta={"prefix": cluster.prefix, "paths": paths,
+                  "urls": sorted(cluster.urls), "pages": cluster.pages},
+        ))
+
+    # --- URLs that should not be in a sitemap at all
+    #
+    # Candidates come from the URL Inspection data rather than from probing every entry. Google has
+    # already fetched all 148 of them and recorded what it got, so re-checking each one daily would
+    # be 148 requests to learn something the database already holds — and Google's verdict is the
+    # one that matters anyway. Only the handful it flagged get verified over HTTP before removal,
+    # because a sitemap entry is not worth deleting on stale data.
+    from autoseo.core.db import session as _session
+
+    with _session() as conn:
+        suspect = [
+            r["url"] for r in conn.execute(
+                """SELECT u.url FROM url_inventory u JOIN url_index_status i ON i.url = u.url
+                   WHERE u.in_sitemap = 1 AND (
+                         LOWER(i.coverage_state) LIKE '%not found%'
+                      OR LOWER(i.coverage_state) LIKE '%redirect%'
+                      OR LOWER(i.coverage_state) LIKE '%excluded%')"""
+            )
+        ]
+
+    dead = {u for u in suspect if not _live(u)}
+
+    pagination: set[str] = set()
+    for name in ("blog", "core"):
+        try:
+            xml = httpx.get(f"https://getdailyvox.com/sitemap-{name}.xml", timeout=30.0).text
+        except Exception as exc:  # noqa: BLE001 — hygiene is not worth failing a run over
+            log.warning("could not read sitemap-%s.xml: %s", name, str(exc)[:70])
+            continue
+        pagination |= {u for u in sm.urls(xml) if prune._PAGINATION.search(u)}
+
+    if not (dead or pagination):
+        return
+
+    reasons = []
+    if dead:
+        reasons.append(f"{len(dead)} URL(s) that no longer resolve")
+    if pagination:
+        reasons.append(f"{len(pagination)} paginated listing(s)")
+    rationale = (
+        "A sitemap is a set of assertions that each URL is worth indexing. "
+        + " and ".join(reasons)
+        + " are wrong assertions, and Google reads a wrong assertion as a reason to trust the rest "
+          "of the file less. Pagination is navigation, not content."
+    )
+    print(f"\n  sitemap: {', '.join(reasons)}")
+    for u in sorted(dead | pagination)[:8]:
+        print(f"      {u}")
+    result.sitemap_dropped = len(dead) + len(pagination)
+    if dry_run:
+        return
+    ledger.plan(ledger.Item(
+        kind=ledger.Kind.SITEMAP, title=f"drop {result.sitemap_dropped} URL(s) from the sitemaps",
+        body="\n".join(sorted(dead | pagination)), rationale=rationale,
+        meta={"urls": sorted(dead | pagination), "dead": sorted(dead),
+              "pagination": sorted(pagination)},
+    ))
 
 
 # --- fixes to pages that already exist ---------------------------------------------------------

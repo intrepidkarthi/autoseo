@@ -37,7 +37,7 @@ BASE_BRANCH = "main"
 WRITABLE = (
     f"{CONTENT_DIR}/",                    # article markdown
     f"{SITE_DIR}/public/blog/",           # rendered article pages and the index
-    f"{SITE_DIR}/public/sitemap-articles.xml",
+    f"{SITE_DIR}/public/sitemap-",        # sitemap-blog.xml, -core.xml, -articles.xml
     f"{SITE_DIR}/vercel.json",            # noindex headers for the de-listed clusters
 )
 

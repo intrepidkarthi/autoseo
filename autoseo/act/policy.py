@@ -19,8 +19,14 @@ import os
 from autoseo.act import ledger
 from autoseo.core.config import settings
 
+# Daily, on request (12 Aug 2026). The earlier 3/week was set against a worry that still stands —
+# 46 of 140 blog pages are not indexed, and adding to a corpus Google is already declining to crawl
+# is how the /for/ and /in/ pages happened. The counter-pressure is now built rather than argued:
+# `prune` subtracts dead clusters in the same run that publishes, and `index_health` records the
+# indexed ratio every day so the effect is visible rather than assumed. If that ratio falls over the
+# next few weeks, this number is the one to move.
 MAX_POSTS_PER_DAY = 1
-MAX_POSTS_PER_WEEK = 3
+MAX_POSTS_PER_WEEK = 7
 
 # On-page fixes, per run and per week. Small for two reasons. Each one is a commit against a page
 # that already earns impressions, so a bad batch is harder to unpick than a bad new page. And

@@ -241,7 +241,61 @@ assert not any(f.rule == "dramatic fragmentation" for f in report.flags), \
     "varied short sentences flagged as dramatic fragmentation"
 EOF
 
-step "7. snapshot round-trip must be lossless"
+step "7. subtraction — the only irreversible-feeling thing the loop does"
+# Pruning switches pages off. Every guard here exists because the alternative is a threshold change
+# quietly taking out the cluster that earns 624 impressions.
+"$PY" - <<'EOF' && ok "prune guards hold, sitemap edits are surgical" || bad "subtraction layer failed"
+from autoseo.decide import prune
+from autoseo.publish import sitemap
+
+# The protected prefixes must match what _prefix_of actually returns. The first version of the
+# tuple carried trailing hyphens, so startswith() never matched and the guard on the blog's best
+# cluster silently did nothing — it survived on the impressions threshold alone.
+for p in prune.PROTECTED:
+    assert not p.endswith("-"), f"PROTECTED entry {p!r} has a trailing hyphen and will never match"
+sample = "https://getdailyvox.com/blog/dailyvox-vs-notion"
+assert prune._prefix_of(sample).startswith(prune.PROTECTED), \
+    f"protection does not fire for {sample}: prefix is {prune._prefix_of(sample)!r}"
+
+# Nothing protected, nothing earning, may ever be proposed for pruning.
+dead = prune.dead_clusters(90)
+for c in dead:
+    assert not c.prefix.startswith(prune.PROTECTED), f"protected cluster proposed: {c.prefix}"
+    assert c.clicks <= prune.MAX_CLICKS, f"{c.prefix} has {c.clicks} clicks and was proposed"
+    assert c.impressions / c.pages <= prune.MAX_IMPRESSIONS_PER_PAGE, \
+        f"{c.prefix} is above the impressions floor and was proposed"
+    assert c.pages >= prune.MIN_PAGES, f"{c.prefix} is too small to read as a cluster"
+
+# Prefix bucketing: `for`/`vs` are joiners, so the cluster is three segments, not two.
+assert prune._prefix_of("https://x/blog/journal-prompts-for-anger") == "journal-prompts-for"
+assert prune._prefix_of("https://x/blog/voice-journal-for-runners") == "voice-journal-for"
+assert prune._prefix_of("https://x/blog/how-to-export-day-one") == "how-to"
+
+# Sitemap editing removes exactly the named entries and touches nothing else.
+XML = """<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://getdailyvox.com/blog</loc><lastmod>2026-07-05</lastmod></url>
+  <url><loc>https://getdailyvox.com/blog/page/2</loc><lastmod>2026-07-05</lastmod></url>
+  <url><loc>https://getdailyvox.com/blog/keep-me</loc><lastmod>2026-07-05</lastmod></url>
+</urlset>
+"""
+out, gone = sitemap.remove(XML, {"https://getdailyvox.com/blog/page/2"})
+assert gone == ["https://getdailyvox.com/blog/page/2"], gone
+assert "keep-me" in out and "/blog</loc>" in out, "removal took an unrelated entry"
+assert "page/2" not in out, "target entry survived"
+assert out.startswith('<?xml') and out.rstrip().endswith("</urlset>"), "document structure broken"
+# Idempotent: removing something already gone is a no-op, not an error.
+again, gone2 = sitemap.remove(out, {"https://getdailyvox.com/blog/page/2"})
+assert again == out and not gone2
+
+# A page being switched off must never be submitted for recrawl in the same run.
+from autoseo.act import apply as applier, ledger
+for kind in (ledger.Kind.PRUNE, ledger.Kind.SITEMAP):
+    item = ledger.Item(kind=kind, title="x", body="", rationale="x", meta={"slug": "some-slug"})
+    assert applier._urls_for(item) == set(), f"{kind} would be submitted to IndexNow"
+EOF
+
+step "8. snapshot round-trip must be lossless"
 "$PY" - <<'EOF' && ok "CSV round-trip lossless" || bad "CSV round-trip lost rows"
 import os
 from autoseo.core import snapshot

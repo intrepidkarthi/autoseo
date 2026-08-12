@@ -33,6 +33,8 @@ class Kind(StrEnum):
     FAQ = "faq"           # an FAQ section appended to a live article
     RELINK = "relink"     # link orphaned live pages from the blog index
     DELIST = "delist"     # noindex headers for the dead clusters
+    PRUNE = "prune"       # noindex a blog cluster that earns nothing
+    SITEMAP = "sitemap"   # drop URLs that should never have been submitted
 
 
 @dataclass

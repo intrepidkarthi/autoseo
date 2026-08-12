@@ -50,7 +50,7 @@ def run(dry_run: bool = False) -> Applied:
     from autoseo.compose.blog import Draft
     from autoseo.core.config import ConfigError, settings
     from autoseo.publish import blog as publisher
-    from autoseo.publish import delist, indexnow
+    from autoseo.publish import delist, indexnow, sitemap
     from autoseo.quality import gate as qgate
 
     result = Applied()
@@ -124,6 +124,16 @@ def run(dry_run: bool = False) -> Applied:
                     dry_run=dry_run,
                 )
 
+            elif item.kind == ledger.Kind.PRUNE:
+                # Both halves, in one item: the header stops it being indexed, and dropping it from
+                # the sitemap stops us asking for it to be. Doing only the first leaves the site
+                # submitting URLs it has told Google not to index.
+                url = delist.apply_noindex(item.meta["paths"], item.rationale, dry_run=dry_run)
+                sitemap.drop_urls(set(item.meta["urls"]), item.rationale, dry_run=dry_run)
+
+            elif item.kind == ledger.Kind.SITEMAP:
+                url = sitemap.drop_urls(set(item.meta["urls"]), item.rationale, dry_run=dry_run)
+
             else:
                 log.warning("#%s has unknown kind %r — dropping", item.id, item.kind)
                 if not dry_run:
@@ -161,6 +171,11 @@ def run(dry_run: bool = False) -> Applied:
 def _urls_for(item: ledger.Item) -> set[str]:
     """Which live URLs an applied item changed."""
     from autoseo.core.config import settings
+
+    # A page being switched off must not be submitted for recrawl in the same breath. IndexNow is
+    # for "come and look at this"; these are the pages we have just told Google to forget.
+    if item.kind in (ledger.Kind.PRUNE, ledger.Kind.SITEMAP):
+        return set()
 
     slug = item.meta.get("slug")
     if not slug:
