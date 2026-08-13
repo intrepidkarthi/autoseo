@@ -544,3 +544,9 @@ id,started,command,ok,detail
   Local: add it to .env (see .env.example)
   CI:    GitHub -> autoseo -> Settings -> Environments -> read"
 537,2026-08-13T01:06:54+00:00,apply,0,"GH_DAILYVOX_TOKEN is not set. `apply` is the only step that writes to getdailyvox.com and cannot do anything without it — including a dry run, which reads the repo to work out what would change. See SETUP.md step 6."
+538,2026-08-13T01:07:51+00:00,restore,1,
+539,2026-08-13T01:07:52+00:00,inventory,1,
+540,2026-08-13T01:12:52+00:00,collect,1,
+541,2026-08-13T01:12:52+00:00,brief,1,
+542,2026-08-13T01:14:18+00:00,plan,1,
+543,2026-08-13T01:14:18+00:00,status,1,
