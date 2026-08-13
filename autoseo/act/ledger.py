@@ -35,6 +35,7 @@ class Kind(StrEnum):
     DELIST = "delist"     # noindex headers for the dead clusters
     PRUNE = "prune"       # noindex a blog cluster that earns nothing
     SITEMAP = "sitemap"   # drop URLs that should never have been submitted
+    MERGE = "merge"       # 301 a duplicate page onto the one that outranks it
 
 
 @dataclass

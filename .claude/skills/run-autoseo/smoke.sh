@@ -345,6 +345,35 @@ from autoseo.act import apply as applier, ledger
 for kind in (ledger.Kind.PRUNE, ledger.Kind.SITEMAP):
     item = ledger.Item(kind=kind, title="x", body="", rationale="x", meta={"slug": "some-slug"})
     assert applier._urls_for(item) == set(), f"{kind} would be submitted to IndexNow"
+
+# A merge submits the surviving page and never the one that now 301s away.
+merge = ledger.Item(kind=ledger.Kind.MERGE, title="x", body="", rationale="x",
+                    meta={"source": "/blog/gone", "destination": "/blog/kept"})
+urls = applier._urls_for(merge)
+assert urls == {"https://getdailyvox.com/blog/kept"}, f"merge submitted {urls}"
+
+# --- merging is the one thing a reader can notice going wrong. Each guard is a page it protects.
+from autoseo.decide import consolidate
+from autoseo.publish import redirect
+for m in consolidate.candidates(90):
+    assert m.shared_queries >= consolidate.MIN_SHARED_QUERIES, \
+        f"{m.loser_path} proposed on {m.shared_queries} shared queries — that is coincidence"
+    assert m.winner_position < m.loser_position, \
+        f"{m.loser_path} outranks the page it would be merged into"
+    assert m.winner_impressions / max(m.loser_impressions, 1) >= consolidate.MIN_IMPRESSION_RATIO, \
+        f"{m.winner_path} is not clearly ahead of {m.loser_path}"
+    assert m.winner != m.loser
+
+for bad_source, bad_dest, why in (
+    ("/blog/x", "/blog/x", "a page redirected to itself"),
+    ("blog/x", "/blog/y", "a source that is not an absolute path"),
+):
+    try:
+        redirect.add(bad_source, bad_dest, "smoke")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError(f"{why} was accepted")
 EOF
 
 step "8. snapshot round-trip must be lossless"

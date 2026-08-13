@@ -50,7 +50,7 @@ def run(dry_run: bool = False) -> Applied:
     from autoseo.compose.blog import Draft
     from autoseo.core.config import ConfigError, settings
     from autoseo.publish import blog as publisher
-    from autoseo.publish import delist, indexnow, site, sitemap
+    from autoseo.publish import delist, indexnow, redirect, site, sitemap
     from autoseo.quality import gate as qgate
 
     result = Applied()
@@ -131,6 +131,13 @@ def run(dry_run: bool = False) -> Applied:
                 url = delist.apply_noindex(item.meta["paths"], item.rationale, dry_run=dry_run)
                 sitemap.drop_urls(set(item.meta["urls"]), item.rationale, dry_run=dry_run)
 
+            elif item.kind == ledger.Kind.MERGE:
+                url = redirect.add(item.meta["source"], item.meta["destination"],
+                                   item.rationale, dry_run=dry_run)
+                # A URL that 301s must leave the sitemap in the same breath. Submitting a redirect
+                # asks Google to index a page that says "I am somewhere else".
+                sitemap.drop_urls({item.meta["loser"]}, item.rationale, dry_run=dry_run)
+
             elif item.kind == ledger.Kind.SITEMAP:
                 url = sitemap.drop_urls(set(item.meta["urls"]), item.rationale, dry_run=dry_run)
 
@@ -185,6 +192,11 @@ def _urls_for(item: ledger.Item) -> set[str]:
     # for "come and look at this"; these are the pages we have just told Google to forget.
     if item.kind in (ledger.Kind.PRUNE, ledger.Kind.SITEMAP):
         return set()
+    # The destination changed — it now answers for two pages. Ask for that one to be recrawled,
+    # never the source, which no longer exists as a page.
+    if item.kind == ledger.Kind.MERGE:
+        from autoseo.core.config import settings as _s
+        return {f"{_s.site}{item.meta['destination']}"}
 
     slug = item.meta.get("slug")
     if not slug:

@@ -31,6 +31,7 @@ class Planned:
     meta: int = 0
     faq: int = 0
     pruned: int = 0            # pages to be switched off
+    merged: int = 0            # duplicate pages to be folded into their better half
     sitemap_dropped: int = 0   # URLs to stop submitting
     skipped: list[str] = None  # type: ignore[assignment]
 
@@ -102,6 +103,28 @@ def _plan_hygiene(days: int, result: Planned, dry_run: bool) -> None:
             meta={"prefix": cluster.prefix, "paths": paths,
                   "urls": sorted(cluster.urls), "pages": cluster.pages},
         ))
+
+    # --- duplicate pages. One per run: it is the only change a reader can notice going wrong,
+    # and shipping several at once makes the effect of any of them unreadable.
+    from autoseo.decide import consolidate
+    if not ledger.planned(ledger.Kind.MERGE):
+        merges = consolidate.candidates(days)
+        if merges:
+            m = merges[0]
+            print(f"\n  merge {m.loser_path} -> {m.winner_path}")
+            print(f"      {m.evidence}")
+            result.merged += 1
+            if not dry_run:
+                ledger.plan(ledger.Item(
+                    kind=ledger.Kind.MERGE,
+                    title=f"301 {m.loser_path} -> {m.winner_path}",
+                    body=m.evidence, rationale=m.evidence,
+                    meta={"source": m.loser_path, "destination": m.winner_path,
+                          "loser": m.loser, "shared_queries": m.shared_queries,
+                          "shared_impressions": round(m.shared_impressions)},
+                ))
+        if len(merges) > 1:
+            print(f"      ({len(merges) - 1} more duplicate pair(s) waiting for a later run)")
 
     # --- URLs that should not be in a sitemap at all
     #
