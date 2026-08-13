@@ -109,6 +109,22 @@ def drop(item_id: int, reason: str) -> None:
     _settle(item_id, Status.DROPPED, "plan", reason=reason[:500])
 
 
+def shipped_today(kind: str) -> int:
+    """How many items of this kind shipped on today's UTC date.
+
+    A calendar day, not a rolling 24 hours. Under a rolling window a run that drifts late pushes the
+    next one out of its slot and the day is silently skipped — which is what a manual run at 17:15
+    did to the following 00:37 cron. "One a day" should mean what a person means by it.
+    """
+    today = dt.datetime.now(dt.UTC).date().isoformat()
+    with session() as conn:
+        return conn.execute(
+            "SELECT COUNT(*) FROM queue_item WHERE kind = ? AND status = ? "
+            "AND substr(decided_at, 1, 10) = ?",
+            (kind, Status.SHIPPED, today),
+        ).fetchone()[0]
+
+
 def shipped_since(kind: str, days: int) -> int:
     """How many items of this kind actually reached the site in the last N days."""
     cutoff = (dt.datetime.now(dt.UTC) - dt.timedelta(days=days)).isoformat(timespec="seconds")

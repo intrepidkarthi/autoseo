@@ -83,7 +83,7 @@ def run(dry_run: bool = False) -> Applied:
             result.failed.append(f"{label}: {str(exc)[:120]}")
 
     # --- composed items
-    posts_today = ledger.shipped_since(ledger.Kind.POST, days=1)
+    posts_today = ledger.shipped_today(ledger.Kind.POST)
 
     for item in ledger.planned():
         if _stale(item):

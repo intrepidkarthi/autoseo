@@ -17,7 +17,10 @@ name: seo
 
 on:
   schedule:
-    - cron: "30 0 * * *"   # 06:00 IST. GitHub cron is best-effort and often fires 10-30 min late.
+    # 06:07 IST. The odd minute is deliberate: GitHub's scheduler is best-effort and drops or delays
+    # runs when a slot is oversubscribed, and :00 and :30 are what everyone picks. The first night
+    # on "30 0 * * *" did not fire at all. An off-boundary minute is the standard mitigation.
+    - cron: "37 0 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -159,6 +162,21 @@ jobs:
           name: state
           path: state
 
+      # Catch up to whatever `plan` pushed BEFORE doing any work, so this job's own commit is a
+      # fast-forward and the retry path below never has to run. `needs: plan` guarantees that push
+      # already happened; the checkout above pinned an older SHA, which is what made every apply
+      # commit a non-fast-forward and sent it into a merge it could not do correctly.
+      - name: Catch up to main
+        run: |
+          git fetch -q origin main
+          git reset -q --hard origin/main
+
+      - name: Take the ledger from the plan job
+        uses: actions/download-artifact@v4
+        with:
+          name: state
+          path: state
+
       - name: Apply
         env:
           GH_DAILYVOX_TOKEN: ${{ secrets.GH_DAILYVOX_TOKEN }}
@@ -174,12 +192,36 @@ jobs:
         run: |
           git config user.name  "autoseo[bot]"
           git config user.email "autoseo@users.noreply.github.com"
+
+          # The retry path here is NOT the one in the plan job, and the difference matters.
+          #
+          # `restore` upserts, so loading a remote snapshot into the database produces the union of
+          # both sides — true for the measurement tables, which only ever gain rows. It is false for
+          # `queue_item`, whose rows are mutable: the remote holds an OLDER version of the same
+          # primary key, and INSERT OR REPLACE overwrites the newer local one. That is exactly what
+          # happened on the first live run. Five items shipped to the site, `apply` recorded all
+          # five, the push was rejected, this loop reset to the remote and restored — and every
+          # `shipped` reverted to `planned`. The site had the commits; the ledger had no memory of
+          # making them, so the caps miscounted and the next run tried to publish it all again.
+          #
+          # So: remote first, ours second. Ours wins on conflicting keys, remote-only rows survive.
           for attempt in 1 2 3; do
             git add -A state/
             if git diff --staged --quiet; then echo "No state changes."; exit 0; fi
             git commit -q -m "apply: $(date -u +%Y-%m-%dT%H:%M)"
-            if git push -q origin HEAD:main 2>/dev/null; then exit 0; fi
-            git fetch -q origin main && git reset -q --hard origin/main
-            autoseo restore >/dev/null && autoseo snapshot >/dev/null
+            if git push -q origin HEAD:main 2>/dev/null; then
+              echo "state pushed on attempt $attempt"
+              exit 0
+            fi
+            echo "push rejected — replaying our decisions on top of the remote state"
+            mine=$(mktemp -d) && cp state/*.csv "$mine/"
+            git fetch -q origin main
+            git reset -q --hard origin/main
+            autoseo restore >/dev/null          # database := remote
+            cp "$mine"/*.csv state/
+            autoseo restore >/dev/null          # ours on top; ours wins per primary key
+            autoseo snapshot >/dev/null
           done
-          echo "::warning::could not push state after 3 attempts; it will merge on the next run"
+          echo "::error::could not push state after 3 attempts — the ledger and the site now"
+          echo "::error::disagree about what shipped. Re-run this job before the next cycle."
+          exit 1

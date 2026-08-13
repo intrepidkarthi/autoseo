@@ -127,6 +127,28 @@ item_id = ledger.plan(ledger.Item(kind=ledger.Kind.POST, title="smoke", body="x"
 after, _ = policy.post_budget()
 assert after == max(0, before - 1), f"queued post did not consume budget: {before} -> {after}"
 assert "smoke-test" in policy.cooling_down(), "a planned page is not inside the cooldown window"
+
+# `restore` is last-write-wins per primary key, and the apply job's merge depends on it: it loads
+# the remote snapshot first and its own second so that its `shipped` rows survive a rejected push.
+# The first live run had that order backwards, reverted five shipped items to planned, and left the
+# ledger claiming it had published nothing while the site carried all five commits.
+import csv, os, tempfile
+from autoseo.core import snapshot as _snap
+from autoseo.core.db import session as _sess
+with _sess() as _c:
+    _c.execute("UPDATE queue_item SET status='shipped' WHERE id=?", (item_id,))
+_snap.dump()
+_mine = tempfile.mkdtemp()
+with open("state/queue_item.csv", newline="", encoding="utf-8") as _fh:
+    open(f"{_mine}/queue_item.csv", "w", encoding="utf-8").write(_fh.read())
+with _sess() as _c:                                   # simulate the remote's older row
+    _c.execute("UPDATE queue_item SET status='planned' WHERE id=?", (item_id,))
+_snap.dump()
+with open(f"{_mine}/queue_item.csv", encoding="utf-8") as _src:
+    open("state/queue_item.csv", "w", encoding="utf-8").write(_src.read())
+_snap.load()                                          # ours on top of the remote
+assert ledger.get(item_id).status == "shipped", \
+    "restore did not let the newer local row win — the apply job's merge would lose ships again"
 ledger.drop(item_id, "smoke test")
 assert policy.post_budget()[0] == before, "dropping did not release the budget"
 # Leave no trace: state/queue_item.csv is committed, and a smoke row in it would be indistinguishable

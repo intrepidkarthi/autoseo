@@ -512,3 +512,16 @@ id,started,command,ok,detail
 507,2026-08-12T17:15:24+00:00,apply,1,
 508,2026-08-12T17:15:24+00:00,snapshot,1,
 509,2026-08-12T17:15:26+00:00,restore,1,
+510,2026-08-13T00:57:40+00:00,restore,1,
+511,2026-08-13T00:57:40+00:00,report,1,
+512,2026-08-13T00:57:40+00:00,brief,1,
+513,2026-08-13T00:57:49+00:00,outreach,1,
+514,2026-08-13T00:57:49+00:00,opportunity,1,
+515,2026-08-13T00:57:49+00:00,status,1,
+516,2026-08-13T00:57:49+00:00,aeo,1,
+517,2026-08-13T00:57:49+00:00,delist,1,
+518,2026-08-13T00:57:50+00:00,snapshot,1,
+519,2026-08-13T00:57:50+00:00,gsc,0,"GSC_SERVICE_ACCOUNT_JSON is not set.
+  Local: add it to .env (see .env.example)
+  CI:    GitHub -> autoseo -> Settings -> Environments -> read"
+520,2026-08-13T00:57:50+00:00,apply,0,"GH_DAILYVOX_TOKEN is not set. `apply` is the only step that writes to getdailyvox.com and cannot do anything without it — including a dry run, which reads the repo to work out what would change. See SETUP.md step 6."

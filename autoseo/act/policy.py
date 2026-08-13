@@ -58,7 +58,7 @@ def post_budget() -> tuple[int, str]:
     a plan run that queues three posts and an apply run that ships all three would satisfy every
     cap individually while publishing a week's worth in an hour.
     """
-    today = ledger.shipped_since(ledger.Kind.POST, days=1)
+    today = ledger.shipped_today(ledger.Kind.POST)
     week = ledger.shipped_since(ledger.Kind.POST, days=7)
     queued = len(ledger.planned(ledger.Kind.POST))
 
@@ -94,7 +94,7 @@ def cooling_down() -> set[str]:
 def describe() -> str:
     budget, why = post_budget()
     lines = [
-        f"  posts        {ledger.shipped_since(ledger.Kind.POST, 1)}/{MAX_POSTS_PER_DAY} today, "
+        f"  posts        {ledger.shipped_today(ledger.Kind.POST)}/{MAX_POSTS_PER_DAY} today, "
         f"{ledger.shipped_since(ledger.Kind.POST, 7)}/{MAX_POSTS_PER_WEEK} this week "
         f"-> budget {budget}{'  (' + why + ')' if why else ''}",
         f"  on-page      {onpage_budget()} fix(es) available now "
