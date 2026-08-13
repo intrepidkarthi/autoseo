@@ -50,7 +50,7 @@ def run(dry_run: bool = False) -> Applied:
     from autoseo.compose.blog import Draft
     from autoseo.core.config import ConfigError, settings
     from autoseo.publish import blog as publisher
-    from autoseo.publish import delist, indexnow, sitemap
+    from autoseo.publish import delist, indexnow, site, sitemap
     from autoseo.quality import gate as qgate
 
     result = Applied()
@@ -140,6 +140,15 @@ def run(dry_run: bool = False) -> Applied:
                     ledger.drop(item.id, f"unknown kind {item.kind}")
                 result.dropped.append(f"#{item.id} {item.kind}")
                 continue
+
+        except site.AlreadyApplied as exc:
+            # The site already has it. That is a resolved item, not a failed one — see the class
+            # docstring for why the difference matters to the next run.
+            print(f"  #{item.id} ({item.kind}) is already on the site — resolving")
+            if not dry_run:
+                ledger.drop(item.id, f"already present: {exc}")
+            result.dropped.append(f"#{item.id} {item.title}")
+            continue
 
         except Exception as exc:  # noqa: BLE001 — record it against the item and keep going
             log.error("%s #%s failed: %s", item.kind, item.id, exc)

@@ -123,10 +123,9 @@ def publish(draft: Draft, dry_run: bool = False) -> str:
     # file existed while the page 404'd, and "already exists — refusing to overwrite" prevented
     # publishing a working version. What deserves protection is a live page, not an inert file.
     if site.exists(html_path):
-        raise RuntimeError(
-            f"{html_path} already exists on {BASE_BRANCH} — that page is live, refusing to "
-            f"overwrite it. Rewriting an existing page is a different operation from publishing "
-            f"a new one and should be done deliberately."
+        raise site.AlreadyApplied(
+            f"{html_path} is already live on {BASE_BRANCH}. Rewriting an existing page is a "
+            f"different operation from publishing a new one and should be done deliberately."
         )
     if site.exists(f"{CONTENT_DIR}/{draft.slug}.md"):
         log.warning("%s.md exists but renders no page — replacing the orphaned source", draft.slug)

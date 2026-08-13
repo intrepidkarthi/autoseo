@@ -53,6 +53,17 @@ class NotWritable(RuntimeError):
     """A commit tried to touch a path outside WRITABLE."""
 
 
+class AlreadyApplied(RuntimeError):
+    """The change is already on the site, so there is nothing left to do.
+
+    Distinct from a failure, and the distinction is load-bearing. A ledger and a site can drift —
+    the first live run shipped five commits and then lost the record of them — and when they do, the
+    next run re-attempts work that is already done. Treating "it is already there" as an error
+    leaves the item stuck, and a stuck item counts against the caps and blocks the following cycle
+    from planning anything at all. Re-running has to converge.
+    """
+
+
 def _headers() -> dict[str, str]:
     if not settings.gh_dailyvox_token:
         raise ConfigError(

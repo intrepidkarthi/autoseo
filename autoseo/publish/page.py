@@ -142,7 +142,8 @@ def append_faq(doc: str, pairs: list[tuple[str, str]]) -> str:
     if not pairs:
         raise RuntimeError("no question/answer pairs to insert")
     if re.search(r'"@type":\s*"FAQPage"', doc):
-        raise RuntimeError("this page already carries FAQPage structured data")
+        from autoseo.publish.site import AlreadyApplied
+        raise AlreadyApplied("this page already carries FAQPage structured data")
 
     for anchor in FAQ_ANCHORS:
         match = anchor.search(doc)
