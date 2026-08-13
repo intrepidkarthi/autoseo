@@ -90,6 +90,20 @@ if actions:
     assert a.evidence, "action has no evidence — a card that cannot explain itself is a bug"
     assert a.est_click_gain >= 0
 
+# The loop must never write a new page for a query one of ours already ranks for. It did exactly
+# that once — /blog/voice-journaling-app was published as the third page competing for "voice
+# journaling app", the other two already sitting together at position 42.2.
+canni = brief.cannibalised(days=90)
+for c in canni:
+    assert len(c.pages) >= 2, "a single-page query was reported as cannibalised"
+    assert brand.classify(c.query) == "acquisition", \
+        f"brand query '{c.query}' reported as cannibalised — every page ranks for the brand"
+for query in ("voice journaling app", "journal ai"):
+    if brief.pages_ranking_for(query, days=90):
+        break
+else:
+    raise AssertionError("pages_ranking_for found nothing for queries known to be contested")
+
 targets = outreach.build(days=30, resolve_top=0)   # resolve_top=0 keeps this offline
 
 # The invariant that matters: citations exist => targets exist. When domain extraction broke,

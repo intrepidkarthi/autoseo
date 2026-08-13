@@ -139,6 +139,78 @@ def build(days: int = 90, min_impressions: float = 15) -> list[Action]:
     return actions
 
 
+def pages_ranking_for(query: str, days: int = 90, min_impressions: float = 1) -> list[tuple[str, float, float]]:
+    """(page, impressions, position) for our pages that already appear for this query.
+
+    The check that was missing when the loop published `/blog/voice-journaling-app` — a third page
+    for a query where two of ours were already sitting at position 42.2 together. A new page for a
+    query we already rank for does not add a competitor to the SERP, it adds a competitor to
+    ourselves, and Google picks one of them to show.
+    """
+    start, end = _window(days)
+    with session() as conn:
+        return [
+            (r["page"], r["imp"], r["pos"])
+            for r in conn.execute(
+                """
+                SELECT page, SUM(impressions) imp,
+                       SUM(impressions * position) / NULLIF(SUM(impressions), 0) pos
+                FROM gsc_page_query
+                WHERE query = ? AND date BETWEEN ? AND ?
+                GROUP BY page HAVING imp >= ?
+                ORDER BY imp DESC
+                """,
+                (query, start, end, min_impressions),
+            )
+        ]
+
+
+@dataclass
+class Cannibalisation:
+    query: str
+    impressions: float
+    pages: list[tuple[str, float, float]]   # (page, impressions, position)
+
+    @property
+    def best_position(self) -> float:
+        return min(p[2] for p in self.pages)
+
+    @property
+    def evidence(self) -> str:
+        return (f"{len(self.pages)} of our pages compete for '{self.query}' "
+                f"({self.impressions:.0f} impressions, best position {self.best_position:.1f}). "
+                f"Google shows one of them and splits the signal across all.")
+
+
+def cannibalised(days: int = 90, min_impressions: float = 20) -> list[Cannibalisation]:
+    """Queries where two or more of our pages compete, worst first.
+
+    Brand queries are excluded: every page on the site legitimately ranks for "dailyvox", and that
+    is not a conflict, it is a brand. The conflict is two pages written for the same acquisition
+    query, which is what happens when a site publishes by topic without checking what it already has.
+    """
+    start, end = _window(days)
+    out: list[Cannibalisation] = []
+    with session() as conn:
+        rows = conn.execute(
+            """
+            SELECT query, COUNT(DISTINCT page) n, SUM(impressions) imp
+            FROM gsc_page_query WHERE date BETWEEN ? AND ?
+            GROUP BY query HAVING n >= 2 AND imp >= ?
+            ORDER BY imp DESC
+            """,
+            (start, end, min_impressions),
+        ).fetchall()
+
+    for r in rows:
+        if classify(r["query"]) != "acquisition":
+            continue
+        pages = pages_ranking_for(r["query"], days)
+        if len(pages) >= 2:
+            out.append(Cannibalisation(query=r["query"], impressions=r["imp"], pages=pages))
+    return out
+
+
 def aeo_gaps(days: int = 90, min_runs: int = 2) -> list[Action]:
     """Buyer questions where an answer engine names competitors and never names us.
 

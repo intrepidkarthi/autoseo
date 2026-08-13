@@ -293,6 +293,21 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
             log.info("/blog/%s is already live — skipping", slug)
             continue
 
+        # Do we already rank for this? Checking the slug and the URL only catches a page with the
+        # same name; it does not catch a page with a different name written for the same query.
+        # Without this the loop published /blog/voice-journaling-app as the *third* page competing
+        # for "voice journaling app", the other two already sitting together at position 42.2.
+        # A new page for a query we rank for does not add a competitor to the SERP, it adds one to
+        # ourselves — and where a page already ranks, the on-page fixer is the cheaper move anyway.
+        if ours := brief.pages_ranking_for(action.query, days=days):
+            page, imp, pos = ours[0]
+            log.info("skipping '%s': %s already ranks (%.0f imp, position %.1f)",
+                     action.query, page.replace("https://getdailyvox.com", ""), imp, pos)
+            result.skipped.append(
+                f"post '{action.query[:40]}': {len(ours)} of our page(s) already rank for it"
+            )
+            continue
+
         source = "aeo" if action.kind == "aeo-gap" else "gsc"
         where = ("answer engines" if source == "aeo"
                  else f"Search Console, position {action.position:.1f}")

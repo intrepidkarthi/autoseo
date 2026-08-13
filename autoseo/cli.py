@@ -156,6 +156,16 @@ def _print_brief(days: int, top: int) -> None:
         for s in a.steps:
             print(f"        - {s}")
 
+    canni = brief.cannibalised(days)
+    print("\n=== COMPETING WITH OURSELVES — two or more pages on one query ===")
+    if not canni:
+        print("  None. Every acquisition query has one page behind it.")
+    for c in canni[:top]:
+        print(f"\n  '{c.query}'  —  {c.impressions:.0f} imp, best position {c.best_position:.1f}")
+        for page, imp, pos in c.pages:
+            print(f"      {imp:>5.0f} imp  pos {pos:>5.1f}  "
+                  f"{page.replace('https://getdailyvox.com', '')}")
+
     gaps = brief.aeo_gaps(days)
     print("\n=== ANSWER-ENGINE GAPS — asked, competitors named, we are not ===")
     if not gaps:
