@@ -27,6 +27,7 @@ Decision:
 Site and quality:
 
     autoseo relink [--dry-run]              link live blog pages the index has orphaned
+    autoseo agent-layer [--apply]           point AI agents at /llms.txt from the page itself
     autoseo delist [--apply]                noindex the de-listed clusters
     autoseo check FILE                      run the quality gate over a draft
     autoseo index-corpus [--from-live]      shingle the site for duplication checks
@@ -363,6 +364,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_relink.add_argument("--dry-run", action="store_true")
 
+    p_agent = sub.add_parser(
+        "agent-layer", help="point AI agents at /llms.txt from the page itself"
+    )
+    p_agent.add_argument("--apply", action="store_true",
+                         help="commit the note to every blog page (default: report coverage)")
+    p_agent.add_argument("--sync-profile", type=Path, metavar="FILE",
+                         help="ship a locally-authored llms.txt / llms-full.txt to the site")
+    p_agent.add_argument("--dry-run", action="store_true")
+
     p_del = sub.add_parser("delist", help="noindex the orphaned page clusters")
     p_del.add_argument("--apply", action="store_true",
                        help="commit the headers to the site (default: print the plan)")
@@ -481,6 +491,26 @@ def main(argv: list[str] | None = None) -> int:
             from autoseo.publish import blog as publisher
             if url := publisher.relink(dry_run=args.dry_run):
                 print(f"  {url}")
+
+        elif args.command == "agent-layer":
+            from autoseo.publish import agent_layer
+            if args.sync_profile:
+                if url := agent_layer.sync_profile(args.sync_profile, dry_run=args.dry_run):
+                    print(f"  {url}")
+            elif args.apply:
+                if url := agent_layer.backfill(dry_run=args.dry_run):
+                    print(f"  {url}")
+            else:
+                carrying, total = agent_layer.status()
+                print(f"\n  {carrying}/{total} blog page(s) point agents at /llms.txt")
+                if carrying < total:
+                    print(f"  {total - carrying} to go — `autoseo agent-layer --apply` ships them.")
+                # Reported here rather than only on publish: pointing agents at a stale profile is
+                # worse than not pointing them at it, so the coverage number and the accuracy
+                # warning belong on the same screen.
+                if drift := agent_layer.audit_profile():
+                    print(f"\n  STALE PROFILE: {drift}")
+                print()
 
         elif args.command == "delist":
             from autoseo.publish import delist

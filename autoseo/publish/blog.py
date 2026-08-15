@@ -27,7 +27,7 @@ import httpx
 
 from autoseo.compose.blog import Draft
 from autoseo.core.log import get_logger
-from autoseo.publish import blog_index, page, site
+from autoseo.publish import agent_layer, blog_index, page, site
 from autoseo.publish.site import BASE_BRANCH
 
 log = get_logger(__name__)
@@ -104,9 +104,16 @@ def render(changes: dict[str, str]) -> dict[str, str]:
         # renderer is one of several things that has written to public/blog over the site's life —
         # 134 of the 142 pages there have no markdown source at all — so re-emitting everything it
         # produces would quietly replace pages it did not author.
+        #
+        # The agent note is re-applied here rather than left to the backfill, because the renderer
+        # rebuilds these pages from markdown and would otherwise drop it — silently, on whichever
+        # article was edited last. Applying it to the renderer's output instead of patching the
+        # vendored renderer keeps that file re-copyable byte-for-byte.
         for slug in changes:
             path = out / f"{slug}.html"
-            files[f"{site_root}/public/blog/{slug}.html"] = path.read_text(encoding="utf-8")
+            files[f"{site_root}/public/blog/{slug}.html"] = agent_layer.insert(
+                path.read_text(encoding="utf-8")
+            )
         if sitemap.exists():
             files[f"{site_root}/public/sitemap-articles.xml"] = sitemap.read_text(encoding="utf-8")
 

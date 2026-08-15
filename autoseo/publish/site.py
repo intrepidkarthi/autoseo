@@ -101,12 +101,20 @@ def writable_prefixes() -> tuple[str, ...]:
     )
 
 
-# The IndexNow key file has to sit at the site root, outside every prefix above. Allowed by exact
-# name rather than by widening the root prefix to `public/`, which would put the homepage, the
-# stylesheet and 1,500 templated pages inside the blast radius to permit one 32-byte file.
+# Three files sit at the site root, outside every prefix above, and are allowed by exact name.
+#
+# Exact names rather than widening the root prefix to `public/` — that would put the homepage, the
+# stylesheet and 1,500 templated pages inside the blast radius to permit 32 bytes and two text
+# files. The IndexNow key proves domain control; llms.txt and llms-full.txt are the machine-readable
+# profile that `agent_layer` now points every blog page at, which is what earned them a write path:
+# a file agents are directed to read has to be correctable by whatever notices it is wrong.
 def _writable(path: str) -> bool:
-    from autoseo.publish import indexnow
-    return path.startswith(writable_prefixes()) or path == indexnow.key_file_path()
+    from autoseo.publish import agent_layer, indexnow
+    return (
+        path.startswith(writable_prefixes())
+        or path == indexnow.key_file_path()
+        or path in agent_layer.profile_paths()
+    )
 
 
 class NotWritable(RuntimeError):
