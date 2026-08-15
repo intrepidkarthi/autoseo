@@ -112,7 +112,7 @@ def apply_noindex(paths: list[str], rationale: str, dry_run: bool = False) -> st
     """Merge per-page noindex headers into vercel.json. Idempotent."""
     from autoseo.publish import site
 
-    path = f"{site.SITE_DIR}/vercel.json"
+    path = f"{site.site_dir()}/vercel.json"
     raw = site.read_text(path)
     if raw is None:
         raise RuntimeError(f"{path} not found in {site.SITE_REPO}")
@@ -154,7 +154,7 @@ def apply(dry_run: bool = False) -> str:
     """
     from autoseo.publish import site
 
-    path = f"{site.SITE_DIR}/vercel.json"
+    path = f"{site.site_dir()}/vercel.json"
     raw = site.read_text(path)
     if raw is None:
         raise RuntimeError(f"{path} not found in {site.SITE_REPO} — cannot apply the noindex")
@@ -191,7 +191,9 @@ def apply(dry_run: bool = False) -> str:
 def render_patch(plan: Plan) -> str:
     """A human-readable summary plus the exact JSON to paste."""
     lines = [
-        "Add this to the `headers` array in solyn/website/vercel.json:",
+        # Named without a path on purpose. The website moved out of solyn/ to the repo root once
+        # already; a human reading this can find the one vercel.json wherever it next sits.
+        "Add this to the `headers` array in the site's vercel.json:",
         "",
         json.dumps(vercel_headers(plan), indent=2),
         "",

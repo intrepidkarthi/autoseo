@@ -41,7 +41,7 @@ def key() -> str:
 
 
 def key_file_path() -> str:
-    return f"{site.SITE_DIR}/public/{key()}.txt"
+    return f"{site.site_dir()}/public/{key()}.txt"
 
 
 def ensure_key(dry_run: bool = False) -> str:

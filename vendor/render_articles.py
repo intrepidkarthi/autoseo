@@ -1,4 +1,6 @@
-"""VENDORED from the DailyVox site repo: solyn/website/render_articles.py
+"""VENDORED from the DailyVox site repo, at the website root: render_articles.py
+(website/render_articles.py since 2026-08-14, when the site hoisted that whole
+directory out of solyn/ to the repo root to make room for an Android app).
 
 Copied here, not imported, because the original is gitignored in that repo
 (.gitignore:81) and therefore exists only on one laptop. The site is served by

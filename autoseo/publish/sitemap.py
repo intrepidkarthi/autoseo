@@ -22,17 +22,24 @@ log = get_logger(__name__)
 
 # The sitemaps this module may edit. `sitemap-articles.xml` is deliberately absent: it is generated
 # from the markdown on every publish, so an edit here would be overwritten by the next post.
-EDITABLE = {
-    "blog": f"{site.SITE_DIR}/public/sitemap-blog.xml",
-    "core": f"{site.SITE_DIR}/public/sitemap-core.xml",
-}
+#
+# A function rather than a dict literal because resolving the website root costs an API call, and
+# this module is imported by the `plan` job, which holds no token for the site repo. Built at import
+# time it would fail the whole planning run to answer a question planning never asks — `plan` only
+# uses `urls()`, which parses a string it fetched over HTTP.
+def editable() -> dict[str, str]:
+    root = site.site_dir()
+    return {
+        "blog": f"{root}/public/sitemap-blog.xml",
+        "core": f"{root}/public/sitemap-core.xml",
+    }
 
 _URL_BLOCK = re.compile(r"[ \t]*<url>.*?</url>[ \t]*\n?", re.S)
 _LOC = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>")
 
 
 def read(name: str) -> str | None:
-    return site.read_text(EDITABLE[name])
+    return site.read_text(editable()[name])
 
 
 def remove(xml: str, urls: set[str]) -> tuple[str, list[str]]:
@@ -59,7 +66,7 @@ def drop_urls(targets: set[str], rationale: str, dry_run: bool = False) -> str:
     files: dict[str, str] = {}
     removed: list[str] = []
 
-    for path in EDITABLE.values():
+    for path in editable().values():
         xml = site.read_text(path)
         if xml is None:
             log.warning("%s not found — skipping", path)

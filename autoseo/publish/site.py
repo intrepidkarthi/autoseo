@@ -19,34 +19,94 @@ import base64
 
 import httpx
 
-from autoseo.core.config import ConfigError, settings
+from autoseo.core.config import ConfigError, _env, settings
 from autoseo.core.log import get_logger
 
 log = get_logger(__name__)
 
 API = "https://api.github.com"
 SITE_REPO = "intrepidkarthi/dailyvox"
-SITE_DIR = "solyn/website"
-CONTENT_DIR = f"{SITE_DIR}/content/articles"
 BASE_BRANCH = "main"
 
-# Files the bot is allowed to write, as path prefixes. Every commit is checked against this before
-# it is sent. The autonomous loop composes its own diffs, so the blast radius has to be bounded by
-# something other than review — a bug that produced a path outside these prefixes would otherwise
-# be free to overwrite the site's source.
-WRITABLE = (
-    f"{CONTENT_DIR}/",                    # article markdown
-    f"{SITE_DIR}/public/blog/",           # rendered article pages and the index
-    f"{SITE_DIR}/public/sitemap-",        # sitemap-blog.xml, -core.xml, -articles.xml
-    f"{SITE_DIR}/vercel.json",            # noindex headers for the de-listed clusters
-)
+# Where the website lives inside the site repo — candidate roots, current layout first.
+#
+# It moved. dailyvox hoisted the website out of `solyn/` to the repo root on 2026-08-14 (its #84,
+# 1,777 renames and no content change) because an Android app is coming and `solyn` is the iOS
+# *target's* name — 90% of that repo was sitting inside one platform's folder. `solyn/` → `ios/` is
+# the half still outstanding, and it does not touch these paths.
+#
+# The root is probed rather than declared, and the move is why. A constant would have had to change
+# in the same minute #84 merged, and nothing was watching in that minute: this loop runs unattended
+# at 06:07 IST and commits straight to main. Both halves of a flag-day cutover fail quietly. Set
+# early, every write lands in a website tree Vercel does not serve and no reader ever sees; set
+# late, every read 404s and the run dies with the site untouched — verified, `solyn/website` now
+# returns 404 for vercel.json, the articles directory and the blog index alike. Probing costs one
+# API call per process and spanned the move without a commit here.
+#
+# `solyn/website` stays as a fallback for the same reason it was needed in the first place: a revert
+# is one click, and it is only probed when the root above misses.
+SITE_DIRS = ("website", "solyn/website")
+
+_resolved_dir: str | None = None
+
+
+class SiteLayoutError(RuntimeError):
+    """The website root is not where any known layout puts it."""
+
+
+def site_dir() -> str:
+    """The website root inside the site repo. Resolved once per process, then cached.
+
+    `vercel.json` is the marker. It sits at the website root under either layout, nothing else in
+    the repo carries that name, and every write below already depends on it being there. The newer
+    root wins if both somehow resolve — a `git mv` in one commit cannot produce that, but a
+    half-finished copy can, and the new tree is the one that will survive.
+    """
+    global _resolved_dir
+    if _resolved_dir is not None:
+        return _resolved_dir
+    if pinned := _env("AUTOSEO_SITE_DIR"):
+        _resolved_dir = pinned.strip("/")
+        return _resolved_dir
+    for candidate in SITE_DIRS:
+        if exists(f"{candidate}/vercel.json"):
+            log.info("website root: %s/", candidate)
+            _resolved_dir = candidate
+            return candidate
+    raise SiteLayoutError(
+        f"no vercel.json under any of {', '.join(SITE_DIRS)} in {SITE_REPO}@{BASE_BRANCH}. "
+        f"The website moved somewhere new: add its root to SITE_DIRS, or pin AUTOSEO_SITE_DIR. "
+        f"Guessing is not an option here — writing to a root that does not exist commits a whole "
+        f"second website beside the real one, and every page in it is invisible."
+    )
+
+
+def content_dir() -> str:
+    return f"{site_dir()}/content/articles"
+
+
+def writable_prefixes() -> tuple[str, ...]:
+    """Files the bot is allowed to write, as path prefixes.
+
+    Every commit is checked against this before it is sent. The autonomous loop composes its own
+    diffs, so the blast radius has to be bounded by something other than review — a bug that
+    produced a path outside these prefixes would otherwise be free to overwrite the site's source.
+    """
+    root = site_dir()
+    return (
+        f"{root}/content/articles/",      # article markdown
+        f"{root}/public/blog/",           # rendered article pages and the index
+        f"{root}/public/sitemap-",        # sitemap-blog.xml, -core.xml, -articles.xml
+        f"{root}/vercel.json",            # noindex headers for the de-listed clusters
+    )
+
 
 # The IndexNow key file has to sit at the site root, outside every prefix above. Allowed by exact
 # name rather than by widening the root prefix to `public/`, which would put the homepage, the
 # stylesheet and 1,500 templated pages inside the blast radius to permit one 32-byte file.
 def _writable(path: str) -> bool:
     from autoseo.publish import indexnow
-    return path.startswith(WRITABLE) or path == indexnow.key_file_path()
+    return path.startswith(writable_prefixes()) or path == indexnow.key_file_path()
 
 
 class NotWritable(RuntimeError):

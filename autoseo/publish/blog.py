@@ -28,7 +28,7 @@ import httpx
 from autoseo.compose.blog import Draft
 from autoseo.core.log import get_logger
 from autoseo.publish import blog_index, page, site
-from autoseo.publish.site import BASE_BRANCH, CONTENT_DIR, SITE_DIR
+from autoseo.publish.site import BASE_BRANCH
 
 log = get_logger(__name__)
 
@@ -36,7 +36,7 @@ log = get_logger(__name__)
 def fetch_articles() -> dict[str, str]:
     """{slug: markdown} for every article currently in the site repo."""
     articles: dict[str, str] = {}
-    for entry in site.list_dir(CONTENT_DIR):
+    for entry in site.list_dir(site.content_dir()):
         if not entry["name"].endswith(".md"):
             continue
         blob = httpx.get(entry["download_url"], timeout=60.0)
@@ -58,6 +58,8 @@ def render(changes: dict[str, str]) -> dict[str, str]:
     articles = fetch_articles()
     articles.update(changes)
 
+    # Resolved before the tempdir below shadows the name `root` with a local path.
+    site_root, content = site.site_dir(), site.content_dir()
     files: dict[str, str] = {}
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -68,7 +70,7 @@ def render(changes: dict[str, str]) -> dict[str, str]:
         for slug, markdown in articles.items():
             (src / f"{slug}.md").write_text(markdown, encoding="utf-8")
         for slug, markdown in changes.items():
-            files[f"{CONTENT_DIR}/{slug}.md"] = markdown
+            files[f"{content}/{slug}.md"] = markdown
 
         sitemap = root / "public" / "sitemap-articles.xml"
         result = subprocess.run(
@@ -104,9 +106,9 @@ def render(changes: dict[str, str]) -> dict[str, str]:
         # produces would quietly replace pages it did not author.
         for slug in changes:
             path = out / f"{slug}.html"
-            files[f"{SITE_DIR}/public/blog/{slug}.html"] = path.read_text(encoding="utf-8")
+            files[f"{site_root}/public/blog/{slug}.html"] = path.read_text(encoding="utf-8")
         if sitemap.exists():
-            files[f"{SITE_DIR}/public/sitemap-articles.xml"] = sitemap.read_text(encoding="utf-8")
+            files[f"{site_root}/public/sitemap-articles.xml"] = sitemap.read_text(encoding="utf-8")
 
     log.info("rendered %d file(s) from %d change(s)", len(files), len(changes))
     return files
@@ -114,7 +116,7 @@ def render(changes: dict[str, str]) -> dict[str, str]:
 
 def publish(draft: Draft, dry_run: bool = False) -> str:
     """Publish a new post: markdown, rendered pages, sitemap, index link. One commit."""
-    html_path = f"{SITE_DIR}/public/blog/{draft.slug}.html"
+    html_path = f"{site.site_dir()}/public/blog/{draft.slug}.html"
 
     # Refuse to replace a page that actually ranks; allow replacing source that renders nothing.
     #
@@ -127,7 +129,7 @@ def publish(draft: Draft, dry_run: bool = False) -> str:
             f"{html_path} is already live on {BASE_BRANCH}. Rewriting an existing page is a "
             f"different operation from publishing a new one and should be done deliberately."
         )
-    if site.exists(f"{CONTENT_DIR}/{draft.slug}.md"):
+    if site.exists(f"{site.content_dir()}/{draft.slug}.md"):
         log.warning("%s.md exists but renders no page — replacing the orphaned source", draft.slug)
 
     files = render({draft.slug: draft.markdown})
@@ -135,10 +137,11 @@ def publish(draft: Draft, dry_run: bool = False) -> str:
     # Link it from the index. Nothing in the site repo generates that file, so without this step the
     # page exists and is completely unreachable by a reader — which is exactly how the first
     # published article looked "missing" despite returning 200.
-    index = site.read_text(blog_index.INDEX_PATH)
+    index_path = blog_index.index_path()
+    index = site.read_text(index_path)
     if index is None:
-        raise RuntimeError(f"{blog_index.INDEX_PATH} not found — cannot link the new post")
-    files[blog_index.INDEX_PATH] = blog_index.insert(
+        raise RuntimeError(f"{index_path} not found — cannot link the new post")
+    files[index_path] = blog_index.insert(
         index, draft.slug, draft.title, draft.description,
         cluster=blog_index.cluster_from_markdown(draft.markdown),
     )
@@ -183,7 +186,7 @@ def retitle(slug: str, title: str, description: str, rationale: str,
     the HTML is derived from it — editing the HTML there would be reverted the next time that
     article is rendered. Where it does not, the HTML *is* the source.
     """
-    markdown = site.read_text(f"{CONTENT_DIR}/{slug}.md")
+    markdown = site.read_text(f"{site.content_dir()}/{slug}.md")
     if markdown is not None:
         updated = _set_frontmatter(markdown, title=title, meta_description=description)
         # The H1 usually restates the title. Leaving it saying something else makes the page and
@@ -191,7 +194,7 @@ def retitle(slug: str, title: str, description: str, rationale: str,
         updated = re.sub(r"^#\s+.+$", f"# {title}", updated, count=1, flags=re.M)
         files = render({slug: updated})
     else:
-        html_path = f"{SITE_DIR}/public/blog/{slug}.html"
+        html_path = f"{site.site_dir()}/public/blog/{slug}.html"
         doc = site.read_text(html_path)
         if doc is None:
             raise RuntimeError(
@@ -199,8 +202,8 @@ def retitle(slug: str, title: str, description: str, rationale: str,
             )
         files = {html_path: page.retitle(doc, title, description)}
 
-    if index := site.read_text(blog_index.INDEX_PATH):
-        files[blog_index.INDEX_PATH] = blog_index.update(index, slug, title, description)
+    if index := site.read_text(blog_index.index_path()):
+        files[blog_index.index_path()] = blog_index.update(index, slug, title, description)
 
     return site.commit(
         files, f"seo: retitle /blog/{slug}\n\n{rationale}\n\nnew title: {title}", dry_run=dry_run
@@ -209,14 +212,14 @@ def retitle(slug: str, title: str, description: str, rationale: str,
 
 def append_section(slug: str, block: str, rationale: str, dry_run: bool = False) -> str:
     """Append an FAQ section to a page. Additive — existing copy is never touched."""
-    markdown = site.read_text(f"{CONTENT_DIR}/{slug}.md")
+    markdown = site.read_text(f"{site.content_dir()}/{slug}.md")
     if markdown is not None:
         if block.strip() in markdown:
             log.info("%s already contains this section", slug)
             return ""
         files = render({slug: markdown.rstrip() + "\n\n" + block.strip() + "\n"})
     else:
-        html_path = f"{SITE_DIR}/public/blog/{slug}.html"
+        html_path = f"{site.site_dir()}/public/blog/{slug}.html"
         doc = site.read_text(html_path)
         if doc is None:
             raise RuntimeError(
@@ -231,9 +234,11 @@ def append_section(slug: str, block: str, rationale: str, dry_run: bool = False)
 
 # --- the blog index ----------------------------------------------------------------------------
 
-INDEX_PAGES = [blog_index.INDEX_PATH] + [
-    f"{SITE_DIR}/public/blog/page/{n}.html" for n in range(2, 8)
-]
+def index_pages() -> list[str]:
+    root = site.site_dir()
+    return [blog_index.index_path()] + [
+        f"{root}/public/blog/page/{n}.html" for n in range(2, 8)
+    ]
 
 
 def find_orphans() -> dict[str, tuple[str, str]]:
@@ -246,19 +251,20 @@ def find_orphans() -> dict[str, tuple[str, str]]:
     """
     import html as htmllib
 
+    root = site.site_dir()
     slugs = {
-        e["name"][:-5] for e in site.list_dir(f"{SITE_DIR}/public/blog")
+        e["name"][:-5] for e in site.list_dir(f"{root}/public/blog")
         if e["type"] == "file" and e["name"].endswith(".html") and e["name"] != "index.html"
     }
 
     linked: set[str] = set()
-    for index_page in INDEX_PAGES:
+    for index_page in index_pages():
         if doc := site.read_text(index_page):
             linked |= set(re.findall(r'href="/blog/([a-z0-9-]+)"', doc))
 
     orphans: dict[str, tuple[str, str]] = {}
     for slug in sorted(slugs - linked):
-        doc = site.read_text(f"{SITE_DIR}/public/blog/{slug}.html") or ""
+        doc = site.read_text(f"{root}/public/blog/{slug}.html") or ""
         title = re.search(r"<title>(.*?)</title>", doc, re.S)
         desc = re.search(r'<meta name="description" content="(.*?)"', doc, re.S)
         orphans[slug] = (
@@ -279,16 +285,17 @@ def relink(dry_run: bool = False) -> str:
     for slug, (title, _) in orphans.items():
         print(f"      /blog/{slug}  —  {title}")
 
-    index = site.read_text(blog_index.INDEX_PATH)
+    index_path = blog_index.index_path()
+    index = site.read_text(index_path)
     if index is None:
-        raise RuntimeError(f"{blog_index.INDEX_PATH} not found")
+        raise RuntimeError(f"{index_path} not found")
     updated = index
     for slug, (title, description) in orphans.items():
         updated = blog_index.insert(updated, slug, title, description)
 
     listed = ", ".join(sorted(orphans))
     return site.commit(
-        {blog_index.INDEX_PATH: updated},
+        {index_path: updated},
         f"blog: link {len(orphans)} orphaned page(s) from the index\n\n"
         f"Live and in the sitemap, but reachable from no index page: {listed}.\n"
         f"Found by comparing public/blog/*.html against the links on all index pages.",

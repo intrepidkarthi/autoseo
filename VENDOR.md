@@ -27,7 +27,10 @@ gets dropped.
 
 ## `vendor/render_articles.py`
 
-**From:** `intrepidkarthi/dailyvox` → `solyn/website/render_articles.py`
+**From:** `intrepidkarthi/dailyvox` → `render_articles.py` at the website root. That root was
+`solyn/website/` until 2026-08-14, when the repo hoisted the whole website out of the iOS target's
+directory ahead of the Android port; it is `website/` now. Verified byte-identical to upstream at
+the new location on 2026-08-14, the three edits below excepted.
 **Licence:** same project, same author (MIT).
 
 Copied because the original is **gitignored in that repo** (`.gitignore:81`) and so exists only on

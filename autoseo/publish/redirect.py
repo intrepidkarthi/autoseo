@@ -22,7 +22,8 @@ from autoseo.publish import site
 
 log = get_logger(__name__)
 
-VERCEL = f"{site.SITE_DIR}/vercel.json"
+def vercel_path() -> str:
+    return f"{site.site_dir()}/vercel.json"
 
 
 def existing(config: dict) -> set[str]:
@@ -36,9 +37,10 @@ def add(source: str, destination: str, rationale: str, dry_run: bool = False) ->
     if source == destination:
         raise ValueError("refusing to redirect a page to itself")
 
-    raw = site.read_text(VERCEL)
+    vercel = vercel_path()
+    raw = site.read_text(vercel)
     if raw is None:
-        raise RuntimeError(f"{VERCEL} not found in {site.SITE_REPO}")
+        raise RuntimeError(f"{vercel} not found in {site.SITE_REPO}")
     config = json.loads(raw)
     redirects = config.setdefault("redirects", [])
     sources = existing(config)
@@ -58,7 +60,7 @@ def add(source: str, destination: str, rationale: str, dry_run: bool = False) ->
 
     redirects.append({"source": source, "destination": destination, "statusCode": 301})
     return site.commit(
-        {VERCEL: json.dumps(config, indent=2) + "\n"},
+        {vercel: json.dumps(config, indent=2) + "\n"},
         f"seo: 301 {source} -> {destination}\n\n{rationale}",
         dry_run=dry_run,
     )

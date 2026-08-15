@@ -25,10 +25,13 @@ import html as htmllib
 import re
 
 from autoseo.core.log import get_logger
+from autoseo.publish import site
 
 log = get_logger(__name__)
 
-INDEX_PATH = "solyn/website/public/blog/index.html"
+
+def index_path() -> str:
+    return f"{site.site_dir()}/public/blog/index.html"
 
 # Tag classes already used by the index, keyed by the cluster the composer assigns.
 TAG_FOR_CLUSTER = {
