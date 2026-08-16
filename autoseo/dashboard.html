@@ -205,23 +205,31 @@
   </div>
   <div id="subset"></div>
 
-  <div class="tabs" id="tabs" role="tablist"></div>
-  <div class="scroll"><table>
-    <thead><tr id="thead"></tr></thead>
-    <tbody id="tbody"></tbody>
-  </table></div>
-  <div class="empty" id="empty" hidden>No rows match these filters.</div>
-
   <div class="grid2">
     <div>
       <h2>Answer engines</h2>
       <div id="aeo"></div>
     </div>
     <div>
+      <h2>Outreach — the reach lever</h2>
+      <div id="outreach"></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div>
       <h2>Loop activity — last 30 days</h2>
       <div id="loop"></div>
     </div>
+    <div></div>
   </div>
+
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <div class="scroll"><table>
+    <thead><tr id="thead"></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+  <div class="empty" id="empty" hidden>No rows match these filters.</div>
 
   <h2>Striking distance — page average versus the query that matters</h2>
   <div class="scroll"><table>
@@ -569,6 +577,19 @@ $('aeo').innerHTML =
    <div class="kv"><span>getdailyvox.com cited</span><b>${A.cited}</b></div>`
   + A.domains.slice(0, 8).map(d =>
       `<div class="kv"><span class="mono" style="font-size:12px">${d.domain}</span><b>${d.count}</b></div>`).join('');
+
+const O = D.outreach;
+$('outreach').innerHTML =
+  `<div class="kv"><span>Targets scored</span><b>${O.total}</b></div>`
+  + ['new', 'contacted', 'listed', 'declined', 'skipped']
+      .filter(k => O.pipeline[k])
+      .map(k => `<div class="kv"><span>&nbsp;&nbsp;${k}</span><b>${O.pipeline[k]}</b></div>`).join('')
+  // Shown even at zero. This is the only figure on the page that measures reach rather than
+  // conversion, and a number that appears only once it flatters is not a measurement.
+  + `<div class="kv"><span><b>Now naming DailyVox</b></span><b class="${O.listed ? 'up' : ''}">${O.listed}</b></div>`
+  + O.top.slice(0, 5).map(t =>
+      `<div class="kv"><span class="mono" style="font-size:12px">${t.domain}
+        <span class="tag">${t.state}</span></span><b>${t.citations}&times;</b></div>`).join('');
 
 $('loop').innerHTML = D.loop.length
   ? D.loop.map(r => `<div class="kv"><span>${r.kind} · ${r.status}</span><b>${r.n}</b></div>`).join('')

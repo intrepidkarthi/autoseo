@@ -140,3 +140,102 @@ def build(days: int = 30, min_citations: int = 2, resolve_top: int = 12) -> list
     for t in targets[:resolve_top]:
         t.url = resolve(t.url)
     return targets
+
+
+# --- state: what was acted on, and whether it worked ---------------------------------------------
+
+import datetime as dt  # noqa: E402  (kept beside the code that uses it)
+
+STATES = ("new", "contacted", "listed", "declined", "skipped")
+
+# States a human sets. `listed` is deliberately absent: it is set by measurement, when a page that
+# named competitors and not us starts naming us. Letting it be typed in by hand would make the one
+# number that proves outreach works into the one number nobody can check.
+SETTABLE = ("contacted", "declined", "skipped")
+
+
+def record(targets: list[Target]) -> dict[str, int]:
+    """Persist this run's targets, and detect the ones that started listing us.
+
+    Returns counts by what happened. The interesting one is `newly_listed`: a page that cited
+    competitors and omitted DailyVox, which now names it. That is the only direct evidence that any
+    of this moves anything, and it is measured rather than claimed — the page is re-read every run
+    and the transition is recorded with a date.
+    """
+    now = dt.datetime.now().isoformat(timespec="seconds")
+    counts = {"seen": 0, "added": 0, "newly_listed": 0}
+
+    with session() as conn:
+        for t in targets:
+            counts["seen"] += 1
+            row = conn.execute(
+                "SELECT state, listed_at FROM outreach_target WHERE url = ?", (t.url,)
+            ).fetchone()
+
+            if row is None:
+                conn.execute(
+                    """INSERT INTO outreach_target(url, domain, title, first_seen, last_seen,
+                           citations, score, competitors, state, state_changed, listed_at)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                    (t.url, t.domain, t.title, now, now, t.citation_count, t.score,
+                     json.dumps(t.competitors_named),
+                     "listed" if t.we_are_listed else "new", now,
+                     now if t.we_are_listed else None),
+                )
+                counts["added"] += 1
+                continue
+
+            conn.execute(
+                """UPDATE outreach_target
+                   SET last_seen=?, citations=?, score=?, competitors=?, title=?
+                   WHERE url=?""",
+                (now, t.citation_count, t.score, json.dumps(t.competitors_named), t.title, t.url),
+            )
+
+            # The transition worth watching. Only ever set forward — a page that names us and then
+            # drops us again keeps its listed_at, because the outreach still happened and the date
+            # it first worked is the fact being recorded.
+            if t.we_are_listed and row["state"] != "listed":
+                conn.execute(
+                    "UPDATE outreach_target SET state='listed', state_changed=?, listed_at=? "
+                    "WHERE url=?",
+                    (now, row["listed_at"] or now, t.url),
+                )
+                counts["newly_listed"] += 1
+        conn.commit()
+    return counts
+
+
+def set_state(url: str, state: str, note: str = "") -> bool:
+    """Mark what a human did with a target. Returns False if the URL is not on the list."""
+    if state not in SETTABLE:
+        raise ValueError(f"state must be one of {', '.join(SETTABLE)} (got {state!r})")
+    now = dt.datetime.now().isoformat(timespec="seconds")
+    with session() as conn:
+        cur = conn.execute(
+            "UPDATE outreach_target SET state=?, state_changed=?, note=? WHERE url=?",
+            (state, now, note or None, url),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def pipeline() -> dict[str, int]:
+    """How many targets sit in each state. The funnel, such as it is."""
+    with session() as conn:
+        rows = conn.execute(
+            "SELECT state, COUNT(*) n FROM outreach_target GROUP BY state"
+        ).fetchall()
+    return {r["state"]: r["n"] for r in rows}
+
+
+def stored(state: str | None = None) -> list[dict]:
+    """Persisted targets, best score first, optionally filtered to one state."""
+    sql = "SELECT * FROM outreach_target"
+    args: tuple = ()
+    if state:
+        sql += " WHERE state = ?"
+        args = (state,)
+    sql += " ORDER BY score DESC, citations DESC"
+    with session() as conn:
+        return [dict(r) for r in conn.execute(sql, args).fetchall()]

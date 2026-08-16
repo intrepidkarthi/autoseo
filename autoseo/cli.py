@@ -22,7 +22,8 @@ Decision:
     autoseo brief [--days N] [--top N]      ranked actions with evidence
     autoseo opportunity [--days N]          striking distance, CTR gaps, content gaps
     autoseo aeo [--tier core|extended|all]  ask buyer questions, record what gets cited
-    autoseo outreach [--days N]             pages worth getting listed on
+    autoseo outreach [--days N] [--all]     pages worth getting listed on, with state
+    autoseo outreach --mark URL --state S   record that you contacted one
 
 Site and quality:
 
@@ -122,19 +123,37 @@ def _print_opportunities(days: int) -> None:
     print()
 
 
-def _print_outreach(days: int, top: int) -> None:
+def _print_outreach(days: int, top: int, show_all: bool = False) -> None:
     from autoseo.decide import outreach
 
     targets = outreach.build(days)
+
+    # Persisted before printing, so the run that surfaces a target is the run that starts tracking
+    # it. `record` also re-reads whether each page names us now, which is where `listed` comes from.
+    counts = outreach.record(targets)
+    if counts["newly_listed"]:
+        print(f"\n  {counts['newly_listed']} target(s) now name DailyVox that did not before.")
+
+    handled = {t["url"] for t in outreach.stored() if t["state"] != "new"}
+    if not show_all:
+        targets = [t for t in targets if t.url not in handled]
+
+    pipe = outreach.pipeline()
     print(f"\n=== OUTREACH TARGETS — cited by answer engines, last {days}d ===")
+    if pipe:
+        print("  pipeline: " + " · ".join(f"{k} {v}" for k, v in sorted(pipe.items())))
+    if handled and not show_all:
+        print(f"  {len(handled)} already handled, hidden — `--all` shows them")
     if not targets:
-        print("  No citation data yet. Run `autoseo aeo` first.\n")
+        print("  Nothing new to work. Run `autoseo aeo` for fresh citations.\n")
         return
     for t in targets[:top]:
         flag = "" if not t.we_are_listed else "  [already lists us]"
         print(f"\n  [{t.rank}] {t.domain}{flag}")
         print(f"      {t.title[:70]}")
-        print(f"      {t.url[:95]}")
+        # Printed in full, never truncated: this is the string you paste into `--mark`, and
+        # a URL cut at 95 characters is one that silently does not match anything.
+        print(f"      {t.url}")
         print(f"      why   : {t.why}")
         if t.competitors_named:
             print(f"      names : {', '.join(t.competitors_named)}")
@@ -362,6 +381,13 @@ def main(argv: list[str] | None = None) -> int:
     p_out = sub.add_parser("outreach", help="pages worth getting listed on, ranked")
     p_out.add_argument("--days", type=int, default=30)
     p_out.add_argument("--top", type=int, default=10)
+    p_out.add_argument("--all", action="store_true",
+                       help="include targets already contacted, declined or listed")
+    p_out.add_argument("--mark", metavar="URL",
+                       help="record what you did with a target (with --state)")
+    p_out.add_argument("--state", choices=["contacted", "declined", "skipped"],
+                       help="the state to set for --mark")
+    p_out.add_argument("--note", default="", help="optional note to store against --mark")
 
     # --- site and quality -------------------------------------------------------------------
     p_relink = sub.add_parser(
@@ -475,7 +501,15 @@ def main(argv: list[str] | None = None) -> int:
                           model=args.model or probe.DEFAULT_MODEL)
 
         elif args.command == "outreach":
-            _print_outreach(args.days, args.top)
+            from autoseo.decide import outreach as _o
+            if args.mark:
+                if not args.state:
+                    print("  --mark needs --state (contacted | declined | skipped)")
+                    return 2
+                ok = _o.set_state(args.mark, args.state, args.note)
+                print(f"  {args.mark} -> {args.state}" if ok else f"  not on the list: {args.mark}")
+            else:
+                _print_outreach(args.days, args.top, show_all=args.all)
 
         elif args.command == "brief":
             _print_brief(args.days, args.top)

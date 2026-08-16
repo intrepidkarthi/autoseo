@@ -166,6 +166,29 @@ def _head_position(page: str, query: str) -> float:
     return r.get("p") or 0.0
 
 
+def outreach_funnel() -> dict:
+    """Where the outreach targets stand, and how many started naming us.
+
+    `listed` is the only number on this page that measures the lever aimed at reach rather than at
+    conversion, so it is worth having even while it reads zero — a metric that only appears once it
+    is flattering is not a metric.
+    """
+    from autoseo.decide import outreach
+
+    pipe = outreach.pipeline()
+    rows = outreach.stored()
+    return {
+        "pipeline": pipe,
+        "total": sum(pipe.values()),
+        "listed": pipe.get("listed", 0),
+        "top": [
+            {"domain": r["domain"], "state": r["state"], "citations": r["citations"],
+             "url": r["url"], "title": (r["title"] or "")[:70]}
+            for r in rows[:8]
+        ],
+    }
+
+
 def answer_engines() -> dict:
     probe = _one("SELECT COUNT(*) n, SUM(mentioned) m, SUM(cited) c FROM aeo_probe")
     cited = _rows("""SELECT domain, COUNT(*) n FROM aeo_citation
@@ -286,6 +309,7 @@ def collect() -> dict:
         "indexation": indexation(),
         "striking": striking(),
         "aeo": answer_engines(),
+        "outreach": outreach_funnel(),
         "loop": loop_activity(),
         "daily": daily(),
         "queries": query_rows(),

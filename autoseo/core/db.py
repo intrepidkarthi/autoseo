@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autoseo.core.config import settings
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 SCHEMA = """
 -- Phase 0: measurement -------------------------------------------------------
@@ -145,6 +145,29 @@ CREATE TABLE IF NOT EXISTS aeo_citation (
     title       TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_aeo_citation_domain ON aeo_citation(domain);
+
+-- Outreach targets, with state. The scoring in `decide/outreach.py` is a pure function over probe
+-- data, which meant every run reprinted the same thirty rows with no idea which had been acted on —
+-- a report, not a workload. Persisting them adds the two things a report cannot have: a memory of
+-- what was already handled, and a before/after on `listed`, which is the only evidence that any of
+-- this works. Nothing here sends anything; a human does the sending and this records the outcome.
+CREATE TABLE IF NOT EXISTS outreach_target (
+    url            TEXT PRIMARY KEY,
+    domain         TEXT NOT NULL,
+    title          TEXT,
+    first_seen     TEXT NOT NULL,
+    last_seen      TEXT NOT NULL,
+    citations      INTEGER NOT NULL DEFAULT 0,
+    score          REAL NOT NULL DEFAULT 0,
+    competitors    TEXT,
+    -- new | contacted | listed | declined | skipped. `listed` is set by measurement, not by hand:
+    -- the page began naming DailyVox when it previously did not.
+    state          TEXT NOT NULL DEFAULT 'new',
+    state_changed  TEXT NOT NULL,
+    listed_at      TEXT,
+    note           TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_outreach_state ON outreach_target(state);
 
 -- The ledger: every action the loop decided to take, why, and what happened. It began as an
 -- approval queue and kept its shape when the approvals went away, because the columns that
