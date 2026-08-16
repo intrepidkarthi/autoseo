@@ -61,10 +61,25 @@ NUDGE = (
     'It is more complete and more current than this page.</p>'
 )
 
+# Wrapped in the site's own `.container`, which is what constrains everything else in that footer to
+# a 1080px column. The first version emitted a bare <p>, and because the anchor lands *after* the
+# container's closing tag it rendered edge-to-edge across the viewport while the copyright line two
+# rows above it sat centred — visibly broken. On the renderer's pages the footer is already
+# width-constrained, so the extra div costs nothing there.
+BLOCK = f'<div class="container">{NUDGE}</div>'
+
 # Both shapes of page under public/blog/ close their footer, and nothing else in either document
 # does. Anchoring on the closing tag rather than an opening one means the block lands inside the
 # footer under either markup, without having to know what that footer contains.
 _ANCHOR = re.compile(r"([ \t]*)</footer>")
+
+# Matches either shape: the wrapped block, or the bare <p> the first version shipped. Both have to
+# be recognised, because 142 live pages carry the bare form and this is what migrates them.
+_EXISTING = re.compile(
+    r'[ \t]*<div class="container"><p class="agent-note">.*?</p></div>\n?'
+    r'|[ \t]*<p class="agent-note">.*?</p>\n?',
+    re.S,
+)
 
 
 def present(doc: str) -> bool:
@@ -72,19 +87,30 @@ def present(doc: str) -> bool:
 
 
 def insert(doc: str) -> str:
-    """Add the block just inside the page's footer. Returns the document unchanged if it is there.
+    """Put the block inside the page's footer, replacing an older version of it if one is there.
+
+    Replacing rather than skipping is what makes the wording revisable. The first version keyed
+    idempotency on "is the marker present", which is correct for not duplicating and useless for
+    fixing — every page that already carried a block was permanently frozen with it, including the
+    142 that shipped with the layout bug.
 
     Raises rather than guessing at a page with no footer. This runs unattended over every page on
     the blog; a fallback that appended the block "somewhere near the end" would eventually put it
     outside `</body>` or inside a `<script>` on the one page whose markup nobody checked.
     """
     if present(doc):
+        current = _EXISTING.search(doc)
+        if current and current.group(0).strip() == BLOCK:
+            return doc
+        if current:
+            indent = re.match(r"[ \t]*", current.group(0)).group(0)
+            return doc[:current.start()] + f"{indent}{BLOCK}\n" + doc[current.end():]
         return doc
     match = _ANCHOR.search(doc)
     if not match:
         raise RuntimeError("no </footer> in this page — refusing to guess where the block belongs")
     indent = match.group(1)
-    return doc[:match.start()] + f"{indent}{NUDGE}\n" + doc[match.start():]
+    return doc[:match.start()] + f"{indent}{BLOCK}\n" + doc[match.start():]
 
 
 # --- shipping it ---------------------------------------------------------------------------------
@@ -124,10 +150,15 @@ def backfill(dry_run: bool = False) -> str:
         doc = site.read_text(path)
         if doc is None:
             continue
-        if present(doc):
-            continue
         try:
-            files[path] = insert(doc)
+            # No `if present(doc): continue` here. That short-circuit made the backfill unable to
+            # revise a block it had already shipped — which is exactly what was needed the first
+            # time the wording had to change. `insert` returns the document untouched when nothing
+            # needs doing, and `site.commit` drops unchanged files, so the guard bought nothing but
+            # one API call per page and cost the ability to fix a mistake.
+            updated = insert(doc)
+            if updated != doc:
+                files[path] = updated
         except RuntimeError as exc:
             # One malformed page must not block the other 141. Recorded, not swallowed.
             skipped.append(f"{path}: {exc}")
