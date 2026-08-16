@@ -294,11 +294,41 @@ def collect() -> dict:
     }
 
 
-def render(out: Path) -> Path:
+# The template is a fragment on purpose — no doctype, no <html>, no <body>. That is what an Artifact
+# expects, because it supplies the skeleton itself and a second one would nest. Anywhere else, the
+# file has to be a whole document, so `--standalone` adds the shell rather than the template
+# carrying one that has to be stripped back out.
+SHELL = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Search performance for getdailyvox.com, regenerated daily by autoseo.">
+<style>*,*::before,*::after{{box-sizing:border-box}}body{{margin:0}}</style>
+</head>
+<body>
+{body}
+</body>
+</html>
+"""
+
+
+def render(out: Path, standalone: bool = False) -> Path:
+    """Write the dashboard. `standalone` wraps it as a complete page for ordinary hosting.
+
+    `noindex` in the shell is deliberate. The underlying numbers are already public — `state/*.csv`
+    sits in a public repo — so this is not secrecy. It is that a page about how getdailyvox.com
+    performs in search has no business competing with getdailyvox.com in search.
+    """
     data = collect()
     html = TEMPLATE.read_text(encoding="utf-8").replace(
         "/*DATA*/null", json.dumps(data, indent=None, default=float)
     )
+    if standalone:
+        html = SHELL.format(body=html)
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
-    log.info("dashboard written to %s (%d KB)", out, len(html) // 1024)
+    log.info("dashboard written to %s (%d KB%s)", out, len(html) // 1024,
+             ", standalone" if standalone else ", fragment")
     return out

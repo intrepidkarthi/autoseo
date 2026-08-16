@@ -390,6 +390,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p_dash = sub.add_parser("dashboard", help="render the measurement as one HTML page")
     p_dash.add_argument("--out", type=Path, default=Path("state/dashboard.html"))
+    p_dash.add_argument("--standalone", action="store_true",
+                        help="emit a complete HTML document, for hosting it somewhere")
 
     p_chk = sub.add_parser("check", help="run the quality gate over a file")
     p_chk.add_argument("path", type=Path)
@@ -502,7 +504,7 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "dashboard":
             from autoseo import dashboard
-            path = dashboard.render(args.out)
+            path = dashboard.render(args.out, standalone=args.standalone)
             print(f"  {path}")
 
         elif args.command == "agent-layer":

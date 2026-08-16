@@ -1,0 +1,60 @@
+name: pages
+
+# Publishes the dashboard to GitHub Pages. Separate from `seo` on purpose: it holds no credential,
+# changes nothing, and there is no reason a broken publish should be able to affect the loop that
+# does the work — or the reverse.
+#
+# `workflow_run` rather than `push`, and that is not a style choice. The state commits are pushed by
+# the workflow using GITHUB_TOKEN, and GitHub deliberately does not fire `push` triggers for those —
+# it is how they stop workflows looping. A `paths: [state/**]` trigger would therefore have looked
+# correct and never once run.
+on:
+  workflow_run:
+    workflows: [seo]
+    types: [completed]
+  workflow_dispatch:
+
+# Everything this reads is already committed and already public. No secrets are referenced, so a
+# change to this file cannot leak one.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a half-finished Pages deploy; let it finish and supersede.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main   # the state the loop just pushed, not the SHA that triggered this
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      - name: Build
+        run: |
+          set -e
+          autoseo restore
+          autoseo dashboard --standalone --out public/index.html
+          ls -lh public/index.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+      - id: deploy
+        uses: actions/deploy-pages@v4
