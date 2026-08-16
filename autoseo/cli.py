@@ -348,7 +348,11 @@ def main(argv: list[str] | None = None) -> int:
     p_opp.add_argument("--days", type=int, default=90)
 
     p_aeo = sub.add_parser("aeo", help="run the buyer-question panel against Gemini grounding")
-    p_aeo.add_argument("--tier", default="core", choices=["core", "extended", "all"])
+    # `frontier` is deliberately absent from the workflow's rotation: it measures a cluster the site
+    # has no foothold in, so it answers a strategy question rather than tracking a trend, and it is
+    # run when someone wants that answer.
+    p_aeo.add_argument("--tier", default="core",
+                       choices=["core", "extended", "frontier", "all"])
     p_aeo.add_argument("--repeats", type=int, default=3)
     p_aeo.add_argument("--dry-run", action="store_true")
     p_aeo.add_argument("--list-models", action="store_true")

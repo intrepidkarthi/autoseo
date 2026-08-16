@@ -96,3 +96,47 @@ questions:
   - id: journal-app-privacy-audit
     text: "Which journaling apps actually collect no data according to their App Store privacy label?"
     tier: extended
+
+  # --- frontier: the local/private-AI cluster, run on demand -----------------
+  #
+  # These break the rule at the top of this file on purpose, and the exception is worth stating.
+  # Every question above is grounded in GSC demand. None of these are, because there is no demand to
+  # ground them in: across 290 tracked queries exactly one matches this cluster, at 7 impressions,
+  # 0 clicks, position 87. The site has nine live pages on on-device AI and they are collectively
+  # invisible.
+  #
+  # That is not evidence the audience is absent — GSC only reports queries we already rank for, so it
+  # cannot size a market we have no foothold in, and this repo has no keyword-volume source. The panel
+  # is the one instrument that can look outward: it asks the question and records who gets cited.
+  # So these run as a probe, not a plan. If answer engines keep citing the same handful of domains and
+  # none of them is a journaling app, that is the wedge; if DailyVox cannot get named on questions it
+  # honestly answers better than anyone, more posts in the same style will not fix it.
+  #
+  # Framing matters here. These are asked the way a local-AI buyer asks them — models, inference,
+  # privacy — not the way a journaling buyer does. The nine existing pages are journaling content in
+  # on-device vocabulary, which is the most likely reason they earn nothing, and asking a journaling
+  # question here would reproduce that mistake inside the measurement.
+  - id: apps-fully-on-device
+    text: "Which iPhone apps run AI entirely on the device without sending data to a server?"
+    tier: frontier
+  - id: llm-on-phone
+    text: "Can I run a large language model locally on a phone, and which apps actually do it?"
+    tier: frontier
+  - id: apple-foundation-models-apps
+    text: "Which iOS apps use Apple Intelligence Foundation Models on-device?"
+    tier: frontier
+  - id: private-ai-assistant
+    text: "What is the most private AI app for personal data that does not use the cloud?"
+    tier: frontier
+  - id: ai-without-openai
+    text: "How do I use AI on my personal notes without sending them to OpenAI or Google?"
+    tier: frontier
+  - id: verify-on-device-claim
+    text: "How can I verify that an app really processes my data on-device rather than in the cloud?"
+    tier: frontier
+  - id: offline-ai-apps
+    text: "Which AI apps work fully offline with no internet connection?"
+    tier: frontier
+  - id: local-ai-personal-data
+    text: "What is the best way to run AI over my own private data locally?"
+    tier: frontier
