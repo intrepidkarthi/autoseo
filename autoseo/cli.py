@@ -26,6 +26,7 @@ Decision:
 
 Site and quality:
 
+    autoseo dashboard [--out FILE]          render the whole measurement as one HTML page
     autoseo relink [--dry-run]              link live blog pages the index has orphaned
     autoseo agent-layer [--apply]           point AI agents at /llms.txt from the page itself
     autoseo delist [--apply]                noindex the de-listed clusters
@@ -387,6 +388,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_prune.add_argument("--days", type=int, default=90)
 
+    p_dash = sub.add_parser("dashboard", help="render the measurement as one HTML page")
+    p_dash.add_argument("--out", type=Path, default=Path("state/dashboard.html"))
+
     p_chk = sub.add_parser("check", help="run the quality gate over a file")
     p_chk.add_argument("path", type=Path)
 
@@ -495,6 +499,11 @@ def main(argv: list[str] | None = None) -> int:
             from autoseo.publish import blog as publisher
             if url := publisher.relink(dry_run=args.dry_run):
                 print(f"  {url}")
+
+        elif args.command == "dashboard":
+            from autoseo import dashboard
+            path = dashboard.render(args.out)
+            print(f"  {path}")
 
         elif args.command == "agent-layer":
             from autoseo.publish import agent_layer
