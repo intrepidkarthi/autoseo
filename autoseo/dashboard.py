@@ -184,6 +184,97 @@ def loop_activity() -> list[dict]:
                     GROUP BY kind, status ORDER BY n DESC""")
 
 
+def daily() -> list[dict]:
+    """Site totals per day — the series the main chart plots.
+
+    Position is impression-weighted rather than averaged. A plain mean over pages treats a page with
+    two impressions at rank 3 as equal evidence to one with nine hundred at rank 40, which makes the
+    line move for reasons nobody can act on.
+    """
+    return [
+        {"d": r["date"], "c": r["c"] or 0, "i": r["i"] or 0, "p": round(r["p"] or 0, 2)}
+        for r in _rows("""SELECT date, SUM(clicks) c, SUM(impressions) i,
+                                 SUM(impressions*position)/NULLIF(SUM(impressions),0) p
+                          FROM gsc_page_daily GROUP BY date ORDER BY date""")
+    ]
+
+
+def query_rows() -> list[dict]:
+    """Every query by day, tagged with intent so the table can be filtered on it.
+
+    The tag is the same `decide/brand.py` classifier the loop plans against, computed here rather
+    than in the browser so the page and the autonomous decisions can never disagree about what
+    counts as acquisition.
+    """
+    return [
+        {"d": r["date"], "q": r["query"], "c": r["clicks"] or 0, "i": r["impressions"] or 0,
+         "p": round(r["position"] or 0, 2), "k": classify(r["query"])}
+        for r in _rows("""SELECT date, query, clicks, impressions, position
+                          FROM gsc_query_daily""")
+    ]
+
+
+def page_rows() -> list[dict]:
+    return [
+        {"d": r["date"], "u": (r["page"] or "").replace("https://getdailyvox.com", "") or "/",
+         "c": r["clicks"] or 0, "i": r["impressions"] or 0, "p": round(r["position"] or 0, 2)}
+        for r in _rows("""SELECT date, page, clicks, impressions, position FROM gsc_page_daily""")
+    ]
+
+
+def strategy() -> dict:
+    """The strategy actually in force, read from the code that enforces it.
+
+    Not a description someone wrote once and stopped updating. Every number below is imported from
+    `act/policy.py`, so if a cap moves the page moves with it, and the rules are quoted from where
+    they are enforced rather than from a doc that can drift away from behaviour.
+
+    The goal is the interesting part, because the repo states one and it is not a traffic target.
+    `policy.py` raised publishing to daily on the explicit condition that it must not cost
+    indexation — "if that ratio falls over the next few weeks, this number is the one to move." That
+    is a falsifiable commitment with a metric attached, so it is what gets scored here. A click
+    target would be easier to display and would measure something nobody agreed to.
+    """
+    from autoseo.act import ledger, policy
+
+    shipped = _one(
+        """SELECT
+             SUM(CASE WHEN kind='post' AND status='shipped' THEN 1 ELSE 0 END) posts,
+             SUM(CASE WHEN kind IN ('meta','faq') AND status='shipped' THEN 1 ELSE 0 END) onpage,
+             SUM(CASE WHEN kind IN ('prune','sitemap','merge') AND status='shipped' THEN 1 ELSE 0 END) removed
+           FROM queue_item WHERE created >= date('now','-7 days')"""
+    )
+    idx = indexation()
+    first, last = (idx[0], idx[-1]) if idx else ({}, {})
+    acq = composition()["buckets"].get("acquisition", {})
+
+    return {
+        "caps": {
+            "posts_per_day": policy.MAX_POSTS_PER_DAY,
+            "posts_per_week": policy.MAX_POSTS_PER_WEEK,
+            "onpage_per_run": policy.MAX_ONPAGE_FIXES_PER_RUN,
+            "onpage_per_week": policy.MAX_ONPAGE_FIXES_PER_WEEK,
+            "cooldown_days": policy.PAGE_COOLDOWN_DAYS,
+        },
+        "used": {
+            "posts": shipped.get("posts") or 0,
+            "onpage": shipped.get("onpage") or 0,
+            "removed": shipped.get("removed") or 0,
+            "cooling": len(policy.cooling_down()),
+        },
+        "paused": policy.paused(),
+        "indexation": {
+            "first": first.get("pct", 0), "last": last.get("pct", 0),
+            "from_date": first.get("date", ""), "to_date": last.get("date", ""),
+            "indexed": last.get("indexed", 0), "checked": last.get("checked", 0),
+            "holding": (last.get("pct", 0) >= first.get("pct", 0)) if idx else True,
+        },
+        "acquisition_clicks": acq.get("clicks", 0),
+        "acquisition_position": acq.get("position", 0),
+        "ledger_pending": len(ledger.pending()) if hasattr(ledger, "pending") else 0,
+    }
+
+
 def collect() -> dict:
     freshness = _one("SELECT MAX(date) d FROM gsc_page_daily")
     return {
@@ -196,6 +287,10 @@ def collect() -> dict:
         "striking": striking(),
         "aeo": answer_engines(),
         "loop": loop_activity(),
+        "daily": daily(),
+        "queries": query_rows(),
+        "pages": page_rows(),
+        "strategy": strategy(),
     }
 
 

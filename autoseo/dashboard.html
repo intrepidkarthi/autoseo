@@ -1,215 +1,236 @@
 <title>autoseo — getdailyvox.com</title>
 <style>
-  /* Tokens. Neutrals carry a slight green bias from the product's own sage, so they read as
-     chosen rather than inherited; the two series colours are the validated categorical pair and
-     are never used for text. No webfonts: the artifact CSP blocks font hosts, and a silent
+  /* A console, not a report. Flat surfaces and hairlines rather than floating cards, dense rows,
+     one accent that means "selected" and nothing else. Numerals are monospaced everywhere they can
+     be compared down a column. No webfonts — the artifact CSP blocks font hosts and a silent
      fallback is worse than an honest system stack. */
   :root {
-    --bg:        #fbfbf9;
-    --surface:   #ffffff;
-    --line:      #e4e7e3;
-    --line-soft: #eef0ed;
-    --ink:       #16201c;
-    --ink-2:     #4a5551;
-    --muted:     #79837e;
-    --accent:    #4a6d5c;
-    --s1:        #2a78d6;
-    --s2:        #eb6834;
-    --good:      #1baf7a;
-    --warn:      #c98500;
-    --bad:       #e34948;
-    --radius: 10px;
+    --bg: #ffffff; --panel: #ffffff; --alt: #f7f8f7;
+    --line: #dcdfdb; --line-2: #edefec;
+    --ink: #151a17; --ink-2: #495049; --muted: #767e77;
+    --sel: #1a6ec0; --sel-soft: #eaf2fc;
+    --c-clicks: #2a78d6; --c-impr: #eb6834; --c-ctr: #1baf7a; --c-pos: #7b5ea7;
+    --bad: #c0392f; --ok: #1baf7a;
     --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #141715; --surface: #1b1f1d; --line: #2c322f; --line-soft: #232826;
-      --ink: #f0f2ef; --ink-2: #c3ccc7; --muted: #8d968f; --accent: #86b09a;
-      --s1: #3987e5; --s2: #d95926; --good: #199e70; --warn: #eda100; --bad: #e66767;
+      --bg: #101311; --panel: #161a17; --alt: #1b201d;
+      --line: #2b312d; --line-2: #21261f;
+      --ink: #eef1ed; --ink-2: #bcc4bd; --muted: #838c85;
+      --sel: #6aa9ee; --sel-soft: #17293c;
+      --c-clicks: #3987e5; --c-impr: #d95926; --c-ctr: #199e70; --c-pos: #9c86c9;
+      --bad: #e66767; --ok: #199e70;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #141715; --surface: #1b1f1d; --line: #2c322f; --line-soft: #232826;
-    --ink: #f0f2ef; --ink-2: #c3ccc7; --muted: #8d968f; --accent: #86b09a;
-    --s1: #3987e5; --s2: #d95926; --good: #199e70; --warn: #eda100; --bad: #e66767;
+    --bg: #101311; --panel: #161a17; --alt: #1b201d;
+    --line: #2b312d; --line-2: #21261f;
+    --ink: #eef1ed; --ink-2: #bcc4bd; --muted: #838c85;
+    --sel: #6aa9ee; --sel-soft: #17293c;
+    --c-clicks: #3987e5; --c-impr: #d95926; --c-ctr: #199e70; --c-pos: #9c86c9;
+    --bad: #e66767; --ok: #199e70;
   }
   :root[data-theme="light"] {
-    --bg: #fbfbf9; --surface: #ffffff; --line: #e4e7e3; --line-soft: #eef0ed;
-    --ink: #16201c; --ink-2: #4a5551; --muted: #79837e; --accent: #4a6d5c;
-    --s1: #2a78d6; --s2: #eb6834; --good: #1baf7a; --warn: #c98500; --bad: #e34948;
+    --bg: #ffffff; --panel: #ffffff; --alt: #f7f8f7;
+    --line: #dcdfdb; --line-2: #edefec;
+    --ink: #151a17; --ink-2: #495049; --muted: #767e77;
+    --sel: #1a6ec0; --sel-soft: #eaf2fc;
+    --c-clicks: #2a78d6; --c-impr: #eb6834; --c-ctr: #1baf7a; --c-pos: #7b5ea7;
+    --bad: #c0392f; --ok: #1baf7a;
   }
 
-  body { background: var(--bg); color: var(--ink); font-family: var(--sans);
-         line-height: 1.55; margin: 0; padding: 0 20px 72px; -webkit-font-smoothing: antialiased; }
-  .wrap { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 34px; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px;
+         line-height: 1.5; margin: 0; padding: 0 0 60px; -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
 
-  header { padding: 40px 0 4px; display: flex; flex-wrap: wrap; gap: 12px 24px;
-           align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--line);
-           padding-bottom: 18px; }
-  h1 { font-size: 1.35rem; font-weight: 620; letter-spacing: -0.015em; margin: 0; text-wrap: balance; }
-  h1 span { color: var(--muted); font-weight: 400; }
-  .stamp { font-family: var(--mono); font-size: 0.735rem; color: var(--muted); }
+  /* Title bar */
+  .top { border-bottom: 1px solid var(--line); }
+  .top .page { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline;
+               justify-content: space-between; padding-top: 18px; padding-bottom: 14px; }
+  h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  h1 b { color: var(--muted); font-weight: 400; }
+  .stamp { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
 
-  section { display: flex; flex-direction: column; gap: 14px; }
-  h2 { font-size: 0.7rem; font-weight: 660; letter-spacing: 0.1em; text-transform: uppercase;
-       color: var(--muted); margin: 0; }
-  .note { font-size: 0.85rem; color: var(--ink-2); margin: 0; max-width: 68ch; }
-  .note strong { color: var(--ink); font-weight: 600; }
+  /* Toolbar */
+  .toolbar { border-bottom: 1px solid var(--line); background: var(--alt); }
+  .toolbar .page { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+                   padding-top: 10px; padding-bottom: 10px; }
+  .fgroup { display: flex; align-items: center; gap: 7px; }
+  .flabel { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .seg button { font: inherit; font-size: 12.5px; padding: 4px 11px; background: var(--panel);
+                color: var(--ink-2); border: 0; border-right: 1px solid var(--line); cursor: pointer; }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--sel); color: #fff; }
+  .seg button:focus-visible { outline: 2px solid var(--sel); outline-offset: -2px; }
+  input[type="search"] { font: inherit; font-size: 12.5px; padding: 4px 9px; min-width: 190px;
+      border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--ink); }
+  input[type="search"]:focus-visible { outline: 2px solid var(--sel); outline-offset: -1px; }
+  .spacer { flex: 1 1 auto; }
+  .rowcount { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
 
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-          padding: 18px 20px; }
+  /* Metric tiles — click to add/remove a series from the chart */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+             border-bottom: 1px solid var(--line); }
+  @media (max-width: 760px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+  .metric { position: relative; text-align: left; font: inherit; cursor: pointer; padding: 13px 16px 15px;
+            background: var(--panel); border: 0; border-right: 1px solid var(--line-2);
+            border-top: 3px solid transparent; display: flex; flex-direction: column; gap: 3px; }
+  .metric:last-child { border-right: 0; }
+  .metric[aria-pressed="true"] { background: var(--alt); }
+  .metric:focus-visible { outline: 2px solid var(--sel); outline-offset: -3px; }
+  .metric .k { font-size: 11.5px; color: var(--muted); letter-spacing: 0.03em; }
+  .metric .v { font-family: var(--mono); font-size: 26px; font-variant-numeric: tabular-nums;
+               letter-spacing: -0.02em; line-height: 1.15; }
+  .metric .d { font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .up { color: var(--ok); } .down { color: var(--bad); } .flat { color: var(--muted); }
+  .metric[data-m="clicks"]      { border-top-color: transparent; }
+  .metric[data-m="clicks"][aria-pressed="true"]      { border-top-color: var(--c-clicks); }
+  .metric[data-m="impressions"][aria-pressed="true"] { border-top-color: var(--c-impr); }
+  .metric[data-m="ctr"][aria-pressed="true"]         { border-top-color: var(--c-ctr); }
+  .metric[data-m="position"][aria-pressed="true"]    { border-top-color: var(--c-pos); }
 
-  /* Verdict tiles */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); gap: 12px; }
-  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-          padding: 14px 16px; display: flex; flex-direction: column; gap: 5px; }
-  .tile .k { font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
-  .tile .v { font-family: var(--mono); font-size: 1.6rem; font-variant-numeric: tabular-nums;
-             letter-spacing: -0.02em; line-height: 1.1; }
-  .chip { align-self: flex-start; font-family: var(--mono); font-size: 0.72rem;
-          font-variant-numeric: tabular-nums; padding: 1px 7px; border-radius: 999px;
-          border: 1px solid currentColor; }
-  .up   { color: var(--good); }
-  .flat { color: var(--muted); }
-  .down { color: var(--bad); }
-
-  /* Charts */
-  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  @media (max-width: 720px) { .pair { grid-template-columns: 1fr; } }
-  .chart-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
-             margin-bottom: 10px; }
-  .chart-t { font-size: 0.82rem; font-weight: 600; }
-  .chart-s { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+  /* Chart */
+  .chartwrap { border-bottom: 1px solid var(--line); padding: 14px 0 6px; position: relative; }
+  .panelrow + .panelrow { margin-top: 10px; }
+  /* In normal flow, not absolutely positioned: at left:0 it sat on top of the y-axis tick labels. */
+  .plab { display: block; font-size: 11px; font-family: var(--mono); margin: 0 0 2px 2px;
+          letter-spacing: 0.02em; }
   svg { display: block; width: 100%; height: auto; overflow: visible; }
-  .grid { stroke: var(--line-soft); stroke-width: 1; }
+  .grid { stroke: var(--line-2); }
   .axis { font-family: var(--mono); font-size: 9.5px; fill: var(--muted); }
+  .subset { font-size: 12px; color: var(--ink-2); background: var(--sel-soft);
+            border-left: 3px solid var(--sel); padding: 7px 11px; margin: 10px 0 2px; }
+  .tip { position: absolute; pointer-events: none; background: var(--panel); color: var(--ink);
+         border: 1px solid var(--line); border-radius: 4px; padding: 7px 10px; font-size: 12px;
+         font-family: var(--mono); white-space: nowrap; opacity: 0; transition: opacity .1s;
+         box-shadow: 0 2px 10px rgba(0,0,0,.14); z-index: 5; }
+  @media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
 
-  /* Composition bars */
-  .barrow { display: flex; flex-direction: column; gap: 6px; }
-  .barrow + .barrow { margin-top: 16px; }
-  .barlab { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--ink-2); }
-  .barlab b { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink);
-              font-weight: 600; }
-  .bar { display: flex; height: 26px; border-radius: 5px; overflow: hidden; gap: 2px; }
-  .seg { display: flex; align-items: center; justify-content: center; font-family: var(--mono);
-         font-size: 0.7rem; color: #fff; min-width: 2px; }
-  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.76rem; color: var(--ink-2); }
-  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
-              margin-right: 6px; vertical-align: -1px; }
-
-  /* Tables */
+  /* Tabs + tables */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--line); margin-top: 26px; }
+  .tabs button { font: inherit; font-size: 13px; padding: 9px 16px; background: none; border: 0;
+                 border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; }
+  .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--sel); font-weight: 600; }
+  .tabs button:focus-visible { outline: 2px solid var(--sel); outline-offset: -2px; }
   .scroll { overflow-x: auto; }
-  table { border-collapse: collapse; width: 100%; font-size: 0.82rem; min-width: 560px; }
-  th { text-align: left; font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase;
-       color: var(--muted); font-weight: 600; padding: 0 10px 8px 0; border-bottom: 1px solid var(--line); }
-  td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line-soft); vertical-align: baseline; }
-  tr:last-child td { border-bottom: 0; }
-  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right;
-         white-space: nowrap; }
-  .path { font-family: var(--mono); font-size: 0.78rem; }
-  .q { color: var(--ink-2); }
-  .gap { color: var(--bad); font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  thead th { position: sticky; top: 0; background: var(--bg); z-index: 1; text-align: left;
+             font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted);
+             font-weight: 600; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line);
+             cursor: pointer; white-space: nowrap; user-select: none; }
+  thead th:focus-visible { outline: 2px solid var(--sel); outline-offset: -2px; }
+  thead th.n, td.n { text-align: right; }
+  thead th .arrow { color: var(--sel); }
+  td { padding: 7px 12px 7px 0; border-bottom: 1px solid var(--line-2); vertical-align: baseline; }
+  tbody tr:hover { background: var(--alt); }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .txt { max-width: 460px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { font-size: 10.5px; font-family: var(--mono); padding: 1px 6px; border-radius: 3px;
+         border: 1px solid var(--line); color: var(--muted); }
+  .tag.acquisition { color: var(--c-clicks); border-color: currentColor; }
+  .tag.brand { color: var(--c-impr); border-color: currentColor; }
+  .warn { color: var(--bad); font-weight: 600; }
+  .empty { padding: 26px 0; color: var(--muted); }
 
-  footer { font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--line);
-           padding-top: 16px; max-width: 72ch; }
-  code { font-family: var(--mono); font-size: 0.92em; background: var(--line-soft);
-         padding: 1px 5px; border-radius: 4px; }
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  h2 { font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+       color: var(--muted); margin: 30px 0 10px; }
+
+  /* Strategy panel */
+  .strat { border: 1px solid var(--line); border-left: 3px solid var(--sel); margin: 18px 0 22px; }
+  .strat .hd { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline;
+               padding: 11px 16px; border-bottom: 1px solid var(--line-2); background: var(--alt); }
+  .strat .hd h3 { font-size: 12px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+                  margin: 0; color: var(--ink); }
+  .strat .hd .st { font-family: var(--mono); font-size: 11.5px; }
+  .strat .bd { display: grid; grid-template-columns: 1.35fr 1fr; gap: 0; }
+  @media (max-width: 860px) { .strat .bd { grid-template-columns: 1fr; } }
+  .strat .col { padding: 13px 16px 15px; }
+  .strat .col + .col { border-left: 1px solid var(--line-2); }
+  @media (max-width: 860px) { .strat .col + .col { border-left: 0; border-top: 1px solid var(--line-2); } }
+  .strat h4 { font-size: 10.5px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted);
+              margin: 0 0 8px; font-weight: 700; }
+  .rules { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .rules li { font-size: 12.5px; color: var(--ink-2); padding-left: 15px; position: relative; }
+  .rules li::before { content: "—"; position: absolute; left: 0; color: var(--muted); }
+  .rules li b { color: var(--ink); font-weight: 600; }
+  .goal { font-size: 12.5px; color: var(--ink-2); margin: 0 0 10px; }
+  .verdict { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono);
+             font-size: 12px; padding: 3px 9px; border: 1px solid currentColor; border-radius: 3px; }
+  .verdict.hold { color: var(--ok); } .verdict.slip { color: var(--bad); }
+  .bars { display: flex; flex-direction: column; gap: 8px; margin-top: 11px; }
+  .cap { display: grid; grid-template-columns: 118px 1fr 54px; gap: 9px; align-items: center;
+         font-size: 12px; }
+  .cap .track { height: 6px; background: var(--line-2); border-radius: 3px; overflow: hidden; }
+  .cap .fill { height: 100%; background: var(--sel); }
+  .cap .n { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right;
+            color: var(--muted); font-size: 11.5px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+  .kv { display: flex; justify-content: space-between; gap: 14px; padding: 6px 0;
+        border-bottom: 1px solid var(--line-2); font-size: 13px; }
+  .kv b { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+  footer { margin-top: 34px; padding-top: 14px; border-top: 1px solid var(--line);
+           font-size: 12px; color: var(--muted); max-width: 78ch; }
+  code { font-family: var(--mono); font-size: 0.92em; }
 </style>
 
-<div class="wrap">
-  <header>
-    <h1>autoseo <span>· getdailyvox.com</span></h1>
-    <div class="stamp" id="stamp"></div>
-  </header>
+<div class="top"><div class="page">
+  <h1>autoseo <b>· getdailyvox.com · Search performance</b></h1>
+  <div class="stamp" id="stamp"></div>
+</div></div>
 
-  <section>
-    <h2>Last 28 days</h2>
-    <div class="tiles" id="tiles"></div>
-    <p class="note" id="verdict"></p>
-  </section>
+<div class="toolbar"><div class="page">
+  <div class="fgroup"><span class="flabel">Range</span>
+    <div class="seg" id="range" role="group" aria-label="Date range"></div>
+  </div>
+  <div class="fgroup"><span class="flabel">Intent</span>
+    <div class="seg" id="intent" role="group" aria-label="Search intent"></div>
+  </div>
+  <div class="fgroup"><span class="flabel">Filter</span>
+    <input type="search" id="q" placeholder="query or page contains…" aria-label="Filter rows">
+  </div>
+  <span class="spacer"></span>
+  <span class="rowcount" id="rowcount"></span>
+</div></div>
 
-  <section>
-    <h2>Reach versus conversion</h2>
-    <div class="card">
-      <div class="pair">
-        <div>
-          <div class="chart-h"><span class="chart-t">Clicks</span><span class="chart-s" id="clicks-s"></span></div>
-          <div id="chart-clicks"></div>
-        </div>
-        <div>
-          <div class="chart-h"><span class="chart-t">Impressions</span><span class="chart-s" id="imps-s"></span></div>
-          <div id="chart-imps"></div>
-        </div>
-      </div>
+<div class="page">
+  <section class="strat" id="strat"></section>
+  <div class="metrics" id="metrics"></div>
+  <div class="chartwrap">
+    <div id="charts"></div>
+    <div class="tip" id="tip"></div>
+  </div>
+  <div id="subset"></div>
+
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <div class="scroll"><table>
+    <thead><tr id="thead"></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+  <div class="empty" id="empty" hidden>No rows match these filters.</div>
+
+  <div class="grid2">
+    <div>
+      <h2>Answer engines</h2>
+      <div id="aeo"></div>
     </div>
-    <p class="note" id="partial-note"></p>
-    <p class="note">Two charts, not two axes on one. They are on different scales, and the shape of
-      the difference is the finding: clicks climb while impressions sit still. That is a
-      click-through story on a fixed base of reach, and it has a ceiling — at this impression volume
-      even an excellent 3% CTR caps out near 127 clicks per 28 days.</p>
-  </section>
-
-  <section>
-    <h2>Who is actually searching</h2>
-    <div class="card">
-      <div class="barrow">
-        <div class="barlab"><span>Impressions, by intent</span><b id="imp-total"></b></div>
-        <div class="bar" id="bar-imps"></div>
-      </div>
-      <div class="barrow">
-        <div class="barlab"><span>Clicks, by intent</span><b id="clk-total"></b></div>
-        <div class="bar" id="bar-clicks"></div>
-      </div>
-      <div class="legend" id="legend" style="margin-top:16px"></div>
+    <div>
+      <h2>Loop activity — last 30 days</h2>
+      <div id="loop"></div>
     </div>
-    <p class="note" id="composition-note"></p>
-  </section>
+  </div>
 
-  <section>
-    <h2>Where a rewrite could pay</h2>
-    <div class="card scroll">
-      <table>
-        <thead><tr>
-          <th>Page</th><th>Best acquisition query</th>
-          <th class="num">Impr.</th><th class="num">Clicks</th>
-          <th class="num">Page avg</th><th class="num">Real rank</th>
-        </tr></thead>
-        <tbody id="striking"></tbody>
-      </table>
-    </div>
-    <p class="note"><strong>Page avg</strong> is the impression-weighted position across every query
-      the page touches. <strong>Real rank</strong> is where it sits on the one query with money
-      behind it. When they diverge, the average is long-tail dilution and the page is further from
-      page one than it looks.</p>
-  </section>
-
-  <section>
-    <h2>Answer engines</h2>
-    <div class="card">
-      <div class="tiles" id="aeo-tiles"></div>
-      <div class="scroll" style="margin-top:16px">
-        <table>
-          <thead><tr><th>Cited instead of us</th><th class="num">Citations</th></tr></thead>
-          <tbody id="aeo-domains"></tbody>
-        </table>
-      </div>
-    </div>
-    <p class="note">What answer engines cite when asked the questions buyers ask. The pattern is the
-      point: the top sources are third-party — forums, video, roundups — not vendor sites. Publishing
-      another post on our own domain does not compete for that slot; being present on those pages does.</p>
-  </section>
-
-  <section>
-    <h2>What the loop shipped, last 30 days</h2>
-    <div class="card scroll">
-      <table>
-        <thead><tr><th>Action</th><th>Status</th><th class="num">Count</th></tr></thead>
-        <tbody id="loop"></tbody>
-      </table>
-    </div>
-  </section>
+  <h2>Striking distance — page average versus the query that matters</h2>
+  <div class="scroll"><table>
+    <thead><tr>
+      <th>Page</th><th>Best acquisition query</th><th class="n">Impr.</th>
+      <th class="n">Clicks</th><th class="n">Page avg</th><th class="n">Real rank</th>
+    </tr></thead>
+    <tbody id="striking"></tbody>
+  </table></div>
 
   <footer id="footer"></footer>
 </div>
@@ -217,159 +238,362 @@
 <script>
 const D = /*DATA*/null;
 const $ = id => document.getElementById(id);
-const n0 = x => Math.round(x).toLocaleString();
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const n0 = x => Math.round(x).toLocaleString();
+const f2 = x => x.toFixed(2);
 
-/* ---- verdict tiles ---------------------------------------------------- */
-const W = D.windows, cur = W[W.length - 1], prev = W[W.length - 2];
-const delta = (a, b) => (b ? (a - b) / b * 100 : 0);
-const chip = pct => {
-  const cls = Math.abs(pct) < 5 ? 'flat' : pct > 0 ? 'up' : 'down';
-  const sign = pct > 0 ? '+' : '';
-  return `<span class="chip ${cls}">${sign}${pct.toFixed(0)}% vs prior</span>`;
+/* ---- state ------------------------------------------------------------- */
+const MAXD = D.daily.length ? D.daily[D.daily.length - 1].d : null;
+const RANGES = [['7d', 7], ['28d', 28], ['3mo', 90], ['All', 9999]];
+const INTENTS = [['All', 'all'], ['Acquisition', 'acquisition'], ['Brand', 'brand'],
+                 ['Other', 'other']];
+const METRICS = {
+  clicks:      { label: 'Total clicks',      color: '--c-clicks', fmt: n0 },
+  impressions: { label: 'Total impressions', color: '--c-impr',   fmt: n0 },
+  ctr:         { label: 'Average CTR',       color: '--c-ctr',    fmt: v => v.toFixed(2) + '%' },
+  position:    { label: 'Average position',  color: '--c-pos',    fmt: v => v.toFixed(1) },
 };
-// Position gets places, not percent. It is a rank, so lower is better and a signed percentage
-// reads backwards — "−74%" on a metric that got worse is a sentence nobody parses correctly.
-const posMove = cur.position - prev.position;
-const posChip = `<span class="chip ${Math.abs(posMove) < 0.5 ? 'flat' : posMove > 0 ? 'down' : 'up'}">`
-  + `${posMove > 0 ? '+' : ''}${posMove.toFixed(1)} places vs prior</span>`;
-$('tiles').innerHTML = [
-  ['Clicks', n0(cur.clicks), chip(delta(cur.clicks, prev.clicks))],
-  ['Impressions', n0(cur.impressions), chip(delta(cur.impressions, prev.impressions))],
-  ['CTR', cur.ctr.toFixed(2) + '%', chip(delta(cur.ctr, prev.ctr))],
-  ['Avg position', cur.position.toFixed(1), posChip],
-  ['Pages earning clicks', cur.earning, chip(delta(cur.earning, prev.earning))],
-].map(([k, v, c]) => `<div class="tile"><span class="k">${k}</span><span class="v">${v}</span>${c}</div>`).join('');
+const S = { days: 28, intent: 'all', text: '', on: new Set(['clicks', 'impressions']), tab: 'queries',
+            sort: { key: 'i', dir: -1 } };
 
-$('stamp').textContent = `generated ${D.generated} · GSC data through ${D.data_through}`;
-$('verdict').innerHTML =
-  `Clicks are compounding — <strong>${n0(W[0].clicks)} → ${n0(W[1].clicks)} → ${n0(cur.clicks)}</strong>
-   across three 28-day windows — while impressions are flat and average position has drifted from
-   <strong>${W[0].position.toFixed(1)} to ${cur.position.toFixed(1)}</strong>. Query coverage went
-   ${W[0].queries} → ${cur.queries}, which is long-tail breadth, not reach.`;
+const shiftDays = (iso, n) => {
+  const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const from = () => S.days >= 9999 ? '0000-01-01' : shiftDays(MAXD, -S.days + 1);
+const inRange = r => r.d >= from() && r.d <= MAXD;
+const bucket = k => k === 'acquisition' || k === 'brand' ? k : 'other';
+const matchIntent = r => S.intent === 'all' || bucket(r.k) === S.intent;
+const matchText = t => !S.text || t.toLowerCase().includes(S.text);
 
-/* ---- small multiples --------------------------------------------------- */
-function area(el, series, key, colorVar, fmt) {
-  const w = 460, h = 150, pad = { t: 10, r: 10, b: 22, l: 40 };
-  const vals = series.map(d => d[key]);
-  const max = Math.max(...vals) * 1.15 || 1;
-  const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-  const x = i => pad.l + (series.length < 2 ? iw / 2 : i * iw / (series.length - 1));
-  const y = v => pad.t + ih - (v / max) * ih;
-  const pts = series.map((d, i) => [x(i), y(d[key])]);
-  // A part-month is drawn but never drawn as if it were finished: its segment is dashed and its
-  // endpoint hollow, so the eye does not read an incomplete month as a decline.
-  const lastPartial = series[series.length - 1].partial;
-  const solidPts = lastPartial ? pts.slice(0, -1) : pts;
-  const path = ps => ps.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-  const line = path(solidPts);
-  const tail = lastPartial ? path(pts.slice(-2)) : '';
-  const fill = `${path(solidPts)} L${solidPts[solidPts.length - 1][0].toFixed(1)} ${pad.t + ih} L${pts[0][0].toFixed(1)} ${pad.t + ih} Z`;
-  const c = css(colorVar);
-  const ticks = [0, max / 2, max].map(v =>
-    `<line class="grid" x1="${pad.l}" x2="${w - pad.r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/>
-     <text class="axis" x="${pad.l - 7}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${fmt(v)}</text>`).join('');
-  const labels = series.map((d, i) =>
-    (i % Math.ceil(series.length / 6) === 0 || i === series.length - 1)
-      ? `<text class="axis" x="${x(i).toFixed(1)}" y="${h - 6}" text-anchor="middle">${d.month.slice(5)}</text>` : '').join('');
-  // Endpoint emphasised, and every point gets a hit target far larger than the dot it carries.
-  const dots = series.map((d, i) => {
-    const last = i === series.length - 1;
-    const hollow = d.partial;
-    const note = d.partial ? ` · ${d.days} of ${d.days_in_month} days so far` : '';
-    return `<circle cx="${x(i).toFixed(1)}" cy="${y(d[key]).toFixed(1)}" r="${last ? 4.5 : 3}"
-             fill="${last && !hollow ? c : 'var(--surface)'}" stroke="${c}" stroke-width="2"/>
-            <circle cx="${x(i).toFixed(1)}" cy="${y(d[key]).toFixed(1)}" r="13" fill="transparent">
-              <title>${d.month} · ${n0(d[key])}${note}</title></circle>`;
-  }).join('');
-  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${key} by month">
-      ${ticks}<path d="${fill}" fill="${c}" opacity="0.10"/>
-      <path d="${line}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-      ${tail ? `<path d="${tail}" fill="none" stroke="${c}" stroke-width="2" stroke-dasharray="3 3" opacity="0.7"/>` : ''}
-      ${dots}${labels}</svg>`;
+/* Aggregate rows into one record per key. Position is impression-weighted; a plain mean would let
+   a two-impression page outvote a nine-hundred-impression one. */
+function agg(rows, keyfn) {
+  const m = new Map();
+  for (const r of rows) {
+    const k = keyfn(r);
+    let a = m.get(k);
+    if (!a) m.set(k, a = { key: k, c: 0, i: 0, w: 0, k2: r.k });
+    a.c += r.c; a.i += r.i; a.w += (r.p || 0) * r.i;
+  }
+  for (const a of m.values()) {
+    a.p = a.i ? a.w / a.i : 0;
+    a.ctr = a.i ? a.c / a.i * 100 : 0;
+  }
+  return [...m.values()];
 }
+
+/* The series behind the chart. With no intent filter this is the authoritative page-level total;
+   filtered, it can only come from the query dimension, which GSC populates for part of the traffic.
+   Switching filters therefore changes the *coverage* as well as the slice, and pretending otherwise
+   would show a cliff that is an artefact. The banner says which source is in play. */
+function series() {
+  if (S.intent === 'all' && !S.text) {
+    return { rows: agg(D.daily.filter(inRange), r => r.d), subset: false };
+  }
+  const rows = D.queries.filter(r => inRange(r) && matchIntent(r) && matchText(r.q));
+  return { rows: agg(rows, r => r.d), subset: true };
+}
+
+function totals(rows) {
+  const t = rows.reduce((a, r) => ({ c: a.c + r.c, i: a.i + r.i, w: a.w + r.p * r.i }),
+                        { c: 0, i: 0, w: 0 });
+  return { clicks: t.c, impressions: t.i, ctr: t.i ? t.c / t.i * 100 : 0,
+           position: t.i ? t.w / t.i : 0 };
+}
+
+/* ---- controls ---------------------------------------------------------- */
+function segment(el, items, get, set) {
+  el.innerHTML = items.map(([label, v]) =>
+    `<button type="button" data-v="${v}" aria-pressed="${get() === v}">${label}</button>`).join('');
+  el.onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    set(isNaN(b.dataset.v) ? b.dataset.v : +b.dataset.v);
+    [...el.children].forEach(c => c.setAttribute('aria-pressed', c === b));
+    render();
+  };
+}
+segment($('range'), RANGES, () => S.days, v => S.days = v);
+segment($('intent'), INTENTS, () => S.intent, v => S.intent = v);
+$('q').oninput = e => { S.text = e.target.value.trim().toLowerCase(); render(); };
+
+/* ---- metric tiles ------------------------------------------------------ */
+function drawMetrics() {
+  const cur = totals(series().rows);
+  // Previous window of equal length, same filters, for the delta.
+  const prevFrom = shiftDays(from(), -S.days), prevTo = shiftDays(from(), -1);
+  const prevRows = (S.intent === 'all' && !S.text ? D.daily : D.queries)
+    .filter(r => r.d >= prevFrom && r.d <= prevTo &&
+                 (S.intent === 'all' || matchIntent(r)) && (!S.text || matchText(r.q || r.u || '')));
+  const prev = totals(agg(prevRows, r => r.d));
+
+  $('metrics').innerHTML = Object.entries(METRICS).map(([id, m]) => {
+    const v = cur[id], pv = prev[id];
+    let chip = '<span class="d flat">—</span>';
+    if (pv) {
+      if (id === 'position') {
+        const mv = v - pv;
+        chip = `<span class="d ${Math.abs(mv) < 0.3 ? 'flat' : mv > 0 ? 'down' : 'up'}">`
+             + `${mv > 0 ? '+' : ''}${mv.toFixed(1)} places</span>`;
+      } else {
+        const pct = (v - pv) / pv * 100;
+        chip = `<span class="d ${Math.abs(pct) < 3 ? 'flat' : pct > 0 ? 'up' : 'down'}">`
+             + `${pct > 0 ? '+' : ''}${pct.toFixed(0)}%</span>`;
+      }
+    }
+    return `<button type="button" class="metric" data-m="${id}" aria-pressed="${S.on.has(id)}">
+      <span class="k">${m.label}</span><span class="v">${m.fmt(v || 0)}</span>${chip}</button>`;
+  }).join('');
+  $('metrics').onclick = e => {
+    const b = e.target.closest('.metric'); if (!b) return;
+    const id = b.dataset.m;
+    if (S.on.has(id)) { if (S.on.size > 1) S.on.delete(id); } else S.on.add(id);
+    render();
+  };
+}
+
+/* ---- chart ------------------------------------------------------------- */
+/* One panel per selected metric, stacked and sharing an x-axis. GSC overlays them on two y-axes;
+   that is the one chart convention worth breaking with it, because two scales on one frame invents
+   crossings and gaps that exist in the drawing and not in the data. Stacked panels answer the same
+   question — how do these move together — without the invented relationship. */
 function drawCharts() {
-  area($('chart-clicks'), D.monthly, 'clicks', '--s1', v => n0(v));
-  area($('chart-imps'), D.monthly, 'impressions', '--s2', v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : n0(v));
-}
-drawCharts();
-const m = D.monthly, tail = m[m.length - 1];
-$('clicks-s').textContent = `${m[0].month} → ${tail.month}`;
-$('imps-s').textContent = 'same window';
-if (tail.partial) {
-  const rate = (tail.clicks / tail.days * tail.days_in_month);
-  $('partial-note').innerHTML =
-    `The dashed segment is <strong>${tail.month}</strong>, still in progress — ${tail.days} of
-     ${tail.days_in_month} days. It is running at ${(tail.clicks / tail.days).toFixed(1)} clicks/day
-     against ${(m[m.length - 2].clicks / m[m.length - 2].days_in_month).toFixed(1)} the month before,
-     so the apparent dip is the calendar, not a decline — on this pace the month lands near
-     <strong>${Math.round(rate)}</strong>.`;
+  const { rows, subset } = series();
+  rows.sort((a, b) => a.key < b.key ? -1 : 1);
+  const sel = [...S.on];
+  const W = 1140, H = sel.length > 2 ? 96 : 132, pad = { t: 12, r: 8, b: 18, l: 46 };
+
+  $('charts').innerHTML = sel.map(id => {
+    const m = METRICS[id], c = css(m.color);
+    const vals = rows.map(r => id === 'ctr' ? r.ctr : id === 'position' ? r.p : r[id === 'clicks' ? 'c' : 'i']);
+    const lo = id === 'position' ? 0 : 0;
+    const hi = Math.max(...vals, id === 'ctr' ? 1 : 1) * 1.18;
+    const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+    const x = i => pad.l + (rows.length < 2 ? iw / 2 : i * iw / (rows.length - 1));
+    // Position is a rank: 1 belongs at the top, so its scale is inverted.
+    const y = v => id === 'position'
+      ? pad.t + (v - lo) / (hi - lo) * ih
+      : pad.t + ih - (v - lo) / (hi - lo) * ih;
+    const pts = vals.map((v, i) => [x(i), y(v)]);
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    const fill = rows.length > 1
+      ? `${line} L${pts[pts.length - 1][0].toFixed(1)} ${id === 'position' ? pad.t : pad.t + ih} L${pts[0][0].toFixed(1)} ${id === 'position' ? pad.t : pad.t + ih} Z` : '';
+    // Deduplicated by rendered label: on a range of 0–1 clicks the midpoint formats to the same
+    // "1" as the top, and an axis reading 1 / 1 / 0 looks like a bug because it is one.
+    const seen = new Set();
+    const ticks = [0, 0.5, 1].map(f => {
+      const v = lo + (hi - lo) * f;
+      const label = m.fmt(v);
+      if (seen.has(label)) return '';
+      seen.add(label);
+      return `<line class="grid" x1="${pad.l}" x2="${W - pad.r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/>
+        <text class="axis" x="${pad.l - 6}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${label}</text>`;
+    }).join('');
+    const step = Math.max(1, Math.ceil(rows.length / 8));
+    const xlabels = rows.map((r, i) => (i % step === 0 || i === rows.length - 1)
+      ? `<text class="axis" x="${x(i).toFixed(1)}" y="${H - 5}" text-anchor="middle">${r.key.slice(5)}</text>` : '').join('');
+    const dots = rows.length <= 40 ? vals.map((v, i) =>
+      `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.5" fill="${c}"/>`).join('') : '';
+    return `<div class="panelrow"><span class="plab" style="color:${c}">${m.label}</span>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${m.label} over time">
+        ${ticks}${fill ? `<path d="${fill}" fill="${c}" opacity="0.09"/>` : ''}
+        <path d="${line}" fill="none" stroke="${c}" stroke-width="1.8" stroke-linejoin="round"/>
+        ${dots}${xlabels}
+        <line class="cross" x1="0" x2="0" y1="${pad.t}" y2="${pad.t + ih}" stroke="${c}"
+              stroke-width="1" opacity="0" />
+      </svg></div>`;
+  }).join('');
+
+  $('subset').innerHTML = subset
+    ? `<div class="subset"><b>Query-attributed subset.</b> Intent and text filters can only be
+       applied to the query dimension, which Search Console populates for
+       ${D.composition.coverage.toFixed(0)}% of clicks — the rest is anonymised. These lines describe
+       that subset, not the whole site; clear the filters for authoritative totals.</div>` : '';
+
+  attachHover(rows);
 }
 
-/* ---- composition ------------------------------------------------------- */
-const B = D.composition.buckets;
-const ORDER = [['acquisition', '--s1', 'Acquisition — people describing a problem'],
-               ['brand', '--s2', 'Brand — people who already know the name'],
-               ['irrelevant', '--muted', 'Irrelevant — framework identifiers, not buyers'],
-               ['competitor-internal', '--ink-2', 'Competitor-internal']];
-function stack(el, field) {
-  const total = ORDER.reduce((s, [k]) => s + (B[k] ? B[k][field] : 0), 0) || 1;
-  el.innerHTML = ORDER.map(([k, v]) => {
-    const val = B[k] ? B[k][field] : 0;
-    if (!val) return '';
-    const pct = val / total * 100;
-    return `<div class="seg" style="width:${pct}%;background:${css(v)}"
-              title="${k}: ${n0(val)} (${pct.toFixed(0)}%)">${pct > 11 ? pct.toFixed(0) + '%' : ''}</div>`;
-  }).join('');
-  return total;
+/* Crosshair + tooltip across every stacked panel at once. */
+function attachHover(rows) {
+  const wrap = $('charts'), tip = $('tip');
+  if (!rows.length) return;
+  wrap.onmousemove = e => {
+    const box = wrap.getBoundingClientRect();
+    const pad = { l: 46, r: 8 };
+    const frac = (e.clientX - box.left - pad.l * box.width / 1140) /
+                 ((1140 - pad.l - pad.r) * box.width / 1140);
+    const i = Math.max(0, Math.min(rows.length - 1, Math.round(frac * (rows.length - 1))));
+    const r = rows[i];
+    tip.innerHTML = `${r.key}<br>clicks ${n0(r.c)} · impr ${n0(r.i)}`
+      + `<br>ctr ${r.ctr.toFixed(2)}% · pos ${r.p.toFixed(1)}`;
+    tip.style.opacity = 1;
+    const tw = tip.offsetWidth;
+    tip.style.left = Math.min(box.width - tw - 6, Math.max(4, e.clientX - box.left + 12)) + 'px';
+    tip.style.top = (e.clientY - box.top + 12) + 'px';
+    wrap.querySelectorAll('svg').forEach(svg => {
+      const c = svg.querySelector('.cross');
+      const xp = 46 + (rows.length < 2 ? (1140 - 54) / 2 : i * (1140 - 54) / (rows.length - 1));
+      c.setAttribute('x1', xp); c.setAttribute('x2', xp); c.setAttribute('opacity', '0.45');
+    });
+  };
+  wrap.onmouseleave = () => {
+    tip.style.opacity = 0;
+    wrap.querySelectorAll('.cross').forEach(c => c.setAttribute('opacity', '0'));
+  };
 }
-function drawBars() {
-  $('imp-total').textContent = n0(stack($('bar-imps'), 'impressions')) + ' impressions';
-  $('clk-total').textContent = n0(stack($('bar-clicks'), 'clicks')) + ' attributed clicks';
-}
-drawBars();
-$('legend').innerHTML = ORDER.filter(([k]) => B[k]).map(([k, v, label]) =>
-  `<span><i style="background:${css(v)}"></i>${label}</span>`).join('');
-const acq = B['acquisition'] || { clicks: 0, position: 0 }, brand = B['brand'] || { clicks: 0 };
-$('composition-note').innerHTML =
-  `The two bars invert, and that inversion is the whole picture. Acquisition queries supply most of
-   the impressions and <strong>${n0(acq.clicks)} of the attributed clicks</strong>; the brand name
-   supplies <strong>${n0(brand.clicks)}</strong>. Acquisition terms sit at an average position of
-   <strong>${acq.position.toFixed(0)}</strong> — page five. The growth is real, but it is demand
-   created somewhere else and harvested here.
-   <br><br>GSC names the query for only <strong>${D.composition.coverage.toFixed(0)}%</strong> of
-   ${n0(D.composition.total_clicks)} total clicks; the rest is anonymised and cannot be split. This
-   chart describes the part that can be.`;
 
 /* ---- tables ------------------------------------------------------------ */
+const TABS = [['Queries', 'queries'], ['Pages', 'pages']];
+const COLS = {
+  queries: [['Query', 'key', 0], ['Intent', 'k2', 0], ['Clicks', 'c', 1],
+            ['Impressions', 'i', 1], ['CTR', 'ctr', 1], ['Position', 'p', 1]],
+  pages:   [['Page', 'key', 0], ['Clicks', 'c', 1], ['Impressions', 'i', 1],
+            ['CTR', 'ctr', 1], ['Position', 'p', 1]],
+};
+$('tabs').innerHTML = TABS.map(([l, v]) =>
+  `<button type="button" role="tab" data-v="${v}" aria-selected="${S.tab === v}">${l}</button>`).join('');
+$('tabs').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.tab = b.dataset.v; S.sort = { key: 'i', dir: -1 };
+  [...$('tabs').children].forEach(c => c.setAttribute('aria-selected', c === b));
+  render();
+};
+
+function tableRows() {
+  if (S.tab === 'queries') {
+    const rows = D.queries.filter(r => inRange(r) && matchIntent(r) && matchText(r.q));
+    return agg(rows, r => r.q);
+  }
+  // Pages carry no intent of their own, so an intent filter cannot apply to them honestly.
+  const rows = D.pages.filter(r => inRange(r) && matchText(r.u));
+  return agg(rows, r => r.u);
+}
+
+function drawTable() {
+  const cols = COLS[S.tab];
+  $('thead').innerHTML = cols.map(([label, key, num]) => {
+    const active = S.sort.key === key;
+    return `<th class="${num ? 'n' : ''}" data-k="${key}" tabindex="0"
+      aria-sort="${active ? (S.sort.dir < 0 ? 'descending' : 'ascending') : 'none'}">${label}`
+      + (active ? ` <span class="arrow">${S.sort.dir < 0 ? '▼' : '▲'}</span>` : '') + '</th>';
+  }).join('');
+  const sortBy = (k) => { S.sort = S.sort.key === k ? { key: k, dir: -S.sort.dir } : { key: k, dir: -1 }; render(); };
+  $('thead').onclick = e => { const th = e.target.closest('th'); if (th) sortBy(th.dataset.k); };
+  $('thead').onkeydown = e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const th = e.target.closest('th'); if (th) { e.preventDefault(); sortBy(th.dataset.k); }
+  };
+
+  let rows = tableRows();
+  const k = S.sort.key, dir = S.sort.dir;
+  rows.sort((a, b) => {
+    const av = a[k], bv = b[k];
+    if (typeof av === 'string') return dir * av.localeCompare(bv);
+    return dir * ((av || 0) - (bv || 0));
+  });
+  const shown = rows.slice(0, 200);
+  $('empty').hidden = rows.length > 0;
+  $('rowcount').textContent = rows.length
+    ? `${n0(shown.length)} of ${n0(rows.length)} ${S.tab}` : '';
+
+  $('tbody').innerHTML = shown.map(r => {
+    const cells = cols.map(([, key, num]) => {
+      if (key === 'key') return `<td class="txt" title="${r.key}">${r.key}</td>`;
+      if (key === 'k2') return `<td><span class="tag ${bucket(r.k2)}">${bucket(r.k2)}</span></td>`;
+      const v = key === 'ctr' ? r.ctr.toFixed(2) + '%'
+              : key === 'p' ? r.p.toFixed(1) : n0(r[key]);
+      return `<td class="n mono">${v}</td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+}
+
+/* ---- strategy ---------------------------------------------------------- */
+/* The rules are quoted from where they are enforced, and the numbers in them come from
+   act/policy.py, so a cap change moves this panel too. The scored goal is the repo's own: daily
+   publishing was allowed on the condition that it must not cost indexation. */
+const T = D.strategy, IX = T.indexation;
+const cap = (label, used, max) => `<div class="cap"><span>${label}</span>
+  <span class="track"><span class="fill" style="width:${Math.min(100, max ? used / max * 100 : 0)}%"></span></span>
+  <span class="n">${used}/${max}</span></div>`;
+$('strat').innerHTML = `
+  <div class="hd">
+    <h3>Content strategy in force</h3>
+    <span class="st ${T.paused ? 'down' : 'up'}">${T.paused ? 'PAUSED — ' + T.paused : 'running · unattended · 06:07 IST daily'}</span>
+  </div>
+  <div class="bd">
+    <div class="col">
+      <h4>The rules the loop operates under</h4>
+      <ul class="rules">
+        <li><b>Fix what already ranks before writing anything new.</b> Pages holding real impressions
+          off page one are edited first; a new post is only justified where demand exists and no page
+          owns it.</li>
+        <li><b>Subtract in the same run that adds.</b> Dead clusters are noindexed and dropped from
+          the sitemaps as posts ship, so the corpus does not grow faster than Google will index it.</li>
+        <li><b>Volume is explicitly not the objective.</b> The site is still recovering from 1,507
+          templated pages that earned one click between them.</li>
+        <li><b>Only acquisition intent counts.</b> Brand and framework-identifier queries are
+          excluded from targeting — they convert nothing and flatter every average.</li>
+        <li><b>One page, once a month.</b> A ${T.caps.cooldown_days}-day cooldown per page, because
+          search takes weeks to react and daily rewrites measure nothing.</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h4>The goal it is scored against</h4>
+      <p class="goal">Publishing was raised to ${T.caps.posts_per_day}/day on one written condition:
+        it must not cost indexation. <em>“If that ratio falls over the next few weeks, this number is
+        the one to move.”</em> That is the commitment being measured — not a traffic target.</p>
+      <span class="verdict ${IX.holding ? 'hold' : 'slip'}">
+        ${IX.holding ? '✓ holding' : '✗ slipping'} · ${IX.first.toFixed(1)}% → ${IX.last.toFixed(1)}%
+        (${IX.indexed}/${IX.checked} indexed)
+      </span>
+      <div class="bars">
+        ${cap('Posts, 7d', T.used.posts, T.caps.posts_per_week)}
+        ${cap('On-page fixes, 7d', T.used.onpage, T.caps.onpage_per_week)}
+        <div class="cap"><span>Removals, 7d</span><span class="track"></span>
+          <span class="n">${T.used.removed}</span></div>
+        <div class="cap"><span>Pages cooling down</span><span class="track"></span>
+          <span class="n">${T.used.cooling}</span></div>
+      </div>
+      <p class="goal" style="margin-top:12px">Executing to plan. The outcome it has not yet moved:
+        acquisition queries still return <b>${n0(T.acquisition_clicks)}</b> attributed clicks at an
+        average position of <b>${T.acquisition_position.toFixed(0)}</b>.</p>
+    </div>
+  </div>`;
+
+/* ---- static panels ----------------------------------------------------- */
+const A = D.aeo;
+$('aeo').innerHTML =
+  `<div class="kv"><span>Questions probed</span><b>${A.probes}</b></div>
+   <div class="kv"><span>DailyVox named in the answer</span><b>${A.mentioned} (${A.probes ? Math.round(A.mentioned / A.probes * 100) : 0}%)</b></div>
+   <div class="kv"><span>getdailyvox.com cited</span><b>${A.cited}</b></div>`
+  + A.domains.slice(0, 8).map(d =>
+      `<div class="kv"><span class="mono" style="font-size:12px">${d.domain}</span><b>${d.count}</b></div>`).join('');
+
+$('loop').innerHTML = D.loop.length
+  ? D.loop.map(r => `<div class="kv"><span>${r.kind} · ${r.status}</span><b>${r.n}</b></div>`).join('')
+  : '<div class="kv"><span>No ledger activity</span><b>0</b></div>';
+
 $('striking').innerHTML = D.striking.map(r => {
   const wide = r.head_position && Math.abs(r.head_position - r.position) >= 8;
-  return `<tr><td class="path">${r.page}</td><td class="q">${r.query || '—'}</td>
-    <td class="num">${n0(r.impressions)}</td><td class="num">${n0(r.clicks)}</td>
-    <td class="num">${r.position.toFixed(1)}</td>
-    <td class="num ${wide ? 'gap' : ''}">${r.head_position ? r.head_position.toFixed(1) : '—'}</td></tr>`;
-}).join('') || '<tr><td colspan="6">Nothing in striking distance right now.</td></tr>';
+  return `<tr><td class="txt mono" style="font-size:12px">${r.page}</td>
+    <td class="txt">${r.query || '—'}</td>
+    <td class="n mono">${n0(r.impressions)}</td><td class="n mono">${n0(r.clicks)}</td>
+    <td class="n mono">${r.position.toFixed(1)}</td>
+    <td class="n mono ${wide ? 'warn' : ''}">${r.head_position ? r.head_position.toFixed(1) : '—'}</td></tr>`;
+}).join('') || '<tr><td colspan="6" class="empty">Nothing in striking distance.</td></tr>';
 
-const A = D.aeo;
-$('aeo-tiles').innerHTML = [
-  ['Questions probed', A.probes], ['DailyVox named', A.mentioned],
-  ['Our domain cited', A.cited],
-  ['Share of answers', A.probes ? Math.round(A.mentioned / A.probes * 100) + '%' : '—'],
-].map(([k, v]) => `<div class="tile"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
-$('aeo-domains').innerHTML = A.domains.map(d =>
-  `<tr><td class="path">${d.domain}</td><td class="num">${d.count}</td></tr>`).join('');
-
-$('loop').innerHTML = D.loop.map(r =>
-  `<tr><td>${r.kind}</td><td class="q">${r.status}</td><td class="num">${r.n}</td></tr>`).join('')
-  || '<tr><td colspan="3">No ledger activity in the last 30 days.</td></tr>';
-
+$('stamp').textContent = `generated ${D.generated} · data through ${D.data_through}`;
 $('footer').innerHTML =
-  `Generated by <code>autoseo dashboard</code> from <code>state/*.csv</code> — every figure is
-   first-party Search Console and answer-engine data, recomputed on each run rather than edited by
-   hand. Impression-weighted positions throughout; a simple average would flatter them.`;
+  `<code>autoseo dashboard</code> regenerates this from <code>state/*.csv</code>. Positions are
+   impression-weighted throughout. Intent is the same <code>decide/brand.py</code> classifier the
+   autonomous loop plans against, so this page and the nightly decisions cannot disagree about what
+   counts as acquisition.`;
 
-/* Series colours are read from CSS custom properties, so a theme change has to redraw the SVG. */
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { drawCharts(); drawBars(); });
-new MutationObserver(() => { drawCharts(); drawBars(); })
-  .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+/* ---- go ---------------------------------------------------------------- */
+function render() { drawMetrics(); drawCharts(); drawTable(); }
+render();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+new MutationObserver(render).observe(document.documentElement,
+  { attributes: true, attributeFilter: ['data-theme'] });
 </script>
