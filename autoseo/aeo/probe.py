@@ -25,6 +25,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -44,6 +45,11 @@ ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:gene
 # `gemini-flash-latest` always resolves to the current flash model.
 DEFAULT_MODEL = "gemini-flash-latest"
 REPEATS = 3
+
+# Gemini's grounded endpoint sheds load with 503 under demand spikes. Three attempts with
+# exponential backoff turns a transient spike into a slower run rather than a missing measurement.
+RETRIES = 3
+BACKOFF_SECONDS = 4
 
 
 @dataclass
@@ -120,12 +126,23 @@ def _ask(question: str, model: str) -> tuple[str, list[tuple[str, str]]]:
         "contents": [{"parts": [{"text": question}]}],
         "tools": [{"google_search": {}}],
     }
-    resp = httpx.post(
-        ENDPOINT.format(model=model),
-        params={"key": settings.gemini_api_key},
-        json=body,
-        timeout=90.0,
-    )
+    # Retried on 5xx, because those are capacity and not an answer. The 2026-08-17 frontier run
+    # lost 20 of 24 probes to "503: this model is currently experiencing high demand" and recorded
+    # the 4 survivors — a panel reading 0% presence that measured almost nothing, which is the exact
+    # shape of confident-and-wrong this repo keeps having to delete. A 4xx is not retried: a bad key
+    # or a retired model will fail identically however many times it is asked.
+    resp = None
+    for attempt in range(RETRIES):
+        resp = httpx.post(
+            ENDPOINT.format(model=model),
+            params={"key": settings.gemini_api_key},
+            json=body,
+            timeout=90.0,
+        )
+        if resp.status_code < 500:
+            break
+        if attempt < RETRIES - 1:
+            time.sleep(BACKOFF_SECONDS * (2 ** attempt))
     if resp.status_code >= 400:
         # Google's error body names the exact problem (wrong model, wrong API version, tool not
         # supported), but it echoes the request URL — key included — so GitHub masks the entire
@@ -227,6 +244,18 @@ def run(tier: str = "core", model: str = DEFAULT_MODEL, repeats: int = REPEATS,
 
     m = sum(r.mentioned for r in results)
     c = sum(r.cited for r in results)
-    log.info("AEO: %d probes — mentioned %d (%.0f%%), cited %d (%.0f%%)",
-             len(results), m, 100 * m / max(len(results), 1), c, 100 * c / max(len(results), 1))
+    attempted = len(questions) * repeats
+    log.info("AEO: %d/%d probes returned — mentioned %d (%.0f%%), cited %d (%.0f%%)",
+             len(results), attempted, m, 100 * m / max(len(results), 1),
+             c, 100 * c / max(len(results), 1))
+
+    # A thin panel and a bad result look identical once the rows are in the table: both read as a
+    # low mention rate. Say so at the point where the difference is still knowable, because a
+    # presence figure computed over a quarter of the intended runs is not a presence figure.
+    if attempted and len(results) < attempted * 0.75:
+        log.warning(
+            "only %d of %d probes returned — the rates above are computed over a partial panel and "
+            "should not be read as presence. Re-run before drawing a conclusion from them.",
+            len(results), attempted,
+        )
     return results
