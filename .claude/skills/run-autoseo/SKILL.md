@@ -111,6 +111,14 @@ These are the ones that cost real time here.
   `state/*.csv`. Skip the restore and every command returns *empty results and exit 0* — which
   reads as "no data" rather than "you forgot a step". This is the single most likely way to
   misread the tool.
+- **Sync from origin before any manual publish, or the caps lie.** `policy.post_budget()` reads the
+  local database, and the local database is whatever you last restored. On 2026-08-17 a manual
+  publish checked the budget at 06:54 UTC against state restored before CI's 02:47 push, was told
+  "budget 1", and shipped a second post against a 1/day cap. The `apply` job does
+  `git reset --hard origin/main` then `autoseo restore` before touching anything for exactly this
+  reason. Do the same by hand: `git fetch && git reset --hard origin/main && autoseo restore`.
+  The cap check is only as current as the rows behind it.
+
 - **Empty output is often correct.** The site genuinely has ~16 clicks/90d of opportunity. Before
   debugging an empty list, check the thresholds in `decide/brief.py` and whether the date window
   contains data. A 10-day window put the best page at position 33.6 when its 3-month position was
