@@ -91,6 +91,11 @@ def cooling_down() -> set[str]:
     )
 
 
+def already_redirected() -> set[str]:
+    """Paths a merge has already folded away. Permanent — a redirect is not a cooldown."""
+    return ledger.redirected_sources()
+
+
 def describe() -> str:
     budget, why = post_budget()
     lines = [
@@ -102,6 +107,7 @@ def describe() -> str:
         f"{ledger.shipped_since(ledger.Kind.META, 7) + ledger.shipped_since(ledger.Kind.FAQ, 7)} "
         f"shipped in 7 days)",
         f"  cooldown     {len(cooling_down())} page(s) inside the {PAGE_COOLDOWN_DAYS}-day window",
+        f"  merged       {len(already_redirected())} path(s) already 301'd — never proposed again",
     ]
     if reason := paused():
         lines.insert(0, f"  PAUSED       {reason}")

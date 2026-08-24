@@ -27,7 +27,7 @@ import httpx
 
 from autoseo.compose.blog import Draft
 from autoseo.core.log import get_logger
-from autoseo.publish import agent_layer, blog_index, page, site
+from autoseo.publish import agent_layer, blog_index, entity, page, site
 from autoseo.publish.site import BASE_BRANCH
 
 log = get_logger(__name__)
@@ -105,14 +105,20 @@ def render(changes: dict[str, str]) -> dict[str, str]:
         # 134 of the 142 pages there have no markdown source at all — so re-emitting everything it
         # produces would quietly replace pages it did not author.
         #
-        # The agent note is re-applied here rather than left to the backfill, because the renderer
-        # rebuilds these pages from markdown and would otherwise drop it — silently, on whichever
-        # article was edited last. Applying it to the renderer's output instead of patching the
-        # vendored renderer keeps that file re-copyable byte-for-byte.
+        # The agent note and the entity block are re-applied here rather than left to their
+        # backfills, because the renderer rebuilds these pages from markdown and would otherwise
+        # drop both — silently, on whichever article was edited last. Applying them to the
+        # renderer's output instead of patching the vendored renderer keeps that file re-copyable
+        # byte-for-byte.
+        #
+        # A dropped entity block is the quieter of the two failures and the worse one. A missing
+        # footer line is visible to anyone who loads the page; a BlogPosting that has reverted to
+        # inlining its own publisher looks entirely fine and simply stops connecting the article to
+        # anything, on the one page that was just edited because it mattered.
         for slug in changes:
             path = out / f"{slug}.html"
-            files[f"{site_root}/public/blog/{slug}.html"] = agent_layer.insert(
-                path.read_text(encoding="utf-8")
+            files[f"{site_root}/public/blog/{slug}.html"] = entity.insert(
+                agent_layer.insert(path.read_text(encoding="utf-8"))
             )
         if sitemap.exists():
             files[f"{site_root}/public/sitemap-articles.xml"] = sitemap.read_text(encoding="utf-8")

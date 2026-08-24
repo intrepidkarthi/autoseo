@@ -132,11 +132,18 @@ def run(dry_run: bool = False) -> Applied:
                 sitemap.drop_urls(set(item.meta["urls"]), item.rationale, dry_run=dry_run)
 
             elif item.kind == ledger.Kind.MERGE:
-                url = redirect.add(item.meta["source"], item.meta["destination"],
-                                   item.rationale, dry_run=dry_run)
                 # A URL that 301s must leave the sitemap in the same breath. Submitting a redirect
                 # asks Google to index a page that says "I am somewhere else".
+                #
+                # The sitemap goes first, and the order is load-bearing now that `redirect.add`
+                # raises `AlreadyApplied` rather than returning "". If the redirect is already live
+                # the raise skips the rest of this branch, so a drifted state — redirected, but
+                # still listed in the sitemap — would never get reconciled if the drop came second.
+                # `drop_urls` is itself a no-op when there is nothing to remove, so leading with it
+                # costs one read in the ordinary case.
                 sitemap.drop_urls({item.meta["loser"]}, item.rationale, dry_run=dry_run)
+                url = redirect.add(item.meta["source"], item.meta["destination"],
+                                   item.rationale, dry_run=dry_run)
 
             elif item.kind == ledger.Kind.SITEMAP:
                 url = sitemap.drop_urls(set(item.meta["urls"]), item.rationale, dry_run=dry_run)

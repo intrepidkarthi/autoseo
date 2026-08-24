@@ -41,11 +41,13 @@ submit      IndexNow → Bing, Yandex, Seznam, Naver. Google reads the regenerat
 | IndexNow submission | ✅ | Bing/Yandex/Seznam/Naver; Google has no equivalent API |
 | autonomous loop — plan, apply, caps, ledger | ✅ | no approval anywhere in it |
 | on-page fixer — titles, meta descriptions, FAQ | ✅ | works on both page kinds |
+| entity identity — Organization + `sameAs` | ✅ | 7 owned channels, linked from every blog page by `@id` |
 | publishing — direct commits, no PR | ✅ | daily |
 | pruning — clusters that earn nothing | ✅ | the loop subtracts as well as adds |
 | indexation tracked as a trend | ✅ | 69% today; the ceiling on everything |
 | de-listing the 1,507 orphaned pages | ✅ | applied automatically |
-| decision engine (bandit) | ⬜ | needs ~6 weeks of ledger rows paired with positions |
+| outcome grading — did the fix work? | ✅ | before/after, minus the site's own drift; observational only |
+| decision engine (bandit) | ⬜ | the measurement half now exists; needs matured rows to steer on |
 | video and social | ⏸️ | parked on purpose — the code stays, nothing schedules it |
 
 X, Reddit and Quora remain deliberately **manual**. They reward interaction with other people's posts,
@@ -110,9 +112,13 @@ autoseo run --dry-run         # the whole cycle, printing instead of committing
 autoseo plan --dry-run        # decide and compose only
 autoseo apply --dry-run       # show every commit that would be made
 autoseo check FILE            # run the quality gate over any draft
+autoseo entity                # who the blog says we are: coverage and the sameAs list
+autoseo entity --apply        # ship the Organization node to every blog page
+autoseo grade                 # what happened to everything already shipped
+autoseo grade --all           # including what is still too early to measure
 ```
 
-Everything is verified by `bash .claude/skills/run-autoseo/smoke.sh` — 17 checks covering the CLI,
+Everything is verified by `bash .claude/skills/run-autoseo/smoke.sh` — 20 checks covering the CLI,
 the failure paths, the caps, the quality gate, the page edits, the prune guards and the
 CSV round-trip.
 
@@ -144,6 +150,20 @@ for an agent at a terminal. This pipeline publishes at 06:00 with nobody there, 
 own `scan_marks.py` for the marks that have no glyph. That last one is the reason it is vendored rather than
 described — a model asked whether its own output contains zero-width characters will say it looks clean,
 because it does.
+
+**The loop now grades itself, and grades honestly.** `autoseo grade` joins each shipped action to
+what Search Console recorded afterwards, and subtracts the site's own drift — a page that gained two
+positions in a week where every untouched page gained two and a half did not improve. The noise floor
+is measured rather than assumed, from the spread of the pages nobody touched: on the first real run
+those scattered between -10.9 and +14.7 positions in a single week, so a fixed threshold would have
+called almost every result significant in whichever direction the dice fell. Nothing downstream reads
+it yet. A policy steering on two matured data points is worse than one steering on none.
+
+**The reward signal is a proxy, and that is a fact about the traffic, not a design choice.** A `meta`
+rewrite targets clicks — the fixer picks pages that rank without being clicked. The blog earned 34
+clicks in 30 days against 4,940 impressions, so per page per fortnight it is nought to four, and no
+arrangement of those numbers separates a title that works from one that does not. Position and
+impressions are what can be graded. Any decision engine built on this has to know that.
 
 **Two kinds of blog page.** 8 have markdown in `content/articles/` and are rendered; 134 are committed
 HTML with no source anywhere in the site repo — and those 134 earn every impression the blog gets. The

@@ -63,6 +63,7 @@ expect 0 "autoseo opportunity"       -- "$CLI" opportunity
 expect 0 "autoseo status"            -- "$CLI" status
 expect 0 "autoseo aeo --dry-run"     -- "$CLI" aeo --dry-run
 expect 0 "autoseo delist"            -- "$CLI" delist
+expect 0 "autoseo grade"             -- "$CLI" grade
 expect 0 "autoseo snapshot"          -- "$CLI" snapshot
 
 step "3. failure paths must fail loudly, not silently"
@@ -238,6 +239,104 @@ else:
     raise AssertionError("appending a second FAQ block was allowed")
 EOF
 
+# --- the entity block. Not exercised through the CLI: `autoseo entity` reads the site repo over
+# the network, and the whole point of this driver is that it needs no credentials. The markup
+# transform is where the risk is anyway — it rewrites structured data on 142 live pages.
+"$PY" - <<'EOF' && ok "entity block: Organization + sameAs, BlogPosting linked by @id, idempotent" || bad "entity block failed"
+import json, re
+from autoseo.publish import entity, page
+
+# Shaped like the real pages: three ld+json blocks, publisher inlined, canonical in the head.
+ART = """<html><head>
+  <title>Old Title</title>
+  <meta name="description" content="old description">
+  <link rel="canonical" href="https://getdailyvox.com/blog/x">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"BlogPosting","headline":"Old Title",
+   "description":"old description","datePublished":"2026-05-22",
+   "author":{"@type":"Organization","name":"DailyVox"},
+   "publisher":{"@type":"Organization","name":"DailyVox","url":"https://getdailyvox.com"}}
+  </script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+   {"@type":"Question","name":"Q","acceptedAnswer":{"@type":"Answer","text":"A"}}]}
+  </script>
+</head><body><main><article class="blog-article"><div class="article-body">
+  <p>Body copy that must survive untouched.</p>
+  <div class="article-cta"><h3>Try it</h3></div>
+</div></article></main></body></html>"""
+
+IDX = """<html><head>
+  <title>Blog</title>
+  <link rel="canonical" href="https://getdailyvox.com/blog">
+</head><body><main><h1>Blog</h1></main></body></html>"""
+
+def blocks(doc):
+    # json.loads raises on anything we emitted malformed, which is the assertion that matters most:
+    # a broken ld+json block is worse than no block at all.
+    return [json.loads(m.group(2)) for m in entity._LD.finditer(doc)]
+
+REF = {"@id": entity.org_id()}
+
+new = entity.insert(ART)
+bs = blocks(new)
+org = next(n for b in bs if "@graph" in b for n in b["@graph"] if n["@type"] == "Organization")
+assert len(org["sameAs"]) == len(entity.SAME_AS), "sameAs did not survive serialisation"
+assert org["@id"] == entity.org_id(), "organisation node has no stable @id"
+
+bp = next(b for b in bs if b.get("@type") == "BlogPosting")
+assert bp["publisher"] == REF and bp["author"] == REF, "BlogPosting still inlines its own publisher"
+assert bp["datePublished"] == "2026-05-22", "rewiring the publisher dropped an unrelated field"
+assert "Body copy that must survive untouched." in new, "entity insert changed the body"
+assert any(b.get("@type") == "FAQPage" for b in bs), "FAQPage block lost"
+
+# Idempotency. The block is refreshed rather than skipped, so re-running must converge, not stack.
+assert entity.insert(new) == new, "second insert changed the document"
+assert new.count('"@type": "Organization"') == 1, "organisation asserted more than once"
+
+# The regression that would be silent: retitle re-serialises the BlogPosting, and if it dropped the
+# @id the page would keep a valid-looking block that connects to nothing.
+ret = page.retitle(new, "New Title", "New description.")
+rbp = next(b for b in blocks(ret) if b.get("@type") == "BlogPosting")
+assert rbp["headline"] == "New Title", "retitle stopped working"
+assert rbp["publisher"] == REF, "retitle dropped the @id link to the organisation"
+assert entity.present(ret), "retitle dropped the entity block"
+
+# append_faq must not disturb it either.
+assert entity.present(page.append_faq(new.replace('"FAQPage"', '"XPageX"'),
+                                      [("Does it work offline?", "Yes.")])), \
+    "append_faq dropped the entity block"
+
+# A listing page has no BlogPosting and gets a Blog node instead. It states no title or
+# description on purpose — those live in the head, and a copy here would disagree after a retitle.
+g = blocks(entity.insert(IDX))[0]["@graph"]
+assert [n["@type"] for n in g] == ["Organization", "Blog"], [n["@type"] for n in g]
+assert g[1]["publisher"] == REF, "Blog node not attached to the organisation"
+assert "name" not in g[1] and "description" not in g[1], "Blog node restates head metadata"
+
+# A corrupt block naming us is repaired in place. Recognition failure here would add a second
+# block, leaving the page asserting two organisations with one of them broken.
+m = [x for x in entity._LD.finditer(new) if entity._is_ours(x.group(2))][0]
+corrupt = new[:m.start()] + '<script type="application/ld+json">{"@graph":[{"@id":"' \
+    + entity.org_id() + '",,,}]</script>' + new[m.end():]
+repaired = entity.insert(corrupt)
+assert len(blocks(repaired)) == len(blocks(new)), "corrupt block duplicated instead of repaired"
+
+# Someone else's broken block is not ours to clobber. The corruption is asserted before it is
+# used: `"@type":"FAQPage"` is unspaced in this fixture and spaced in the real pages, and a replace
+# that quietly matched nothing would leave this passing while testing nothing.
+foreign = new.replace('"@type":"FAQPage"', '"@type":"FAQPage",,,')
+assert foreign != new, "fixture not corrupted — the replace matched nothing"
+assert '"@type":"FAQPage",,,' in entity.insert(foreign), "clobbered a broken block that is not ours"
+
+try:
+    entity.insert("<html><body>no head close</body>")
+except RuntimeError:
+    pass
+else:
+    raise AssertionError("inserted into a page with no </head> — guessed at the anchor")
+EOF
+
 step "6. the quality gate — every article goes through this and nothing else"
 # The gate is the only thing between the model and the live site. Two properties matter: it strips
 # what has one correct fix, and it blocks what does not.
@@ -291,6 +390,95 @@ report = __import__("autoseo.quality.slop", fromlist=["slop"]).analyse(house, co
 assert not report.p0, f"house style blocked: {[f.rule for f in report.p0]}"
 assert not any(f.rule == "dramatic fragmentation" for f in report.flags), \
     "varied short sentences flagged as dramatic fragmentation"
+EOF
+
+step "6b. the feedback loop — a merge must not re-ship, and a fix must be graded honestly"
+# Two defects live here, both of which shipped. The merge for /blog/voice-recorder-diary-app was
+# re-planned and marked shipped on eleven consecutive days, ten of them committing nothing, because
+# `redirect.add` returned "" instead of raising and nothing filtered a source already 301'd.
+"$PY" - <<'EOF' && ok "merge never re-ships; grade refuses what it cannot measure" || bad "feedback loop failed"
+import datetime as dt
+from autoseo.act import ledger, policy
+from autoseo.decide import consolidate, grade
+from autoseo.publish import redirect, site
+
+# --- the merge guard ---------------------------------------------------------
+done = ledger.redirected_sources()
+assert isinstance(done, set), "redirected_sources must return a set"
+# The ten bogus rows have an empty commit URL and still count: the source IS redirected, and
+# forgetting that is what restarted the loop every morning.
+assert "/blog/voice-recorder-diary-app" in done, \
+    "a shipped merge was not recognised as already redirected"
+assert policy.already_redirected() == done, "policy and ledger disagree about what is redirected"
+
+for m in consolidate.candidates(90):
+    # consolidate may still propose it — it reads Search Console, which goes on reporting a
+    # redirected URL for weeks. The planner is what must not act on it.
+    if m.loser_path in done:
+        break
+else:
+    m = None
+survivors = [c for c in consolidate.candidates(90) if c.loser_path not in done]
+assert all(c.loser_path not in done for c in survivors), "a redirected path reached the planner"
+
+# `redirect.add` must raise rather than return "", so `apply` resolves the item instead of
+# recording a no-op as a success. Exercised without network by standing in for the site read.
+real_read, real_dir = site.read_text, site.site_dir
+site.read_text = lambda path: '{"redirects": [{"source": "/blog/x", "destination": "/blog/y"}]}'
+site.site_dir = lambda: "website"
+try:
+    redirect.add("/blog/x", "/blog/y", "already there")
+except site.AlreadyApplied:
+    pass
+except Exception as exc:
+    raise AssertionError(f"redirect.add raised {type(exc).__name__}, expected AlreadyApplied")
+else:
+    raise AssertionError("redirect.add returned instead of raising — apply will ship a no-op")
+finally:
+    site.read_text, site.site_dir = real_read, real_dir
+
+# --- grading -----------------------------------------------------------------
+# A window too short to read a ranking change from is refused, not estimated.
+try:
+    grade.report(horizon=2)
+except ValueError:
+    pass
+else:
+    raise AssertionError("graded a 2-day window")
+
+grades = grade.report(grade.HORIZON_DAYS)
+assert grades, "no shipped actions graded at all — the join found nothing"
+
+for g in grades:
+    # Nothing may carry a verdict it does not have the data for. This is the whole point: the
+    # failure mode of a feedback loop is a confident number computed from three days of noise.
+    if g.verdict in ("improved", "declined", "no-change"):
+        assert g.matured >= grade.HORIZON_DAYS, \
+            f"#{g.item_id} graded on {g.matured}d of data"
+        assert g.before.impressions >= grade.MIN_IMPRESSIONS, f"#{g.item_id} underpowered"
+        assert g.after.impressions >= grade.MIN_IMPRESSIONS, f"#{g.item_id} underpowered"
+        assert g.baseline is not None, f"#{g.item_id} graded with no drift correction"
+        # The floor is measured from the untouched pages, never a constant. On the first real run
+        # they scattered from -10.9 to +14.7 in a week; a fixed threshold would call that a result.
+        assert g.threshold >= grade.MIN_EFFECT_POSITIONS
+        assert (abs(g.adjusted) >= g.threshold) == (g.verdict != "no-change"), \
+            f"#{g.item_id} verdict {g.verdict} disagrees with its own threshold"
+    assert g.matured >= 0, f"#{g.item_id} has negative maturity: {g.matured}"
+
+# The adjustment must actually subtract the drift, not merely record it beside the raw number.
+for g in grades:
+    if g.baseline is not None and g.raw_delta is not None:
+        assert abs(g.adjusted - (g.raw_delta - g.baseline)) < 1e-9, \
+            f"#{g.item_id} adjusted is not raw minus drift"
+
+# A shorter horizon must never grade something the default already refused as too early.
+strict = {g.item_id for g in grades if g.verdict == "too-early"}
+loose = {g.item_id: g for g in grade.report(grade.MIN_HORIZON_DAYS)}
+for item_id in strict:
+    g = loose.get(item_id)
+    if g and g.verdict not in ("too-early", "underpowered", "confounded", "no-baseline"):
+        assert g.matured >= grade.MIN_HORIZON_DAYS, \
+            f"#{item_id} graded at a shorter horizon than its own data supports"
 EOF
 
 step "7. subtraction — the only irreversible-feeling thing the loop does"

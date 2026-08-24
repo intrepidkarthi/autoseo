@@ -175,6 +175,42 @@ def recent_sources(kind: str, limit: int = 2) -> list[str]:
     return [json.loads(r["meta"] or "{}").get("source", "gsc") for r in rows]
 
 
+def redirected_sources() -> set[str]:
+    """Paths that already 301 on the live site, so no merge should ever be proposed for them again.
+
+    Not a cooldown. `slugs_touched` asks "was this edited recently", because a title can be rewritten
+    again next month; a redirect is permanent, and re-proposing one is never right at any distance.
+
+    The reason this is needed at all is that `consolidate.candidates` cannot see the live site. It
+    runs in the compose half, which holds no site credential by design, so it decides from Search
+    Console alone — and Search Console keeps reporting the redirected URL for weeks afterwards, out
+    of a 90-day window that still contains every impression the page earned before it was folded in.
+    Left unfiltered it re-proposes the same merge every morning, forever. It did: eleven consecutive
+    days for `/blog/voice-recorder-diary-app`, ten of them shipping nothing and recording it as a
+    success. The ledger is the only record of the site's state the planning half is allowed to read,
+    so the ledger is where the guard has to live.
+
+    Two states count as done. Shipped is obvious. Dropped-as-already-present is the state `apply`
+    lands in when the ledger and the site have drifted apart and the redirect turns out to be there
+    already — that is a source which is redirected, and forgetting it would restart the same loop.
+    """
+    out: set[str] = set()
+    with session() as conn:
+        for r in conn.execute(
+            "SELECT status, meta FROM queue_item WHERE kind = ?", (Kind.MERGE,)
+        ):
+            meta = json.loads(r["meta"] or "{}")
+            source = meta.get("source")
+            if not source:
+                continue
+            if r["status"] == Status.SHIPPED:
+                out.add(source)
+            elif (r["status"] == Status.DROPPED
+                  and str(meta.get("reason", "")).startswith("already present")):
+                out.add(source)
+    return out
+
+
 def slugs_touched(kinds: tuple[str, ...], days: int) -> set[str]:
     """Slugs already acted on recently — so the fixer does not rewrite the same page every day."""
     cutoff = (dt.datetime.now(dt.UTC) - dt.timedelta(days=days)).isoformat(timespec="seconds")

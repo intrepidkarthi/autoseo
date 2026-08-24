@@ -46,8 +46,11 @@ def add(source: str, destination: str, rationale: str, dry_run: bool = False) ->
     sources = existing(config)
 
     if source in sources:
-        log.info("%s already redirects", source)
-        return ""
+        # Raised, not returned as "". An empty string reads as "committed nothing" and `apply`
+        # shipped the ledger row anyway — recording ten consecutive no-ops as successes while the
+        # redirect had been live since the first one. `AlreadyApplied` is the state this actually
+        # is, and `apply` already knows how to resolve it: the item is dropped as done, not shipped.
+        raise site.AlreadyApplied(f"{source} already redirects")
 
     # A redirect onto something that is itself redirected sends the reader through two hops and
     # dilutes the signal the merge exists to consolidate. Point at the final destination instead.

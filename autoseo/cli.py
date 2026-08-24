@@ -312,6 +312,11 @@ def _run_loop(args) -> None:
     print()
 
 
+def _grade_default() -> int:
+    from autoseo.decide.grade import HORIZON_DAYS
+    return HORIZON_DAYS
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="autoseo", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -404,6 +409,13 @@ def main(argv: list[str] | None = None) -> int:
                          help="ship a locally-authored llms.txt / llms-full.txt to the site")
     p_agent.add_argument("--dry-run", action="store_true")
 
+    p_ent = sub.add_parser(
+        "entity", help="identify DailyVox as one entity — Organization + sameAs on every blog page"
+    )
+    p_ent.add_argument("--apply", action="store_true",
+                       help="commit the block to every blog page (default: report coverage)")
+    p_ent.add_argument("--dry-run", action="store_true")
+
     p_del = sub.add_parser("delist", help="noindex the orphaned page clusters")
     p_del.add_argument("--apply", action="store_true",
                        help="commit the headers to the site (default: print the plan)")
@@ -413,6 +425,14 @@ def main(argv: list[str] | None = None) -> int:
         "prune", help="blog clusters that earn nothing, and sitemap URLs that should not be there"
     )
     p_prune.add_argument("--days", type=int, default=90)
+
+    p_grade = sub.add_parser(
+        "grade", help="did the shipped fixes work? before/after, corrected for the site's drift"
+    )
+    p_grade.add_argument("--horizon", type=int, default=None, metavar="DAYS",
+                         help=f"before/after window in days (default {_grade_default()})")
+    p_grade.add_argument("--all", action="store_true",
+                         help="also list actions too early or underpowered to grade")
 
     p_dash = sub.add_parser("dashboard", help="render the measurement as one HTML page")
     p_dash.add_argument("--out", type=Path, default=Path("state/dashboard.html"))
@@ -536,6 +556,58 @@ def main(argv: list[str] | None = None) -> int:
             if url := publisher.relink(dry_run=args.dry_run):
                 print(f"  {url}")
 
+        elif args.command == "grade":
+            from autoseo.decide import grade as grader
+            horizon = args.horizon or grader.HORIZON_DAYS
+            grades = grader.report(horizon)
+            counts = grader.summarise(grades)
+
+            settled = [g for g in grades if g.verdict in ("improved", "declined", "no-change")]
+            created = [g for g in grades if g.kind in grader.CREATED]
+            done_ids = {id(g) for g in settled} | {id(g) for g in created}
+            pending = [g for g in grades if id(g) not in done_ids]
+
+            print(f"\n  {len(grades)} shipped action(s) with a page, {horizon}-day window\n")
+
+            if settled:
+                print("  edits to live pages — position change, minus the site's own drift")
+                print(f"       {'shipped':<11} {'page':<32} {'before':>6} {'after':>6} "
+                      f"{'adj':>6} {'floor':>6}")
+                for g in settled:
+                    # The floor is printed beside the result on purpose. -1.9 against a +/-1.8
+                    # noise floor and -19.3 against +/-5.0 are both "improved" and are not remotely
+                    # the same finding; without the threshold the table reads as though they are.
+                    print(f"  {g.kind:<4} {g.shipped:<11} {g.slug[:32]:<32} "
+                          f"{g.before.position:>6.1f} {g.after.position:>6.1f} "
+                          f"{g.adjusted:>+6.1f} {'±' + format(g.threshold, '.1f'):>6}  {g.verdict}")
+                print(f"\n  Floor is {grader.NOISE_MULTIPLE}x the spread of untouched pages over "
+                      f"the same dates, not a fixed number.")
+                print()
+
+            if created:
+                print("  new pages — one that is not indexed cannot rank, whatever it says")
+                for g in created:
+                    print(f"  post {g.shipped:<11} {g.slug[:40]:<40} {g.verdict:<12} {g.note}")
+                print()
+
+            if pending and args.all:
+                print("  not yet gradeable")
+                for g in pending:
+                    print(f"  {g.kind:<4} {g.shipped:<11} {g.slug[:34]:<34} "
+                          f"{g.verdict:<13} {g.note}")
+                print()
+
+            print("  " + ", ".join(f"{v} {k}" for k, v in sorted(counts.items())))
+            if pending and not args.all:
+                print(f"  {len(pending)} not yet gradeable — `autoseo grade --all` lists them.")
+            # Printed on every run rather than left in a docstring. The signal here is a proxy, and
+            # anyone reading these as CTR outcomes draws the wrong conclusion: a meta rewrite targets
+            # clicks, and clicks are the one thing this traffic volume cannot measure.
+            if settled:
+                print("\n  Position and impressions only. Blog-wide clicks are too few to read a "
+                      "CTR change\n  from, which is the effect a title rewrite is actually for.")
+            print()
+
         elif args.command == "dashboard":
             from autoseo import dashboard
             path = dashboard.render(args.out, standalone=args.standalone)
@@ -559,6 +631,25 @@ def main(argv: list[str] | None = None) -> int:
                 # warning belong on the same screen.
                 if drift := agent_layer.audit_profile():
                     print(f"\n  STALE PROFILE: {drift}")
+                print()
+
+        elif args.command == "entity":
+            from autoseo.publish import entity
+            if args.apply:
+                if url := entity.backfill(dry_run=args.dry_run):
+                    print(f"  {url}")
+            else:
+                carrying, linked, total = entity.status()
+                print(f"\n  {carrying}/{total} blog page(s) carry the Organization node")
+                print(f"  {linked} article(s) reference it from their BlogPosting by @id")
+                if carrying < total:
+                    print(f"  {total - carrying} to go — `autoseo entity --apply` ships them.")
+                # The sameAs list is the whole point of the node, so it is printed rather than
+                # described: a channel silently dropped from a tuple in entity.py is invisible in a
+                # coverage percentage, and this is the one screen anybody looks at.
+                print(f"\n  sameAs ({len(entity.SAME_AS)}):")
+                for url in entity.SAME_AS:
+                    print(f"      {url}")
                 print()
 
         elif args.command == "delist":

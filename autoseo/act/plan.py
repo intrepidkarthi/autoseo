@@ -108,7 +108,12 @@ def _plan_hygiene(days: int, result: Planned, dry_run: bool) -> None:
     # and shipping several at once makes the effect of any of them unreadable.
     from autoseo.decide import consolidate
     if not ledger.planned(ledger.Kind.MERGE):
-        merges = consolidate.candidates(days)
+        # Filtered here rather than inside `candidates`, for the same reason the page cooldown is:
+        # `consolidate` reports what Search Console says, `policy` decides what may be acted on.
+        # Without this the 90-day window keeps re-proposing a merge that shipped weeks ago, because
+        # GSC goes on reporting the redirected URL long after it stopped being a page.
+        done = policy.already_redirected()
+        merges = [m for m in consolidate.candidates(days) if m.loser_path not in done]
         if merges:
             m = merges[0]
             print(f"\n  merge {m.loser_path} -> {m.winner_path}")

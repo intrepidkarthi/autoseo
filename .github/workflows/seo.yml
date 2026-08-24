@@ -99,6 +99,14 @@ jobs:
           autoseo brief
           autoseo plan --days "$DAYS" $DRY
           autoseo status
+
+          # What happened to what we already shipped. Observational for now — nothing downstream
+          # reads it, and a policy steering on two matured data points would be worse than one
+          # steering on none. It runs daily anyway so the record accumulates in the log from the
+          # start, and `|| true` because a measurement failing must never fail the run that
+          # produced the thing being measured.
+          autoseo grade || true
+
           autoseo snapshot
 
       - name: Commit state
