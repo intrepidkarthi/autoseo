@@ -17,10 +17,20 @@ name: seo
 
 on:
   schedule:
-    # 06:07 IST. The odd minute is deliberate: GitHub's scheduler is best-effort and drops or delays
-    # runs when a slot is oversubscribed, and :00 and :30 are what everyone picks. The first night
-    # on "30 0 * * *" did not fire at all. An off-boundary minute is the standard mitigation.
-    - cron: "37 0 * * *"
+    # Two firings, and the second one is not a second run — see the `guard` job.
+    #
+    # GitHub's scheduler is best-effort. An off-boundary minute was the first mitigation, after
+    # "30 0 * * *" failed to fire at all on the first night, and it was not enough: on 2026-08-27
+    # "37 0 * * *" produced no run either. Not a failure — an absence. No queued run, no cancelled
+    # run, nothing in the UI, and a silently skipped day looks exactly like a day with nothing to
+    # do. The whole loop is unattended, so a failure mode that leaves no trace is the worst kind.
+    #
+    # Two changes. The hour moved off 00:xx UTC, which is where every "daily" job in the world
+    # piles up and where this one was consistently starting 90 minutes late — a reliable sign of
+    # an oversubscribed slot. And a second firing ten hours later recovers the day if the first
+    # is dropped again.
+    - cron: "13 3 * * *"     # 08:43 IST
+    - cron: "41 13 * * *"    # 19:11 IST — catch-up, skipped when the morning run succeeded
   workflow_dispatch:
     inputs:
       dry_run:
@@ -52,8 +62,57 @@ permissions:
   contents: write   # to commit state/ back — this also keeps the 60-day schedule timer alive
 
 jobs:
+  # Does this firing have anything to do? Only the catch-up cron can answer "no".
+  #
+  # Fails OPEN, deliberately and at every branch: an error here must never be able to stop the
+  # loop. A dropped run costs one day; a guard that wrongly says "already done" costs every day
+  # until someone notices, and nobody is watching — that is the entire premise of this workflow.
+  # So the only path that sets proceed=false is the one where GitHub itself confirmed a successful
+  # run today.
+  guard:
+    name: anything to do
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "proceed=true" >> "$GITHUB_OUTPUT"     # the default, overwritten only below
+
+          # A hand-dispatched run is someone asking for it on purpose. Never second-guess that.
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "manual dispatch — proceeding"
+            exit 0
+          fi
+
+          today=$(date -u +%Y-%m-%d)
+          # `.event == "schedule"` matters: this job exists to recover a *dropped scheduled run*,
+          # and a hand-dispatched run — a dry run especially — says nothing about whether the
+          # morning firing happened. Counting one would suppress the very catch-up it was run to
+          # test. Manual runs are orthogonal here, and the per-day caps already stop the real ones
+          # from publishing twice.
+          runs=$(gh api "/repos/${{ github.repository }}/actions/workflows/seo.yml/runs?status=success&per_page=30" \
+                   --jq "[.workflow_runs[] | select(.event == \"schedule\" and (.created_at | startswith(\"$today\")))] | length" 2>/dev/null) || {
+            echo "::warning::could not read today's runs — proceeding rather than risk skipping a day"
+            exit 0
+          }
+          case "$runs" in
+            ''|*[!0-9]*) echo "::warning::unreadable run count '$runs' — proceeding"; exit 0 ;;
+          esac
+
+          if [ "$runs" -gt 0 ]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$runs successful run(s) already today — nothing to catch up"
+          else
+            echo "no successful run yet today — proceeding"
+          fi
+
   plan:
     name: measure and compose
+    needs: guard
+    if: needs.guard.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     environment: compose
     steps:
