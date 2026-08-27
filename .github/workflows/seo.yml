@@ -186,6 +186,7 @@ jobs:
           path: state
 
       - name: Apply
+        id: apply
         env:
           GH_DAILYVOX_TOKEN: ${{ secrets.GH_DAILYVOX_TOKEN }}
           AUTOSEO_PAUSE: ${{ vars.AUTOSEO_PAUSE }}
@@ -193,8 +194,23 @@ jobs:
         run: |
           set -e
           autoseo restore
-          autoseo apply $DRY
+
+          # `apply` exits non-zero when an item failed. That is a report, not a reason to stop.
+          # Items are applied independently and the ones that shipped are recorded as they go — but
+          # the database is gitignored, so those rows exist only until `snapshot` writes them out
+          # and the step below pushes them. Ending the shell here throws them away.
+          #
+          # On 2026-08-26 that is exactly what happened: one draft carried a slug the renderer
+          # would not match, `set -e` killed the job on the spot, and the prune that had already
+          # shipped that night went back to `planned` because nothing after this line ran. The
+          # ledger and the site disagreed about what was on the site — the failure this job's own
+          # commit step is written to avoid, arriving through the one door it was not watching.
+          #
+          # So carry the code to the end of the job and fail there, after the ledger is safe.
+          rc=0
+          autoseo apply $DRY || rc=$?
           autoseo snapshot
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
 
       - name: Commit state
         run: |
@@ -232,4 +248,14 @@ jobs:
           done
           echo "::error::could not push state after 3 attempts — the ledger and the site now"
           echo "::error::disagree about what shipped. Re-run this job before the next cycle."
+          exit 1
+
+      # Deliberately the last step. An item that failed still has to turn the run red — someone has
+      # to look at it — but not before the record of what shipped alongside it has been pushed.
+      - name: Report failed items
+        if: steps.apply.outputs.rc != '0'
+        run: |
+          echo "::error::autoseo apply reported at least one failed item — see the Apply step log."
+          echo "::error::The ledger has been committed, so the items that shipped are recorded and"
+          echo "::error::the failed one is marked failed rather than retried on the next cycle."
           exit 1

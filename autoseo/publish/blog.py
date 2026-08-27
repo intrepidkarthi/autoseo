@@ -19,6 +19,7 @@ or none.
 
 from __future__ import annotations
 
+import datetime as dt
 import os
 import re
 from pathlib import Path
@@ -26,11 +27,15 @@ from pathlib import Path
 import httpx
 
 from autoseo.compose.blog import Draft
+from autoseo.core.config import settings
 from autoseo.core.log import get_logger
 from autoseo.publish import agent_layer, blog_index, entity, page, site
+from autoseo.publish import sitemap as sitemaps
 from autoseo.publish.site import BASE_BRANCH
 
 log = get_logger(__name__)
+
+FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.S)
 
 
 def fetch_articles() -> dict[str, str]:
@@ -45,6 +50,42 @@ def fetch_articles() -> dict[str, str]:
     return articles
 
 
+def _align_slug(markdown: str, slug: str) -> str:
+    """Force the frontmatter `slug:` to the name the article is being filed under.
+
+    A slug is an address, and the address is the caller's to decide — it is what the index links
+    to, what the guard against overwriting a live page checks, and what IndexNow is told about.
+    The renderer, though, keys pages off the frontmatter, so the two have to agree and nothing
+    made them.
+
+    On 2026-08-26 they did not. The composer hands the model the slug and asks it to echo the line
+    back; the model echoed `...without-sending-the` where the caller said
+    `...without-sending-them-to`, four characters short. The renderer duly wrote a page at the
+    model's address, the guard below looked for the caller's, and the run died having composed a
+    perfectly good article. Realigning here means only one of the two can ever be wrong, and it is
+    never the one anybody else depends on.
+    """
+    m = FRONTMATTER.match(markdown)
+    if not m:
+        raise RuntimeError(f"{slug}: article markdown has no frontmatter block")
+    front = m.group(1)
+    declared = re.search(r"^slug:\s*(.+)$", front, re.M)
+    if declared and declared.group(1).strip().strip('"') == slug:
+        return markdown
+    if declared:
+        log.warning("%s: frontmatter says slug %r — realigning to the filed name",
+                    slug, declared.group(1).strip().strip('"'))
+        front = re.sub(r"^slug:.*$", f"slug: {slug}", front, count=1, flags=re.M)
+    else:
+        log.warning("%s: frontmatter has no slug — the renderer would skip it silently", slug)
+        front = f"slug: {slug}\n{front}"
+    # Spliced over the frontmatter's interior rather than rebuilt around it. `FRONTMATTER` ends in
+    # `\s*\n`, which greedily eats the blank line before the body, so reassembling the delimiters
+    # from a template quietly deletes it — a diff on every article that touches this path, for a
+    # change that is meant to be one line.
+    return markdown[:m.start(1)] + front + markdown[m.end(1):]
+
+
 def render(changes: dict[str, str]) -> dict[str, str]:
     """Render the site's articles with `changes` ({slug: markdown}) applied.
 
@@ -54,6 +95,10 @@ def render(changes: dict[str, str]) -> dict[str, str]:
     """
     import subprocess
     import tempfile
+
+    # Before anything reads the markdown, so the source that gets committed, the page that gets
+    # rendered and the sitemap entry all come from the same corrected text.
+    changes = {slug: _align_slug(markdown, slug) for slug, markdown in changes.items()}
 
     articles = fetch_articles()
     articles.update(changes)
@@ -120,8 +165,25 @@ def render(changes: dict[str, str]) -> dict[str, str]:
             files[f"{site_root}/public/blog/{slug}.html"] = entity.insert(
                 agent_layer.insert(path.read_text(encoding="utf-8"))
             )
+        # `lastmod` is added to the renderer's output, and only the changed slugs get today's
+        # date — every other article carries forward whatever the live sitemap already claimed.
+        # The renderer rebuilds this file from the whole markdown directory on every publish, so
+        # stamping all of them would re-date twenty articles to advertise one, which is precisely
+        # the signal `lastmod` exists to give and the opposite of the truth.
+        #
+        # The index is re-dated in the same commit. Left alone it went on saying this file had not
+        # moved since 2026-06-16 while the loop rewrote it nightly, and the index date is what
+        # Google reads to decide whether re-fetching the child is worth a crawl.
         if sitemap.exists():
-            files[f"{site_root}/public/sitemap-articles.xml"] = sitemap.read_text(encoding="utf-8")
+            articles_path = f"{site_root}/public/sitemap-articles.xml"
+            live = site.read_text(articles_path) or ""
+            files[articles_path] = sitemaps.with_lastmod(
+                sitemap.read_text(encoding="utf-8"),
+                day=dt.date.today().isoformat(),
+                fresh={f"{settings.site.rstrip('/')}/blog/{slug}" for slug in changes},
+                carry=sitemaps.lastmods(live),
+            )
+            files |= sitemaps.index_update({"sitemap-articles.xml"})
 
     log.info("rendered %d file(s) from %d change(s)", len(files), len(changes))
     return files
@@ -171,8 +233,6 @@ def publish(draft: Draft, dry_run: bool = False) -> str:
 
 
 # --- edits to pages that are already live ------------------------------------------------------
-
-FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.S)
 
 
 def _set_frontmatter(markdown: str, **fields: str) -> str:

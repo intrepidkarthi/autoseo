@@ -82,7 +82,14 @@ def build(public_dir: Path | None = None) -> dict[str, int]:
 
     all_urls = sitemap_urls | local_urls
     orphans = local_urls - sitemap_urls
-    if orphans:
+    if public_dir is None:
+        # Said out loud, because the alternative reads as a result. Without a local checkout
+        # `local_urls` is empty, so `orphans` is empty however the site actually looks, and a
+        # report of "0 URLs missing from the sitemap" would be a restatement of the arithmetic
+        # rather than a measurement. CI runs `autoseo inventory` bare — the plan job holds no
+        # credential for the site repo, deliberately — so this is the normal path, not an edge.
+        log.info("no --public-dir: the orphan check did not run (nothing to compare the sitemap to)")
+    elif orphans:
         log.warning(
             "%d URLs are live but NOT in the sitemap — these are the ones to decide on",
             len(orphans),
@@ -104,4 +111,23 @@ def build(public_dir: Path | None = None) -> dict[str, int]:
                 """,
                 (url, cluster, 1 if url in sitemap_urls else 0, now),
             )
+
+        # A URL dropped from the sitemap falls out of `all_urls` entirely, so the loop above never
+        # reaches its row and its `in_sitemap` stays 1 for good. Every URL this loop has ever
+        # de-listed was still counted as listed: 17 of them by 2026-08-26, including the ten
+        # `journal-prompts-*` pages it pruned itself and the six `/blog/page/N` listings. That
+        # flag is what `health.record` groups on, so the daily indexation row — the number the
+        # whole strategy is steered by — was being computed over a set the site no longer claims.
+        #
+        # Guarded on a non-empty fetch: a sitemap that failed to load would otherwise clear every
+        # flag on the site and read the next morning as a total de-listing.
+        if sitemap_urls:
+            placeholders = ",".join("?" * len(sitemap_urls))
+            cleared = conn.execute(
+                f"UPDATE url_inventory SET in_sitemap = 0 "
+                f"WHERE in_sitemap = 1 AND url NOT IN ({placeholders})",
+                tuple(sorted(sitemap_urls)),
+            ).rowcount
+            if cleared:
+                log.info("cleared in_sitemap on %d URL(s) no longer in the sitemap", cleared)
     return counts
