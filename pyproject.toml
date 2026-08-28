@@ -12,7 +12,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.6"]
+# pyyaml is a test dependency: tests/test_workflow.py asserts on the nightly
+# workflow's own structure, which is where two production failures actually lived.
+dev = ["pytest>=8.0", "ruff>=0.6", "pyyaml>=6.0"]
 # Heavy and only needed when rendering video, so kept out of the default install: every other
 # workflow would otherwise pay ~200 MB of onnxruntime on each run.
 media = ["kokoro-onnx>=0.4", "numpy>=1.26", "soundfile>=0.12"]
@@ -28,6 +30,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["autoseo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
 
 [tool.ruff]
 line-length = 110
