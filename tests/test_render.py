@@ -62,3 +62,13 @@ def test_a_slug_the_renderer_would_skip_raises_rather_than_shipping_a_404(site_s
     monkeypatch.setattr(blog, "_align_slug", lambda markdown, slug: markdown)  # defeat the fix
     with pytest.raises(RuntimeError, match="renderer produced no"):
         blog.render({FILED_SLUG: BAD_SLUG_MARKDOWN})
+
+
+def test_the_rendered_page_carries_the_social_card(rendered):
+    """The renderer emits no og:image, so `render` has to add it on the way out — the same way it
+    re-applies the agent note and the entity block. Without this the loop keeps publishing pages
+    that share as a bare URL."""
+    html = rendered[f"website/public/blog/{FILED_SLUG}.html"]
+    assert 'property="og:image"' in html
+    assert 'content="summary_large_image"' in html
+    assert "max-image-preview:large" in html

@@ -29,7 +29,7 @@ import httpx
 from autoseo.compose.blog import Draft
 from autoseo.core.config import settings
 from autoseo.core.log import get_logger
-from autoseo.publish import agent_layer, blog_index, entity, page, site
+from autoseo.publish import agent_layer, blog_index, entity, page, site, social
 from autoseo.publish import sitemap as sitemaps
 from autoseo.publish.site import BASE_BRANCH
 
@@ -150,11 +150,11 @@ def render(changes: dict[str, str]) -> dict[str, str]:
         # 134 of the 142 pages there have no markdown source at all — so re-emitting everything it
         # produces would quietly replace pages it did not author.
         #
-        # The agent note and the entity block are re-applied here rather than left to their
-        # backfills, because the renderer rebuilds these pages from markdown and would otherwise
-        # drop both — silently, on whichever article was edited last. Applying them to the
-        # renderer's output instead of patching the vendored renderer keeps that file re-copyable
-        # byte-for-byte.
+        # The agent note, the entity block and the social card are re-applied here rather than
+        # left to their backfills, because the renderer rebuilds these pages from markdown and
+        # would otherwise drop all three — silently, on whichever article was edited last.
+        # Applying them to the renderer's output instead of patching the vendored renderer keeps
+        # that file re-copyable byte-for-byte.
         #
         # A dropped entity block is the quieter of the two failures and the worse one. A missing
         # footer line is visible to anyone who loads the page; a BlogPosting that has reverted to
@@ -162,8 +162,8 @@ def render(changes: dict[str, str]) -> dict[str, str]:
         # anything, on the one page that was just edited because it mattered.
         for slug in changes:
             path = out / f"{slug}.html"
-            files[f"{site_root}/public/blog/{slug}.html"] = entity.insert(
-                agent_layer.insert(path.read_text(encoding="utf-8"))
+            files[f"{site_root}/public/blog/{slug}.html"] = social.insert(
+                entity.insert(agent_layer.insert(path.read_text(encoding="utf-8")))
             )
         # `lastmod` is added to the renderer's output, and only the changed slugs get today's
         # date — every other article carries forward whatever the live sitemap already claimed.

@@ -30,7 +30,7 @@ Site and quality:
     autoseo dashboard [--out FILE]          render the whole measurement as one HTML page
     autoseo relink [--dry-run]              link live blog pages the index has orphaned
     autoseo agent-layer [--apply]           point AI agents at /llms.txt from the page itself
-    autoseo delist [--apply]                noindex the de-listed clusters
+    autoseo social [--apply]                og:image + card tags on every blog page\n    autoseo delist [--apply]                noindex the de-listed clusters
     autoseo check FILE                      run the quality gate over a draft
     autoseo index-corpus [--from-live]      shingle the site for duplication checks
 
@@ -416,6 +416,13 @@ def main(argv: list[str] | None = None) -> int:
                        help="commit the block to every blog page (default: report coverage)")
     p_ent.add_argument("--dry-run", action="store_true")
 
+    p_soc = sub.add_parser(
+        "social", help="og:image, twitter:card and max-image-preview on every blog page"
+    )
+    p_soc.add_argument("--apply", action="store_true",
+                       help="commit the tags to every blog page (default: report coverage)")
+    p_soc.add_argument("--dry-run", action="store_true")
+
     p_del = sub.add_parser("delist", help="noindex the orphaned page clusters")
     p_del.add_argument("--apply", action="store_true",
                        help="commit the headers to the site (default: print the plan)")
@@ -650,6 +657,18 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"\n  sameAs ({len(entity.SAME_AS)}):")
                 for url in entity.SAME_AS:
                     print(f"      {url}")
+                print()
+
+        elif args.command == "social":
+            from autoseo.publish import social
+            if args.apply:
+                if url := social.backfill(dry_run=args.dry_run):
+                    print(f"  {url}")
+            else:
+                carrying, total = social.status()
+                print(f"\n  {carrying}/{total} blog page(s) carry the full card")
+                if carrying < total:
+                    print(f"  {total - carrying} to go — `autoseo social --apply` ships them.")
                 print()
 
         elif args.command == "delist":
