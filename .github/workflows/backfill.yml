@@ -1,0 +1,67 @@
+name: backfill
+
+# The one-time, whole-site edits — run by hand, from here, so the token never leaves GitHub.
+#
+# Three of these exist (`social`, `agent-layer`, `entity`) and until now none had a way to run
+# without a `GH_DAILYVOX_TOKEN` in somebody's shell. That is a bad shape for the only credential
+# that can change getdailyvox.com: the safest copy of a secret is the one that was never made.
+#
+# Deliberately not part of seo.yml. These are not nightly work. Each reads all 156 blog pages to
+# decide what to change, which is a real cost to pay every night to fix something once — the same
+# reason `apply` runs only the three structural fixes that cost an API call or two (`delist`,
+# `relink`, `indexnow-key`) and leaves these to a person.
+#
+# `dry_run` defaults to TRUE. An accidental click on an unattended pipeline's publishing
+# credential should print a diff, not commit one.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which backfill to run"
+        required: true
+        type: choice
+        options:
+          - social        # og:image, twitter:card, max-image-preview on every blog page
+          - agent-layer   # the /llms.txt footer note
+          - entity        # the Organization node + sameAs
+      dry_run:
+        description: "Report what would change without committing"
+        required: false
+        type: boolean
+        default: true
+
+# Shares the nightly loop's group: these commit to the same site repo, and `site.commit` reads a
+# head SHA before building its tree. Two writers racing there produce a non-fast-forward for the
+# one that loses.
+concurrency:
+  group: autoseo-state
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: ${{ inputs.target }}${{ inputs.dry_run && ' (dry run)' || '' }}
+    runs-on: ubuntu-latest
+    environment: publishing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e .
+
+      # No `restore` and no state commit. A backfill reads the site repo and writes to the site
+      # repo; it touches no measurement table. The record of it having run is the commit it makes
+      # and this run's own history, both of which outlast a row in run_log.
+      - name: Backfill
+        env:
+          GH_DAILYVOX_TOKEN: ${{ secrets.GH_DAILYVOX_TOKEN }}
+          AUTOSEO_PAUSE: ${{ vars.AUTOSEO_PAUSE }}
+        run: |
+          set -e
+          echo "::notice::${{ inputs.target }} --apply${{ inputs.dry_run && ' --dry-run' || '' }}"
+          autoseo ${{ inputs.target }} --apply ${{ inputs.dry_run && '--dry-run' || '' }}

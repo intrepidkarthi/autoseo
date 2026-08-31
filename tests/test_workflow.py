@@ -68,3 +68,52 @@ def test_the_run_still_goes_red_but_last(apply_steps):
     names = [s.get("name") for s in apply_steps]
     assert names.index("Commit state") < len(names) - 1, \
         "the failure step must come after the ledger is pushed"
+
+
+# --- backfill.yml: the whole-site edits, run by hand -------------------------------------------
+
+BACKFILL = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "backfill.yml"
+
+
+@pytest.fixture(scope="module")
+def bf():
+    return yaml.safe_load(BACKFILL.read_text())
+
+
+def test_backfill_defaults_to_a_dry_run(bf):
+    """An accidental click on the only credential that can change the live site should print a
+    diff, not commit one."""
+    inputs = (bf.get("on") or bf[True])["workflow_dispatch"]["inputs"]
+    assert inputs["dry_run"]["default"] is True
+
+
+def test_backfill_cannot_be_triggered_automatically(bf):
+    """Dispatch only. These read all 156 blog pages to decide what to change, which is not a cost
+    to pay nightly for something that needs doing once."""
+    assert set(bf.get("on") or bf[True]) == {"workflow_dispatch"}
+
+
+def test_backfill_holds_the_publishing_credential(bf):
+    assert bf["jobs"]["run"]["environment"] == "publishing"
+
+
+def test_backfill_serialises_against_the_nightly_loop(bf):
+    """`site.commit` reads a head SHA before building its tree, so two writers racing on the site
+    repo give a non-fast-forward to whichever loses."""
+    assert bf["concurrency"]["group"] == "autoseo-state"
+
+
+def test_every_backfill_target_is_a_real_command_that_takes_apply(bf, capsys):
+    """The dropdown is a list of strings. Without this, a typo in it fails at the moment somebody
+    clicks Run — which is the moment they least want to find out."""
+    from autoseo.cli import main
+
+    targets = (bf.get("on") or bf[True])["workflow_dispatch"]["inputs"]["target"]["options"]
+    assert targets, "the target dropdown is empty"
+    for target in targets:
+        with pytest.raises(SystemExit) as exc:
+            main([target, "--help"])
+        assert exc.value.code == 0, f"`autoseo {target}` is not a command"
+        help_text = capsys.readouterr().out
+        assert "--apply" in help_text, f"`autoseo {target}` has no --apply"
+        assert "--dry-run" in help_text, f"`autoseo {target}` has no --dry-run"
