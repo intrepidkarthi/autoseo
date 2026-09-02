@@ -299,9 +299,7 @@ def _run_loop(args) -> None:
 
     print("\n=== PLAN ===")
     planned = planner.run(days=args.days, dry_run=args.dry_run)
-    print(f"\n  planned: {planned.posts} post(s), {planned.meta} retitle(s), {planned.faq} FAQ(s)")
-    for s in planned.skipped:
-        print(f"  skipped: {s}")
+    _print_plan(planned)
 
     print("\n=== APPLY ===")
     applied = applier.run(dry_run=args.dry_run)
@@ -310,6 +308,25 @@ def _run_loop(args) -> None:
     for f in applied.failed:
         print(f"  FAILED: {f}")
     print()
+
+
+def _print_plan(result) -> None:
+    """Print what the planner decided, and make an empty decision impossible to miss.
+
+    A run that plans nothing is a legitimate outcome — some days there is genuinely nothing worth
+    doing. It is also what a stalled loop looks like, and between 2026-08-30 and 2026-09-01 the two
+    were indistinguishable: every job went green, `apply` committed a run_log row, Pages deployed,
+    and three days passed with no article because every candidate had been filtered out. The run
+    must not fail — an idle day is not a broken one — but it must announce itself.
+    """
+    print(f"\n  planned: {result.posts} post(s), {result.meta} retitle(s), {result.faq} FAQ(s)")
+    for s in result.skipped:
+        print(f"  skipped: {s}")
+    if result.total == 0:
+        print("::warning title=autoseo planned nothing::"
+              "No post, retitle or FAQ this run — every candidate was filtered out. "
+              "If this repeats, the acquisition arms have run dry rather than run clean; "
+              "read the skip reasons above.")
 
 
 def _grade_default() -> int:
@@ -483,10 +500,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "plan":
             from autoseo.act import plan as planner
             result = planner.run(days=args.days, dry_run=args.dry_run)
-            print(f"\n  planned: {result.posts} post(s), {result.meta} retitle(s), "
-                  f"{result.faq} FAQ(s)")
-            for s in result.skipped:
-                print(f"  skipped: {s}")
+            _print_plan(result)
             print()
 
         elif args.command == "apply":

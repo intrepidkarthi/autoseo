@@ -215,7 +215,14 @@ def _plan_onpage(days: int, result: Planned, dry_run: bool) -> None:
         title, description, text = live.title, live.description, live.text
 
         if c.kind == "faq":
+            # A page that already has an FAQ block has nothing left for this fixer to add. That is
+            # a legitimate skip, but it was a *silent* one, and on 2026-09-01 all four candidates
+            # that survived the cooldown hit this line — so the on-page arm printed nothing at all
+            # and the run summary showed no reason why. Record it: an arm that ran out of work must
+            # say so, or an exhausted loop reads as a healthy one.
             if live.has_faq:
+                log.info("/blog/%s already has an FAQ block — nothing to add", c.slug)
+                result.skipped.append(f"faq {c.slug}: the page already has an FAQ block")
                 continue
             try:
                 block = onpage.compose_faq(c, text)
@@ -274,6 +281,48 @@ def _plan_onpage(days: int, result: Planned, dry_run: bool) -> None:
 
 # --- new posts ---------------------------------------------------------------------------------
 
+def _would_cannibalise(ours: list[tuple[str, float, float]], claimed: set[str]) -> str | None:
+    """Why a new page for this query would compete with one of our own, or None if it would not.
+
+    `ours` is (page, impressions, position) for every page of ours already appearing for the query,
+    best first; `claimed` is the incumbents already spoken for this run.
+
+    Checking the slug and the URL only catches a page with the same name; it does not catch a page
+    with a different name written for the same query. Without a check here the loop published
+    /blog/voice-journaling-app as the *third* page competing for "voice journaling app", the other
+    two already sitting together at position 42.2.
+
+    But "ranks at all" is the wrong test, and using it stalled the loop completely: between
+    2026-08-30 and 2026-09-01 it rejected all 24 candidates, several on the strength of a page
+    sitting at position 85. A page nobody will ever scroll to is not an incumbent worth protecting,
+    and the brief says so itself — it files those queries under `too-far`, meaning "needs a
+    dedicated page". The guard was vetoing the exact action the brief asked for.
+    """
+    if not ours:
+        return None
+    page = ours[0][0]
+    short = page.replace("https://getdailyvox.com", "")
+    best = min(p[2] for p in ours)
+
+    # Close enough to edit: the on-page fixer is the cheaper move, and a second page would split a
+    # signal that is already working. This stops on the same line the FAQ fixer does, deliberately —
+    # past it, no amount of editing reaches page one.
+    if best <= onpage.FAQ_MAX_POSITION:
+        return f"{short} at position {best:.1f} — edit it instead"
+
+    # Already a pile-up. Adding a third page to a query where two of ours compete makes worse the
+    # exact thing this guard exists to prevent.
+    if len(ours) >= 2:
+        return f"{len(ours)} of our pages already compete for it"
+
+    # One new page per incumbent, per run. 'travel journal app', 'travel diary app', 'trip journal
+    # app' and 'best travel journal app' are four rows in the brief and one article; without this
+    # the loop would write all four and cannibalise on purpose.
+    if page in claimed:
+        return f"already drafting for {short} this run"
+    return None
+
+
 def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
     from autoseo.compose import blog as composer
     from autoseo.compose.blog import _slugify
@@ -311,6 +360,7 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
         print("\n  last two posts came from Search Console — this one targets an answer-engine gap")
 
     failures = 0
+    claimed: set[str] = set()   # incumbent pages already spoken for this run
     for action in wanted:
         if budget <= 0 or failures >= MAX_CONSECUTIVE_FAILURES:
             break
@@ -321,20 +371,12 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
             log.info("/blog/%s is already live — skipping", slug)
             continue
 
-        # Do we already rank for this? Checking the slug and the URL only catches a page with the
-        # same name; it does not catch a page with a different name written for the same query.
-        # Without this the loop published /blog/voice-journaling-app as the *third* page competing
-        # for "voice journaling app", the other two already sitting together at position 42.2.
-        # A new page for a query we rank for does not add a competitor to the SERP, it adds one to
-        # ourselves — and where a page already ranks, the on-page fixer is the cheaper move anyway.
-        if ours := brief.pages_ranking_for(action.query, days=days):
-            page, imp, pos = ours[0]
-            log.info("skipping '%s': %s already ranks (%.0f imp, position %.1f)",
-                     action.query, page.replace("https://getdailyvox.com", ""), imp, pos)
-            result.skipped.append(
-                f"post '{action.query[:40]}': {len(ours)} of our page(s) already rank for it"
-            )
+        ours = brief.pages_ranking_for(action.query, days=days)
+        if reason := _would_cannibalise(ours, claimed):
+            log.info("skipping '%s': %s", action.query, reason)
+            result.skipped.append(f"post '{action.query[:40]}': {reason}")
             continue
+        incumbent = ours[0][0] if ours else ""
 
         source = "aeo" if action.kind == "aeo-gap" else "gsc"
         where = ("answer engines" if source == "aeo"
@@ -356,6 +398,8 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
         print(f"    {draft.verdict.summary()}")
         if dry_run:
             print(f"\n{draft.markdown[:600]}\n    ...")
+            if incumbent:
+                claimed.add(incumbent)
             result.posts += 1
             budget -= 1
             continue
@@ -368,5 +412,7 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
                   "verdict": draft.verdict.summary(), "source": source,
                   "est_click_gain": round(action.est_click_gain, 1)},
         ))
+        if incumbent:
+            claimed.add(incumbent)
         result.posts += 1
         budget -= 1

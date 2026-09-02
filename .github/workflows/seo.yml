@@ -148,8 +148,22 @@ jobs:
 
           # The AEO panel costs a few minutes of free-tier quota and moves slowly. Weekly is
           # enough to keep the outreach list current; the input overrides it on demand.
+          #
+          # Two days, not one, and the second is what keeps the composer supplied. `core` alone is
+          # ten questions, and by 2026-08-29 the loop had written an article for every gap they
+          # surfaced — the answer-engine arm then produced nothing for three days while twelve
+          # `extended` questions sat in panel.yaml having never been asked once. A gap pool that
+          # never refills is a pool that empties.
+          #
+          # `frontier` stays out of the rotation on purpose (see cli.py): it measures a cluster the
+          # site has no foothold in, which is a strategy question, not a trend. That is why this
+          # names the tiers rather than using `all`.
+          #
+          # Quota: (10 core + 12 extended) x 3 repeats = 66 calls/week, ~290/month against the
+          # 5,000/month free grounded allowance.
           TIER="${{ github.event.inputs.aeo_tier }}"
           if [ -z "$TIER" ] && [ "$(date -u +%u)" = "1" ]; then TIER=core; fi
+          if [ -z "$TIER" ] && [ "$(date -u +%u)" = "4" ]; then TIER=extended; fi
           if [ -n "$TIER" ] && [ "$TIER" != "skip" ]; then
             autoseo aeo --tier "$TIER" || echo "::warning::AEO panel failed — continuing"
             autoseo outreach || true
