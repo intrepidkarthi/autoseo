@@ -187,6 +187,10 @@ class LivePage:
     description: str
     text: str
     has_faq: bool
+    # True when the URL no longer serves a page of its own. The fetch above follows redirects, so
+    # everything else in this object then describes the *destination* — a candidate with this set
+    # is a ghost: GSC still reports the URL, but there is nothing at it left to edit.
+    redirected: bool
 
 
 def live_page(url: str) -> LivePage:
@@ -212,6 +216,7 @@ def live_page(url: str) -> LivePage:
         # blocks on one page. Composing an answer set that then cannot be applied is wasted quota.
         has_faq=bool(re.search(r"\bfrequently asked|\bFAQ\b", body, re.I))
         or bool(re.search(r'"@type":\s*"FAQPage"', html)),
+        redirected=bool(r.history),
     )
 
 

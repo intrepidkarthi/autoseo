@@ -217,6 +217,17 @@ def _plan_onpage(days: int, result: Planned, dry_run: bool) -> None:
         except Exception as exc:  # noqa: BLE001 — one dead URL must not end the run
             log.warning("could not read %s: %s", c.url, str(exc)[:80])
             continue
+
+        # GSC keeps reporting a redirected URL for weeks after it stops being a page, and the fetch
+        # above follows the redirect — so without this check the fixer would judge the ghost's
+        # candidacy on the *destination's* content, then edit a file the site no longer serves.
+        # It did: /blog/best-journal-app-for-anxiety spent three weeks in the candidate list after
+        # the 12 Aug fold, "already has an FAQ block" — the block it found belonged to the page it
+        # was redirected to.
+        if live.redirected:
+            log.info("/blog/%s redirects on the live site — a ghost in GSC, nothing to edit", c.slug)
+            result.skipped.append(f"onpage {c.slug}: the URL redirects — GSC is reporting a ghost")
+            continue
         title, description, text = live.title, live.description, live.text
 
         if c.kind == "faq":
