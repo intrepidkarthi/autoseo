@@ -24,6 +24,11 @@ log = get_logger(__name__)
 # reproducing one error.
 MAX_CONSECUTIVE_FAILURES = 3
 
+# How long a page stays relieved. A new article needs roughly this long before Search Console
+# reports it at all, which is precisely the window in which the impressions test cannot see it —
+# so this is the window the ledger has to cover on its own.
+POST_INCUMBENT_COOLDOWN_DAYS = 30
+
 
 @dataclass
 class Planned:
@@ -315,11 +320,13 @@ def _would_cannibalise(ours: list[tuple[str, float, float]], claimed: set[str]) 
     if len(ours) >= 2:
         return f"{len(ours)} of our pages already compete for it"
 
-    # One new page per incumbent, per run. 'travel journal app', 'travel diary app', 'trip journal
-    # app' and 'best travel journal app' are four rows in the brief and one article; without this
-    # the loop would write all four and cannibalise on purpose.
+    # One new page per incumbent. 'travel journal app', 'travel diary app', 'trip journal app' and
+    # 'best travel journal app' are four rows in the brief and one article; without this the loop
+    # would write all four and cannibalise on purpose. `claimed` spans this run *and* the recent
+    # ledger, because a page published on Tuesday is still relieving its incumbent on Wednesday and
+    # Search Console will not report it for a week.
     if page in claimed:
-        return f"already drafting for {short} this run"
+        return f"a recent post already covers {short}"
     return None
 
 
@@ -360,7 +367,10 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
         print("\n  last two posts came from Search Console — this one targets an answer-engine gap")
 
     failures = 0
-    claimed: set[str] = set()   # incumbent pages already spoken for this run
+    # Seeded from the ledger, not empty. The per-run set was the whole guard for one day, and one
+    # day is not the window that matters: a page published this morning to relieve an incumbent is
+    # still relieving it tomorrow, and Search Console will not report it for a week.
+    claimed: set[str] = ledger.incumbents_supported(days=POST_INCUMBENT_COOLDOWN_DAYS)
     for action in wanted:
         if budget <= 0 or failures >= MAX_CONSECUTIVE_FAILURES:
             break
@@ -410,6 +420,7 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
             meta={"slug": draft.slug, "query": action.query, "markdown": draft.markdown,
                   "description": draft.description, "evidence": action.evidence,
                   "verdict": draft.verdict.summary(), "source": source,
+                  "incumbent": incumbent,
                   "est_click_gain": round(action.est_click_gain, 1)},
         ))
         if incumbent:

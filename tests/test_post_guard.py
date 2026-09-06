@@ -39,10 +39,22 @@ def test_blocks_an_existing_pile_up():
     assert "already compete" in _would_cannibalise(ours, set())
 
 
-def test_blocks_a_second_page_for_an_incumbent_claimed_this_run():
+def test_blocks_a_second_page_for_an_already_covered_incumbent():
     """'travel journal app', 'travel diary app' and 'trip journal app' are one article, not three."""
     ours = [page("/blog/best-journal-app-for-travelers", 61, 48.2)]
-    assert "already drafting" in _would_cannibalise(ours, {f"{SITE}/blog/best-journal-app-for-travelers"})
+    assert "already covers" in _would_cannibalise(ours, {f"{SITE}/blog/best-journal-app-for-travelers"})
+
+
+def test_the_cover_check_spans_runs_not_just_this_one():
+    """The gap that survived the first fix. `claimed` was a per-run set, so the loop published
+    /blog/best-diary-app-iphone on 2026-09-02 to relieve /blog/best-journal-app-iphone and had
+    'journaling apps for ios' — same incumbent — at the top of the queue the next morning with
+    nothing left to stop it. The set is seeded from the ledger now; this pins that it is consulted
+    at all, which is the part a per-run set got wrong."""
+    incumbent = f"{SITE}/blog/best-journal-app-iphone"
+    ours = [page("/blog/best-journal-app-iphone", 51, 42.9)]
+    assert _would_cannibalise(ours, set()) is None              # nothing published for it yet
+    assert _would_cannibalise(ours, {incumbent}) is not None    # yesterday's post covered it
 
 
 # --- what must get through -----------------------------------------------------------------------
@@ -71,3 +83,37 @@ def test_a_distant_pile_up_is_blocked_as_a_pile_up_not_as_an_editable_page():
     a pile-up, and naming it one is what keeps the two arms from pointing at each other."""
     ours = [page("/blog/loud-but-distant", 90, 55.0), page("/blog/quieter-and-further", 3, 62.0)]
     assert _would_cannibalise(ours, set()) == "2 of our pages already compete for it"
+
+
+# --- the ledger side: what makes the check span runs ----------------------------------------------
+
+def test_incumbent_round_trips_through_the_ledger(db):
+    """A planned post records the page it relieves, and the next run reads it back.
+
+    Both halves matter and only the pair is useful: recording an incumbent nothing reads would not
+    have stopped the third iPhone page, and reading a field nothing writes would return an empty
+    set every morning — which is exactly what a per-run set already did.
+    """
+    from autoseo.act import ledger
+
+    assert ledger.incumbents_supported(days=30) == set()
+
+    ledger.plan(ledger.Item(
+        kind=ledger.Kind.POST, title="Best Diary App for iPhone", body="...",
+        rationale="...", meta={"slug": "best-diary-app-iphone",
+                               "incumbent": f"{SITE}/blog/best-journal-app-iphone"},
+    ))
+    assert ledger.incumbents_supported(days=30) == {f"{SITE}/blog/best-journal-app-iphone"}
+
+
+def test_a_dropped_post_releases_its_incumbent(db):
+    """Planned and shipped hold the claim; a draft that never ran should not hold it forever."""
+    from autoseo.act import ledger
+
+    item_id = ledger.plan(ledger.Item(
+        kind=ledger.Kind.POST, title="Best Diary App for iPhone", body="...",
+        rationale="...", meta={"slug": "best-diary-app-iphone",
+                               "incumbent": f"{SITE}/blog/best-journal-app-iphone"},
+    ))
+    ledger.drop(item_id, "superseded")
+    assert ledger.incumbents_supported(days=30) == set()

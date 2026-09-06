@@ -19,13 +19,30 @@ import os
 from autoseo.act import ledger
 from autoseo.core.config import settings
 
-# Daily, on request (12 Aug 2026). The earlier 3/week was set against a worry that still stands —
-# 46 of 140 blog pages are not indexed, and adding to a corpus Google is already declining to crawl
-# is how the /for/ and /in/ pages happened. The counter-pressure is now built rather than argued:
-# `prune` subtracts dead clusters in the same run that publishes, and `index_health` records the
-# indexed ratio every day so the effect is visible rather than assumed. If that ratio falls over the
-# next few weeks, this number is the one to move.
-MAX_POSTS_PER_DAY = 1
+# Zero since 6 Sep 2026. This was 1/day from 12 Aug, set with a condition attached — "if that ratio
+# falls over the next few weeks, this number is the one to move" — and the condition was met, so it
+# has been moved. What the three weeks measured:
+#
+#   19 articles published, 42 impressions and 0 clicks between them. Nine of them indexed and
+#   earning nothing after two weeks; three never indexed at all.
+#
+#   The blog cluster's indexed count sat at 97 from 27 Aug to 3 Sep while five more articles went
+#   out — not one of them indexed. Across the whole three weeks the count went 99 -> 97, *down*,
+#   against roughly fifteen published. Search Console files everything after 22 Aug as "Discovered
+#   - currently not indexed" or "URL is unknown to Google"; everything before it was indexed fine.
+#
+# So the worry above was the right one and it came true in the direction it was pointed. Adding to a
+# corpus Google has stopped indexing does not cost nothing — the pages still have to be crawled, and
+# the site is asking for that budget with pages that have earned no clicks at all.
+#
+# Everything else stays on, deliberately. `collect`, `inventory` and `index_health` are the evidence
+# that says when this can go back to 1; `grade` is what says whether anything shipped was worth it;
+# the on-page fixer is the one arm with a result (4 of 4 edits beat the drift floor); `prune` and
+# `merge` are subtraction, which is what the site needs more of right now.
+#
+# Unblock condition: the indexed count rises off 97. Not the ratio — the ratio moves when the
+# denominator moves, which is how de-listing flattered it on 27 Aug. The count.
+MAX_POSTS_PER_DAY = 0
 MAX_POSTS_PER_WEEK = 7
 
 # On-page fixes, per run and per week. Small for two reasons. Each one is a commit against a page
@@ -70,6 +87,9 @@ def post_budget() -> tuple[int, str]:
         return budget, ""
     if queued:
         return 0, f"{queued} post(s) already composed and waiting to ship"
+    if MAX_POSTS_PER_DAY == 0:
+        return 0, ("publishing is stopped — see MAX_POSTS_PER_DAY. Google has not indexed a new "
+                   "page since 27 Aug; measurement, grading and on-page fixes continue")
     if day_left <= 0:
         return 0, f"daily cap reached ({today}/{MAX_POSTS_PER_DAY} today)"
     return 0, f"weekly cap reached ({week}/{MAX_POSTS_PER_WEEK} in 7 days)"

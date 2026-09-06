@@ -310,8 +310,26 @@ def _run_loop(args) -> None:
     print()
 
 
+def _already_worked_today() -> bool:
+    """Did the loop already ship acquisition work today?
+
+    The catch-up cron, and any hand-dispatched run, means a second planning pass on a day that has
+    already published is normal. That pass plans nothing — it is capped, not starved — and warning
+    about it was wrong the first time it happened, on 2026-09-02: the alarm said "the acquisition
+    arms have run dry" about a day that had shipped an article four hours earlier. An alarm that
+    cries on healthy runs is one you stop reading, which is the failure it exists to prevent.
+    """
+    from autoseo.act import ledger
+    return any(ledger.shipped_today(k) for k in (ledger.Kind.POST, ledger.Kind.META, ledger.Kind.FAQ))
+
+
 def _print_plan(result) -> None:
     """Print what the planner decided, and make an empty decision impossible to miss.
+
+    Silent while publishing is switched off (`MAX_POSTS_PER_DAY == 0`). A zero-plan day is then the
+    expected state rather than a stall, and an alarm that fires every morning on a condition someone
+    chose is one that gets filtered within a week — which is how the three silent days this was
+    built for went unnoticed in the first place. The skip line still prints the reason.
 
     A run that plans nothing is a legitimate outcome — some days there is genuinely nothing worth
     doing. It is also what a stalled loop looks like, and between 2026-08-30 and 2026-09-01 the two
@@ -319,10 +337,12 @@ def _print_plan(result) -> None:
     and three days passed with no article because every candidate had been filtered out. The run
     must not fail — an idle day is not a broken one — but it must announce itself.
     """
+    from autoseo.act import policy
+
     print(f"\n  planned: {result.posts} post(s), {result.meta} retitle(s), {result.faq} FAQ(s)")
     for s in result.skipped:
         print(f"  skipped: {s}")
-    if result.total == 0:
+    if result.total == 0 and not _already_worked_today() and policy.MAX_POSTS_PER_DAY:
         print("::warning title=autoseo planned nothing::"
               "No post, retitle or FAQ this run — every candidate was filtered out. "
               "If this repeats, the acquisition arms have run dry rather than run clean; "

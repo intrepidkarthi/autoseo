@@ -211,6 +211,37 @@ def redirected_sources() -> set[str]:
     return out
 
 
+def incumbents_supported(days: int) -> set[str]:
+    """Pages a recent post was written to relieve — so the loop does not relieve one twice.
+
+    `_plan_posts` refuses to draft two pages for the same incumbent, but its own guard is a per-run
+    set and every run starts with an empty one. That holds within a morning and forgets by the next,
+    which is the wrong shape entirely: on 2026-09-02 the loop published /blog/best-diary-app-iphone
+    to relieve /blog/best-journal-app-iphone, and the following morning 'journaling apps for ios' —
+    same incumbent — was top of the queue with nothing left to stop it. Three iPhone pages, written
+    two days apart, each one individually reasonable.
+
+    A new page cannot be its own evidence, either: Search Console needs a week or more before it
+    reports the page at all, so the impressions test that would eventually catch this is blind for
+    exactly as long as the damage takes to do. The ledger is the only record that knows immediately.
+
+    Counts planned as well as shipped: a draft waiting in the ledger has already claimed its
+    incumbent, and a run that drafted a second one for the same page before the first shipped would
+    reintroduce the bug through the back door.
+    """
+    cutoff = (dt.datetime.now(dt.UTC) - dt.timedelta(days=days)).isoformat(timespec="seconds")
+    out: set[str] = set()
+    with session() as conn:
+        for r in conn.execute(
+            "SELECT meta FROM queue_item WHERE kind = ? AND created >= ? "
+            "AND status IN (?, ?)",
+            (Kind.POST, cutoff, Status.PLANNED, Status.SHIPPED),
+        ):
+            if page := json.loads(r["meta"] or "{}").get("incumbent"):
+                out.add(page)
+    return out
+
+
 def slugs_touched(kinds: tuple[str, ...], days: int) -> set[str]:
     """Slugs already acted on recently — so the fixer does not rewrite the same page every day."""
     cutoff = (dt.datetime.now(dt.UTC) - dt.timedelta(days=days)).isoformat(timespec="seconds")
