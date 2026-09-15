@@ -19,30 +19,24 @@ import os
 from autoseo.act import ledger
 from autoseo.core.config import settings
 
-# Zero since 6 Sep 2026. This was 1/day from 12 Aug, set with a condition attached — "if that ratio
-# falls over the next few weeks, this number is the one to move" — and the condition was met, so it
-# has been moved. What the three weeks measured:
+# One a day again since 15 Sep 2026. Zero from 6 Sep to 14 Sep — set when three weeks of daily
+# articles produced 42 impressions, 0 clicks and a falling indexed count, with the unblock
+# condition written next to it: the blog cluster's indexed count rises off 97. The count, not the
+# ratio, because the ratio moves whenever the denominator does.
 #
-#   19 articles published, 42 impressions and 0 clicks between them. Nine of them indexed and
-#   earning nothing after two weeks; three never indexed at all.
+# It fired, and kept firing. On a denominator held at 136: 96 on 7 Sep, 100 on the 8th, 102 on the
+# 9th, 107-108 through 12-14 Sep. And the stronger signal underneath it: Google began indexing
+# *new* URLs again. Four of the seven posts published after 27 Aug — best-diary-app-iphone,
+# best-travel-journal-app, the Apple Journal comparison, what-is-the-best-way-to-run-ai-over-my-
+# own-private-data — read "Submitted and indexed" on the 14 Sep inspection, after every one of
+# them had spent a week or more as "Discovered - currently not indexed" or unknown to Google.
 #
-#   The blog cluster's indexed count sat at 97 from 27 Aug to 3 Sep while five more articles went
-#   out — not one of them indexed. Across the whole three weeks the count went 99 -> 97, *down*,
-#   against roughly fifteen published. Search Console files everything after 22 Aug as "Discovered
-#   - currently not indexed" or "URL is unknown to Google"; everything before it was indexed fine.
+# What changed in between was subtraction, not waiting: 13 merges, 10 prunes and 5 meta fixes in
+# the 30 days to 14 Sep; overall indexation 69% -> 80.6% over 34 readings. The zero was doing work.
 #
-# So the worry above was the right one and it came true in the direction it was pointed. Adding to a
-# corpus Google has stopped indexing does not cost nothing — the pages still have to be crawled, and
-# the site is asking for that budget with pages that have earned no clicks at all.
-#
-# Everything else stays on, deliberately. `collect`, `inventory` and `index_health` are the evidence
-# that says when this can go back to 1; `grade` is what says whether anything shipped was worth it;
-# the on-page fixer is the one arm with a result (4 of 4 edits beat the drift floor); `prune` and
-# `merge` are subtraction, which is what the site needs more of right now.
-#
-# Unblock condition: the indexed count rises off 97. Not the ratio — the ratio moves when the
-# denominator moves, which is how de-listing flattered it on 27 Aug. The count.
-MAX_POSTS_PER_DAY = 0
+# Re-close condition, same shape as before: if the blog cluster's indexed count stalls or falls
+# across two weeks of 1/day publishing, this goes back to 0. The count, not the ratio.
+MAX_POSTS_PER_DAY = 1
 MAX_POSTS_PER_WEEK = 7
 
 # On-page fixes, per run and per week. Small for two reasons. Each one is a commit against a page
