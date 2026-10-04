@@ -71,6 +71,7 @@ BRAND = "DailyVox"
 # by deleting a real channel.
 SAME_AS: tuple[str, ...] = (
     "https://apps.apple.com/app/id6760454642",
+    "https://play.google.com/store/apps/details?id=com.dailyvox.app",
     "https://github.com/intrepidkarthi/dailyvox",
     "https://x.com/getDailyVox",
     "https://www.instagram.com/getdailyvox/",

@@ -31,6 +31,7 @@ SRC = os.environ.get("AUTOSEO_ARTICLES_SRC", "content/articles")
 OUT = os.environ.get("AUTOSEO_ARTICLES_OUT", "public/blog")
 DOMAIN = "https://getdailyvox.com"
 APP_STORE = "https://apps.apple.com/app/id6760454642"
+PLAY_STORE = "https://play.google.com/store/apps/details?id=com.dailyvox.app"
 IVORY, INK, SAGE, GOLD, TERRA = "#FAF8F5", "#2B2520", "#5B7C6B", "#D4A547", "#C4956A"
 
 def esc(s): return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
@@ -155,7 +156,7 @@ a{{color:var(--terra)}}
 <div class="bc"><a href="/">Home</a> &rsaquo; <a href="/blog">Blog</a></div>
 <h1>{esc(title)}</h1>
 {body_html}
-<div class="cta"><strong>DailyVox keeps your words on your phone.</strong><br><a href="{APP_STORE}">Get it on the App Store</a></div>
+<div class="cta"><strong>DailyVox keeps your words on your phone.</strong><br><a href="{APP_STORE}">Get it on the App Store</a> <a href="{PLAY_STORE}">Get it on Google Play</a></div>
 <div class="related">{rel}</div>
 </main>
 <footer>DailyVox &middot; Private, on-device voice journaling. Your words never leave your phone.</footer>

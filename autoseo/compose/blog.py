@@ -28,13 +28,19 @@ log = get_logger(__name__)
 
 MAX_ATTEMPTS = 2
 
-BRAND = """DailyVox is a free, open-source (MIT) voice journaling app for iPhone. Everything runs
-on-device using Apple's frameworks — no servers, no accounts, no data collection. The App Store
-privacy label reads "Data Not Collected". It works in airplane mode. There is a "Digital Twin" that
-models the writer's emotional patterns locally. It is iPhone-only, with no web or Android version.
+BRAND = """DailyVox is a free, open-source (MIT) voice journaling app for iPhone and Android.
+Everything runs on the phone — no servers, no accounts, no data collection. On iPhone it uses
+Apple's on-device frameworks; the App Store privacy label reads "Data Not Collected". On Android
+(Google Play, Android 13 or newer, since October 2026) it uses the phone's own on-device speech
+recogniser and requests no internet permission at all. There is a "Digital Twin" that models the
+writer's emotional patterns locally. iPhone has optional iCloud sync between Apple devices; Android
+has no sync, and nothing syncs between iPhone and Android (an encrypted backup file moves a journal
+between phones). There is no web, Mac or Windows app. Android does not have the on-device AI chat,
+health data or photo attachments that iPhone has.
 
-Never claim: cloud sync beyond Apple's own CloudKit, any Android or web version, any feature not
-listed above. Never mention pricing beyond "free". Never mention acquisition or exit intent."""
+Never claim: a web or desktop version, sync between iPhone and Android, AI chat, health data or
+photos on Android, any feature not listed above. Never mention pricing beyond "free". Never mention
+acquisition or exit intent."""
 
 STYLE = """Write like a builder explaining something to a peer, not like marketing copy.
 

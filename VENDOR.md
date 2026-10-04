@@ -45,5 +45,8 @@ byte-for-byte in structure.
 **Changed on copy:** `SRC`, `OUT` and the sitemap path are read from environment variables instead
 of being derived from the file's own location, since it no longer sits beside the content.
 
+**Changed on 2026-10-04:** a `PLAY_STORE` constant and a "Get it on Google Play" link beside the
+App Store link in the CTA, because DailyVox went live on Google Play on 2026-10-02.
+
 **If the site's renderer changes,** re-copy the file and re-apply those three edits rather than
 patching this copy by hand.

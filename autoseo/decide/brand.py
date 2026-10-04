@@ -48,7 +48,10 @@ def is_irrelevant(query: str) -> bool:
     # Reverse-DNS style identifiers and camelCase framework names.
     if re.search(r"\b(id [a-z]+kit|com\.[a-z]+\.|nsuser|uikit|swiftui|widgetkit)\b", q):
         return True
-    return "android" in q  # iPhone-only product; Android intent cannot convert.
+    # Android intent used to be dropped here outright: the product was iPhone-only. It has been
+    # on Google Play since October 2026, so an Android query can now convert. The identifier
+    # rules above still catch the developer noise (`"id widgetkit" android`).
+    return False
 
 
 # Competitors whose own product mechanics people search for. Ranking for these by accident is fine;
