@@ -162,6 +162,13 @@ def _insert_textually(raw: str, rule: dict) -> str | None:
     return raw[:insert_at] + ",\n" + indent + rendered + raw[insert_at:]
 
 
+def _validate(source: str, destination: str) -> None:
+    if not source.startswith("/") or not destination.startswith("/"):
+        raise ValueError(f"redirects take absolute paths, got {source!r} -> {destination!r}")
+    if source == destination:
+        raise ValueError("refusing to redirect a page to itself")
+
+
 def with_redirect(raw: str, source: str, destination: str, strict: bool = False) -> str:
     """vercel.json with one redirect appended. Pure: no reads, no writes.
 
@@ -169,11 +176,7 @@ def with_redirect(raw: str, source: str, destination: str, strict: bool = False)
     failed — see that class), and `RedirectRefused` for anything that would chain, loop, overlap an
     existing rule, or require reformatting the file to express.
     """
-    if not source.startswith("/") or not destination.startswith("/"):
-        raise ValueError(f"redirects take absolute paths, got {source!r} -> {destination!r}")
-    if source == destination:
-        raise ValueError("refusing to redirect a page to itself")
-
+    _validate(source, destination)
     config = json.loads(raw)
     rules = [r for r in config.get("redirects", []) if isinstance(r, dict)]
 
@@ -226,6 +229,8 @@ def with_redirect(raw: str, source: str, destination: str, strict: bool = False)
 def add(source: str, destination: str, rationale: str, dry_run: bool = False,
         strict: bool = False) -> str:
     """Redirect `source` to `destination`. Idempotent; refuses to build a chain or a loop."""
+    # Before any read: a malformed request should fail without a token and without the network.
+    _validate(source, destination)
     vercel = vercel_path()
     raw = site.read_text(vercel)
     if raw is None:
