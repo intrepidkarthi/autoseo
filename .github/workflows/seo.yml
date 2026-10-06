@@ -169,6 +169,15 @@ jobs:
             autoseo outreach || true
           fi
 
+          # Pitch drafts and the listing check, weekly. Both read third-party pages, which is why
+          # they live in this job and never in `apply`. Drafts land in state/pitches/ for Karthik
+          # to rewrite; nothing is sent, and no outreach state changes. Monday, so the drafts sit
+          # on top of the core panel's fresh citations. `|| true`: a roundup that times out is not
+          # a reason to fail the run that measures the site.
+          if [ "$(date -u +%u)" = "1" ]; then
+            autoseo pitches --top 5 --review || echo "::warning::pitches failed — continuing"
+          fi
+
           autoseo brief
           autoseo plan --days "$DAYS" $DRY
           autoseo status

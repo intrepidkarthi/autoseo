@@ -117,3 +117,13 @@ def test_every_backfill_target_is_a_real_command_that_takes_apply(bf, capsys):
         help_text = capsys.readouterr().out
         assert "--apply" in help_text, f"`autoseo {target}` has no --apply"
         assert "--dry-run" in help_text, f"`autoseo {target}` has no --dry-run"
+
+
+def test_pitches_run_weekly_in_the_compose_job_and_cannot_fail_it(wf):
+    """Pitches read third-party pages, so they belong with the job that holds no publish token —
+    and a roundup that times out must not turn the measurement run red."""
+    plan = "\n".join(s.get("run", "") for s in wf["jobs"]["plan"]["steps"])
+    apply = "\n".join(s.get("run", "") for s in wf["jobs"]["apply"]["steps"])
+    line = next(ln for ln in plan.splitlines() if "autoseo pitches" in ln)
+    assert "||" in line
+    assert "autoseo pitches" not in apply
