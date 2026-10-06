@@ -203,6 +203,43 @@ def _print_reclaim(days: int, valuable_only: bool, top: int) -> None:
     print()
 
 
+def _print_pitches(top: int, review: bool) -> None:
+    """Draft pitches for the top roundups, and (with --review) re-check the listings already won."""
+    from autoseo.decide import pitch
+
+    pitches, skipped = pitch.run(top)
+    print(f"\n=== PITCHES — top {top} roundups answer engines cite, drafts only ===")
+    if not pitches and not skipped:
+        print("  No roundup-shaped targets in state `new`. Run `autoseo outreach` first.")
+    for i, p in enumerate(pitches, 1):
+        us = ("LISTS US" if p.mentioned else "not listed") + (f", {p.vendor}'s own blog"
+                                                              if p.vendor else "")
+        print(f"\n  [{i}] {p.domain}  ({us}, {len(p.competitors)} competitor(s) named, "
+              f"{p.checked} link(s) checked, {len(p.dead)} dead, {p.unknown} unknown)")
+        print(f"      {p.url}")
+        for name, chk in p.dead:
+            print(f"      dead  {name}: {chk.url}  ({chk.detail})")
+        print(f"      draft {p.path}")
+        if not p.gate.startswith("PASS"):
+            print(f"      gate  {p.gate}")
+    for s in skipped:
+        print(f"\n  skipped {s.url}\n      {s.reason}")
+    print("\n  Drafts only. Nothing is sent, and no outreach state was changed.")
+
+    if review:
+        rows = pitch.review()
+        print("\n=== LISTINGS — do the pages that listed us still do? ===")
+        if not rows:
+            print("  No target is in state `listed` yet.")
+        for r in rows:
+            print(f"  {r.verdict:<8}{r.url}")
+            print(f"          listed {r.listed_at[:10] or '?'}; {', '.join(r.evidence) or 'no mention found'}")
+        lost = [r for r in rows if r.verdict == "lost"]
+        if lost:
+            print(f"\n  {len(lost)} listing(s) LOST. The row keeps `listed`; ask the editor, or mark it.")
+    print()
+
+
 def _print_brief(days: int, top: int) -> None:
     from autoseo.decide import brief
 
@@ -479,6 +516,11 @@ def main(argv: list[str] | None = None) -> int:
     p_rec.add_argument("--valuable", action="store_true",
                        help="only check URLs with impressions or AI citations (what the plan checks)")
 
+    p_pitch = sub.add_parser("pitches", help="draft pitches for cited roundups; never sends")
+    p_pitch.add_argument("--top", type=int, default=5)
+    p_pitch.add_argument("--review", action="store_true",
+                         help="also re-read every `listed` page and report listings that were lost")
+
     # --- site and quality -------------------------------------------------------------------
     p_relink = sub.add_parser(
         "relink", help="find live blog pages the index links to nowhere, and link them"
@@ -622,6 +664,9 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "reclaim":
             _print_reclaim(args.days, args.valuable, args.top)
+
+        elif args.command == "pitches":
+            _print_pitches(args.top, args.review)
 
         elif args.command == "brief":
             _print_brief(args.days, args.top)
