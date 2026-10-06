@@ -36,6 +36,7 @@ class Kind(StrEnum):
     PRUNE = "prune"       # noindex a blog cluster that earns nothing
     SITEMAP = "sitemap"   # drop URLs that should never have been submitted
     MERGE = "merge"       # 301 a duplicate page onto the one that outranks it
+    REDIRECT = "redirect"  # 301 a dead URL that still earns impressions or citations
 
 
 @dataclass
@@ -193,11 +194,13 @@ def redirected_sources() -> set[str]:
     Two states count as done. Shipped is obvious. Dropped-as-already-present is the state `apply`
     lands in when the ledger and the site have drifted apart and the redirect turns out to be there
     already — that is a source which is redirected, and forgetting it would restart the same loop.
+
+    A reclaimed dead URL (`Kind.REDIRECT`) is the same fact reached a different way, and counts.
     """
     out: set[str] = set()
     with session() as conn:
         for r in conn.execute(
-            "SELECT status, meta FROM queue_item WHERE kind = ?", (Kind.MERGE,)
+            "SELECT status, meta FROM queue_item WHERE kind IN (?, ?)", (Kind.MERGE, Kind.REDIRECT)
         ):
             meta = json.loads(r["meta"] or "{}")
             source = meta.get("source")

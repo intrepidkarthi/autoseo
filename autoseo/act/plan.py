@@ -38,6 +38,7 @@ class Planned:
     pruned: int = 0            # pages to be switched off
     merged: int = 0            # duplicate pages to be folded into their better half
     sitemap_dropped: int = 0   # URLs to stop submitting
+    redirected: int = 0        # dead URLs with outside value, 301'd onto their successor
     skipped: list[str] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
@@ -74,6 +75,7 @@ def run(days: int = 90, dry_run: bool = False) -> Planned:
         log.warning("corpus refresh failed: %s", exc)
 
     _plan_hygiene(days, result, dry_run)
+    _plan_reclaim(days, result, dry_run)
     _plan_onpage(days, result, dry_run)
     _plan_posts(days, result, dry_run)
     return result
@@ -193,6 +195,63 @@ def _plan_hygiene(days: int, result: Planned, dry_run: bool) -> None:
         meta={"urls": sorted(dead | pagination), "dead": sorted(dead),
               "pagination": sorted(pagination)},
     ))
+
+
+# --- dead URLs that still carry value -----------------------------------------------------------
+
+def _plan_reclaim(days: int, result: Planned, dry_run: bool) -> None:
+    """Point dead URLs that something still links to at the page that replaced them.
+
+    Planned here, not in `apply`, for the same reason as the sitemap hygiene above: knowing a URL is
+    dead means fetching it, and the publishing half reads nothing from the web. Only URLs with an
+    impression or an AI citation are checked at all — a dead URL nothing points at loses nothing by
+    staying dead, and `autoseo reclaim` reports the rest for a person.
+
+    Never fatal. A failure here costs a day of reclaim, not the posts and fixes planned after it.
+    """
+    from autoseo.decide import reclaim
+
+    budget = policy.redirect_budget()
+    if budget <= 0:
+        result.skipped.append("reclaim: redirects already planned and waiting")
+        return
+
+    already = policy.already_redirected()
+    queued = {i.meta.get("source") for i in ledger.planned(ledger.Kind.REDIRECT)}
+    try:
+        found = reclaim.build(days, valuable_only=True, already=already | queued)
+    except Exception as exc:  # noqa: BLE001 — see the docstring
+        log.warning("reclaim failed: %s", exc)
+        result.skipped.append(f"reclaim: {str(exc)[:80]}")
+        return
+
+    autos = found.auto
+    reported = len(found.findings) - len(autos)
+    for f in autos[:budget]:
+        s = f.suggestion
+        rationale = (
+            f"{f.path} returns {f.probe.status} but still has {f.candidate.evidence} in the last "
+            f"{days} days. {s.target} is its successor: {s.why} (confidence {s.confidence:.2f}). "
+            f"A 301 hands the impressions, citations and links on instead of landing them on a 404."
+        )
+        print(f"\n  reclaim {f.path} -> {s.target}")
+        print(f"      {f.candidate.evidence}; confidence {s.confidence:.2f}")
+        result.redirected += 1
+        if dry_run:
+            continue
+        ledger.plan(ledger.Item(
+            kind=ledger.Kind.REDIRECT, title=f"301 {f.path} -> {s.target}",
+            body=rationale, rationale=rationale,
+            meta={"source": f.path, "destination": s.target, "url": f.candidate.url,
+                  "status": f.probe.status, "chain": f.probe.chain,
+                  "confidence": s.confidence, "impressions": round(f.candidate.impressions),
+                  "clicks": round(f.candidate.clicks), "citations": f.candidate.citations},
+        ))
+    if len(autos) > budget:
+        print(f"      ({len(autos) - budget} more confident reclaim(s) waiting for a later run)")
+    if reported:
+        result.skipped.append(f"reclaim: {reported} dead URL(s) below the bar — `autoseo reclaim` "
+                              f"lists them")
 
 
 # --- fixes to pages that already exist ---------------------------------------------------------

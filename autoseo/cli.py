@@ -24,6 +24,8 @@ Decision:
     autoseo aeo [--tier core|extended|all]  ask buyer questions, record what gets cited
     autoseo outreach [--days N] [--all]     pages worth getting listed on, with state
     autoseo outreach --mark URL --state S   record that you contacted one
+    autoseo reclaim [--days N] [--valuable]  dead URLs that still carry value, and where to 301 them
+    autoseo pitches [--top N] [--review]    draft pitches for listicles; check listings still hold
 
 Site and quality:
 
@@ -158,6 +160,46 @@ def _print_outreach(days: int, top: int, show_all: bool = False) -> None:
         if t.competitors_named:
             print(f"      names : {', '.join(t.competitors_named)}")
         print(f"      angle : {t.angle}")
+    print()
+
+
+def _print_reclaim(days: int, valuable_only: bool, top: int) -> None:
+    """Report only. The daily plan ships the confident ones; this shows the whole picture."""
+    from autoseo.act import policy
+    from autoseo.decide import reclaim
+
+    result = reclaim.build(days, valuable_only=valuable_only, already=policy.already_redirected())
+    counts = reclaim.summarise(result.probes)
+    print(f"\n=== RECLAIM — dead URLs that still carry value, last {days}d ===")
+    print(f"  checked {len(result.probes)} URL(s): "
+          + ", ".join(f"{v} {k}" for k, v in sorted(counts.items())))
+    print(f"  auto = confidence >= {reclaim.AUTO_CONFIDENCE} and an impression or AI citation; "
+          f"at most {policy.MAX_REDIRECTS_PER_RUN} ship per run")
+    if not result.findings:
+        print("  No dead URLs. Nothing to reclaim.\n")
+    for i, f in enumerate(result.findings[:top], 1):
+        s = f.suggestion
+        conf = f"{s.confidence:.2f}" if s else "  - "
+        print(f"\n  [{i}] {f.action:<6} {conf}  {f.path}")
+        print(f"        {f.probe.status} · {f.candidate.evidence}")
+        if f.probe.chain:
+            hops = " -> ".join(f"{reclaim.path_of(u)} ({c})" for u, c in f.probe.chain)
+            print(f"        via {hops}")
+        if s:
+            print(f"        -> {s.target}   ({s.why})")
+        if f.action != "auto":
+            print(f"        report only: {f.reason}")
+    if len(result.findings) > top:
+        print(f"\n  ... and {len(result.findings) - top} more (--top)")
+
+    unknown = [p for p in result.probes.values() if p.verdict == "unknown"]
+    if unknown:
+        print(f"\n  {len(unknown)} URL(s) could not be judged (403, 429, 5xx or no response). "
+              f"Treated as alive, never redirected:")
+        for p in sorted(unknown, key=lambda p: p.url)[:8]:
+            print(f"      {p.status or p.error}  {reclaim.path_of(p.url)}")
+    # Internal links pointing at dead URLs would need every live page fetched and parsed; the
+    # inventory holds URLs, not links, so that check is not made here.
     print()
 
 
@@ -431,6 +473,12 @@ def main(argv: list[str] | None = None) -> int:
                        help="the state to set for --mark")
     p_out.add_argument("--note", default="", help="optional note to store against --mark")
 
+    p_rec = sub.add_parser("reclaim", help="dead URLs that still carry value, and where to 301 them")
+    p_rec.add_argument("--days", type=int, default=90)
+    p_rec.add_argument("--top", type=int, default=30)
+    p_rec.add_argument("--valuable", action="store_true",
+                       help="only check URLs with impressions or AI citations (what the plan checks)")
+
     # --- site and quality -------------------------------------------------------------------
     p_relink = sub.add_parser(
         "relink", help="find live blog pages the index links to nowhere, and link them"
@@ -571,6 +619,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {args.mark} -> {args.state}" if ok else f"  not on the list: {args.mark}")
             else:
                 _print_outreach(args.days, args.top, show_all=args.all)
+
+        elif args.command == "reclaim":
+            _print_reclaim(args.days, args.valuable, args.top)
 
         elif args.command == "brief":
             _print_brief(args.days, args.top)
