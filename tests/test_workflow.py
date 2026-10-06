@@ -124,6 +124,7 @@ def test_pitches_run_weekly_in_the_compose_job_and_cannot_fail_it(wf):
     and a roundup that times out must not turn the measurement run red."""
     plan = "\n".join(s.get("run", "") for s in wf["jobs"]["plan"]["steps"])
     apply = "\n".join(s.get("run", "") for s in wf["jobs"]["apply"]["steps"])
-    line = next(ln for ln in plan.splitlines() if "autoseo pitches" in ln)
+    line = next(ln for ln in plan.splitlines()
+                if "autoseo pitches" in ln and not ln.lstrip().startswith("#"))
     assert "||" in line
     assert "autoseo pitches" not in apply

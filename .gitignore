@@ -43,3 +43,7 @@ state/dashboard.html
 
 # Built by the pages workflow from state/*.csv; never committed.
 public/
+
+# Pitch drafts stay on Karthik's machine. This repo is public, and a draft names an outreach
+# target and its wording before any editor has seen it. Run `autoseo pitches` locally to make them.
+state/pitches/
