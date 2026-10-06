@@ -48,11 +48,13 @@ autoseo/
 │   │   ├── inventory.py        # sitemap → URL inventory, bucketed by cluster
 │   │   └── diagnose.py         # isolate where GSC impressions go missing
 │   │
-│   ├── decide/                 # ← pure functions. No network, no LLM, no credentials.
+│   ├── decide/                 # ← no LLM, no credentials. Reads the web only to check liveness.
 │   │   ├── brand.py            # brand / competitor-internal / irrelevant classification
 │   │   ├── opportunity.py      # striking distance, CTR gaps, content gaps
 │   │   ├── brief.py            # ranked actions with evidence
-│   │   └── outreach.py         # pages worth being listed on, from real citations
+│   │   ├── outreach.py         # pages worth being listed on, from real citations
+│   │   ├── reclaim.py          # dead URLs with impressions/citations → suggested 301 target
+│   │   └── pitch.py            # roundup → facts → templated draft (never sent); listing check
 │   │
 │   ├── act/                    # ← the loop
 │   │   ├── plan.py             # decide → compose → gate → ledger.  Publishes nothing.
@@ -78,6 +80,7 @@ autoseo/
 │   │   ├── page.py             # surgical head edits for pages with no markdown source
 │   │   ├── blog_index.py       # insert/update the entry on /blog
 │   │   ├── delist.py           # noindex headers for the dead clusters
+│   │   ├── redirect.py         # one 301 appended to vercel.json, format-preserving, no chains
 │   │   ├── indexnow.py         # submit changed URLs to Bing, Yandex, Seznam, Naver
 │   │   └── youtube.py          # parked
 │   │
@@ -124,6 +127,10 @@ no longer a human reading the output before it ships.
       │     → compose 3 Q&A
       │     → quality gate
       │
+      ├── reclaim: dead URL that still earns impressions
+      │     or AI citations → successor by slug tokens
+      │     → only at confidence ≥0.8, ≤2 a run
+      │
       └── new post: demand with no page close enough
             → compose 700-1000 words
             → quality gate: slop, length, truncation,
@@ -136,6 +143,7 @@ no longer a human reading the output before it ships.
                                               post:    render → commit md + html + sitemap + index
                                               meta:    rewrite head + structured data
                                               faq:     insert a section before the CTA
+                                              redirect: 301 a dead URL, strict guards
                                                    │
                                                    ▼
                                               one atomic commit per action on
@@ -159,6 +167,10 @@ repo — and they earn every impression the blog gets, so `publish/page.py` edit
 | daily / weekly cap | `act/policy.py` | ≤1 post/day, ≤3/week, counting queued *and* shipped |
 | page cooldown | `act/policy.py` | a page edited in the last 30 days is not touched again |
 | staleness | `act/apply.py` | a draft composed 14+ days ago is dropped, not shipped |
+| reclaim bar | `decide/reclaim.py` | 301 only at confidence ≥0.8 *and* impressions or AI citations; 403/5xx/timeouts are unknown, never dead |
+| reclaim cap | `act/policy.py` | ≤2 redirects per run, counting queued; a source is never redirected twice |
+| redirect guards | `publish/redirect.py` | strict: no chain, no loop, no source an existing rule covers, no edit to an existing rule, no reformat |
+| reclaim staleness | `act/apply.py` | a redirect decided 3+ days ago is dropped: the page may have been restored |
 | path allowlist | `publish/site.py` | a commit outside four path prefixes raises, never sends |
 | overwrite guard | `publish/blog.py` | refuses to replace a live page with a "new" post |
 | kill switch | `AUTOSEO_PAUSE` or `state/PAUSE` | both halves stop before doing anything |
@@ -191,7 +203,7 @@ def ship(item_id: int, commit_url: str) -> None
 | `url_index_status` | per-URL indexed / canonical / coverage state, from URL Inspection |
 | `bing_daily` | Bing Webmaster totals |
 | `aeo_probe` | per question × engine × run: mentioned, cited |
-| `aeo_citation` | every source an answer engine cited — the outreach target list |
+| `aeo_citation` | every source an answer engine cited — the outreach target list, and reclaim's "cited by AI" evidence |
 | `queue_item` | the ledger: what was decided, the evidence, and what happened |
 | `corpus_shingle` | hashed 5-grams of the live site. A cache — never committed, rebuilt each run |
 | `run_log` | every command, exit state, and error |

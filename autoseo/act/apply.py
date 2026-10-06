@@ -24,6 +24,11 @@ log = get_logger(__name__)
 # justified it has moved on, and nothing about the draft records that.
 STALE_DAYS = 14
 
+# Tighter per kind where the evidence ages faster than the draft. A reclaim was decided on "this
+# URL returns 404 right now"; three days later the page may have been restored by hand, and a
+# redirect shipped over a live page replaces it for good.
+STALE_DAYS_BY_KIND = {"redirect": 3}
+
 
 @dataclass
 class Applied:
@@ -43,7 +48,7 @@ def _stale(item: ledger.Item) -> bool:
     if not item.created:
         return False
     age = dt.datetime.now(dt.UTC) - dt.datetime.fromisoformat(item.created)
-    return age.days > STALE_DAYS
+    return age.days > STALE_DAYS_BY_KIND.get(item.kind, STALE_DAYS)
 
 
 def run(dry_run: bool = False) -> Applied:
@@ -87,7 +92,8 @@ def run(dry_run: bool = False) -> Applied:
 
     for item in ledger.planned():
         if _stale(item):
-            print(f"  dropped #{item.id} ({item.kind}) — composed {STALE_DAYS}+ days ago")
+            limit = STALE_DAYS_BY_KIND.get(item.kind, STALE_DAYS)
+            print(f"  dropped #{item.id} ({item.kind}) — composed {limit}+ days ago")
             if not dry_run:
                 ledger.drop(item.id, f"stale: composed at {item.created}")
             result.dropped.append(f"#{item.id} {item.title}")
@@ -145,6 +151,14 @@ def run(dry_run: bool = False) -> Applied:
                 url = redirect.add(item.meta["source"], item.meta["destination"],
                                    item.rationale, dry_run=dry_run)
 
+            elif item.kind == ledger.Kind.REDIRECT:
+                # Same order as a merge, for the same reason. `strict` adds the reclaim-only
+                # guards: no source an existing pattern already covers, and no new hop after a
+                # rule that already points at this source. Existing redirects are never edited.
+                sitemap.drop_urls({item.meta["url"]}, item.rationale, dry_run=dry_run)
+                url = redirect.add(item.meta["source"], item.meta["destination"],
+                                   item.rationale, dry_run=dry_run, strict=True)
+
             elif item.kind == ledger.Kind.SITEMAP:
                 url = sitemap.drop_urls(set(item.meta["urls"]), item.rationale, dry_run=dry_run)
 
@@ -201,7 +215,7 @@ def _urls_for(item: ledger.Item) -> set[str]:
         return set()
     # The destination changed — it now answers for two pages. Ask for that one to be recrawled,
     # never the source, which no longer exists as a page.
-    if item.kind == ledger.Kind.MERGE:
+    if item.kind in (ledger.Kind.MERGE, ledger.Kind.REDIRECT):
         from autoseo.core.config import settings as _s
         return {f"{_s.site}{item.meta['destination']}"}
 

@@ -264,7 +264,7 @@ def strategy() -> dict:
         """SELECT
              SUM(CASE WHEN kind='post' AND status='shipped' THEN 1 ELSE 0 END) posts,
              SUM(CASE WHEN kind IN ('meta','faq') AND status='shipped' THEN 1 ELSE 0 END) onpage,
-             SUM(CASE WHEN kind IN ('prune','sitemap','merge') AND status='shipped' THEN 1 ELSE 0 END) removed
+             SUM(CASE WHEN kind IN ('prune','sitemap','merge','redirect') AND status='shipped' THEN 1 ELSE 0 END) removed
            FROM queue_item WHERE created >= date('now','-7 days')"""
     )
     idx = indexation()

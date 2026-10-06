@@ -169,6 +169,15 @@ jobs:
             autoseo outreach || true
           fi
 
+          # The listing check, weekly: are the roundups that list DailyVox still listing it? It reads
+          # third-party pages, which is why it lives in this job and never in `apply`. Its findings go
+          # to this run's log. The pitch drafts it also writes are gitignored (this repo is public);
+          # Karthik makes his own with `autoseo pitches` locally. Nothing is sent, and no outreach
+          # state changes. `|| echo`: a roundup that times out must not fail the measurement run.
+          if [ "$(date -u +%u)" = "1" ]; then
+            autoseo pitches --top 5 --review || echo "::warning::pitches failed — continuing"
+          fi
+
           autoseo brief
           autoseo plan --days "$DAYS" $DRY
           autoseo status

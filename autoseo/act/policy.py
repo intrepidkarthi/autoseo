@@ -50,6 +50,11 @@ MAX_ONPAGE_FIXES_PER_WEEK = 5
 # change; rewriting it daily measures nothing and looks like churn to a crawler.
 PAGE_COOLDOWN_DAYS = 30
 
+# Reclaimed dead URLs, per run. A redirect is the one change a reader can notice going wrong, and a
+# reclaim is decided from slug similarity rather than from shared queries — so two, and only for
+# URLs that something outside the site still points at. Everything else is reported, not shipped.
+MAX_REDIRECTS_PER_RUN = 2
+
 
 def paused() -> str:
     """Reason the loop is paused, or "" if it should run."""
@@ -105,6 +110,11 @@ def cooling_down() -> set[str]:
     )
 
 
+def redirect_budget() -> int:
+    """How many reclaim redirects may be planned this run. Queued ones count against it."""
+    return max(0, MAX_REDIRECTS_PER_RUN - len(ledger.planned(ledger.Kind.REDIRECT)))
+
+
 def already_redirected() -> set[str]:
     """Paths a merge has already folded away. Permanent — a redirect is not a cooldown."""
     return ledger.redirected_sources()
@@ -122,6 +132,8 @@ def describe() -> str:
         f"shipped in 7 days)",
         f"  cooldown     {len(cooling_down())} page(s) inside the {PAGE_COOLDOWN_DAYS}-day window",
         f"  merged       {len(already_redirected())} path(s) already 301'd — never proposed again",
+        f"  reclaim      {redirect_budget()} redirect(s) available now "
+        f"(cap {MAX_REDIRECTS_PER_RUN}/run, confident targets with outside value only)",
     ]
     if reason := paused():
         lines.insert(0, f"  PAUSED       {reason}")

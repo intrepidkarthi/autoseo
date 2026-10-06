@@ -16,7 +16,9 @@ Pure scoring over stored probe data. Nothing here sends anything.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -24,10 +26,38 @@ from autoseo.core.db import session
 
 # Pages that will never add us, and cost nothing to skip.
 SKIP_DOMAINS = {
-    "getdailyvox.com", "apps.apple.com", "play.google.com", "youtube.com",
+    "getdailyvox.com", "apps.apple.com", "itunes.apple.com", "play.google.com", "youtube.com",
     "twitter.com", "x.com", "facebook.com", "instagram.com", "linkedin.com",
     "wikipedia.org", "google.com",
 }
+
+
+def _host(url: str) -> str:
+    return (urlsplit(url).hostname or "").lower().removeprefix("www.")
+
+
+def _suffix_match(host: str) -> bool:
+    return any(host == s or host.endswith("." + s) for s in SKIP_DOMAINS)
+
+
+def is_skipped(domain: str, url: str = "") -> bool:
+    """Is this a page that will never list us — an app store listing, a social network, us?
+
+    Matched on the host by suffix. The stored `domain` alone is not enough, and relying on it was a
+    bug: Gemini reports each source by its *registrable* domain, so an App Store listing arrives as
+    `apple.com`, which matches neither `apps.apple.com` nor anything else here. Diarium's App Store
+    page ranked #1 of 219 targets on 2026-10-06 on the strength of it — a competitor's own product
+    listing, which no email will ever change.
+
+    When the URL is still a grounding redirect its host is unknown, and the stored domain is all
+    there is. A domain that is the registrable parent of a skipped host is then skipped too: 317 of
+    the 1,939 stored citations were `apple.com`, and the ones resolved so far were App Store pages.
+    """
+    domain = (domain or "").lower().removeprefix("www.")
+    host = _host(url) if url and "vertexaisearch" not in url else ""
+    if host:
+        return _suffix_match(host) or _suffix_match(domain)
+    return _suffix_match(domain) or any(s.endswith("." + domain) for s in SKIP_DOMAINS if domain)
 
 # Listicles and comparison pages are updatable by their author; a vendor's own site is not.
 LISTICLE_HINTS = ("best", "top", "alternative", "vs", "review", "compare", "roundup", "apps for")
@@ -64,7 +94,8 @@ def resolve(url: str) -> str:
 
 
 def _is_listicle(title: str, url: str) -> bool:
-    blob = f"{title} {url}".lower()
+    # Slugs spell "apps for" as `apps-for` or `apps_for`; matched as words, not as punctuation.
+    blob = re.sub(r"[-_/]+", " ", f"{title} {url}".lower())
     return any(h in blob for h in LISTICLE_HINTS)
 
 
@@ -104,7 +135,7 @@ def build(days: int = 30, min_citations: int = 2, resolve_top: int = 12) -> list
         dom = r["domain"]
         # Exact host or true subdomain only. Substring matching discarded every target, because
         # Gemini's redirect host (vertexaisearch.cloud.google.com) contains "google.com".
-        if not dom or any(dom == s or dom.endswith("." + s) for s in SKIP_DOMAINS):
+        if not dom or is_skipped(dom, r["url"]):
             continue
         qs = (r["qs"] or "").split(",")
         comps = sorted({c for q in qs for c in comp_by_q.get(q, set())})
@@ -136,9 +167,13 @@ def build(days: int = 30, min_citations: int = 2, resolve_top: int = 12) -> list
     targets.sort(key=lambda t: -t.score)
     for i, t in enumerate(targets, 1):
         t.rank = i
-    # Resolve only the shortlist: one HEAD each, and nobody acts on target #40.
+    # Resolve only the shortlist: one HEAD each, and nobody acts on target #40. A resolved URL can
+    # turn out to be a page the domain alone could not rule out, so the filter runs again.
     for t in targets[:resolve_top]:
         t.url = resolve(t.url)
+    targets = [t for t in targets if not is_skipped(t.domain, t.url)]
+    for i, t in enumerate(targets, 1):
+        t.rank = i
     return targets
 
 
