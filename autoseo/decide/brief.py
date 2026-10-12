@@ -58,6 +58,10 @@ class Action:
     est_click_gain: float
     evidence: str
     steps: list[str] = field(default_factory=list)
+    # For an answer-engine gap: the Search Console query that grounds the question, when the panel
+    # names one. The question text never appears in Search Console, so it is this query a new page
+    # would actually compete on.
+    proxy_query: str = ""
 
 
 def _window(days: int) -> tuple[str, str]:
@@ -229,6 +233,7 @@ def aeo_gaps(days: int = 90, min_runs: int = 2) -> list[Action]:
 
     cutoff = (dt.date.today() - dt.timedelta(days=days)).isoformat()
     gaps: list[Action] = []
+    grounding = panel_queries()
 
     with session() as conn:
         rows = conn.execute(
@@ -256,6 +261,7 @@ def aeo_gaps(days: int = 90, min_runs: int = 2) -> list[Action]:
             # products get named is one where the engine has an answer shape and we are absent
             # from it, which is more tractable than one nobody wins.
             est_click_gain=float(len(competitors)),
+            proxy_query=grounding.get(r["question_id"], ""),
             evidence=(
                 f"Asked {r['runs']} times, DailyVox mentioned 0 times. The engine names "
                 f"{named} instead. Answer-engine demand with nothing of ours answering it."
@@ -271,6 +277,26 @@ def aeo_gaps(days: int = 90, min_runs: int = 2) -> list[Action]:
     for i, a in enumerate(gaps, 1):
         a.priority = i
     return gaps
+
+
+def panel_queries() -> dict[str, str]:
+    """{question_id: the Search Console query named in its `gsc_evidence`}, where one is named.
+
+    The evidence reads "voice diary app — 34 imp, position 30.1"; the query is the part before the
+    dash. A panel that cannot be read costs the guard its proxy, not the run its gaps.
+    """
+    try:
+        from autoseo.aeo.probe import _load_panel
+        questions = _load_panel()["questions"]
+    except Exception:  # noqa: BLE001
+        return {}
+    out = {}
+    for q in questions:
+        evidence = q.get("gsc_evidence", "")
+        query = evidence.split(" — ")[0].strip() if evidence else ""
+        if q.get("id") and query:
+            out[q["id"]] = query
+    return out
 
 
 def excluded(days: int = 90, min_impressions: float = 15) -> dict[str, list[tuple[str, float]]]:

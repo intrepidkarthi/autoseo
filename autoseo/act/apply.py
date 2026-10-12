@@ -130,6 +130,12 @@ def run(dry_run: bool = False) -> Applied:
                     dry_run=dry_run,
                 )
 
+            elif item.kind == ledger.Kind.LINK:
+                url = publisher.add_link(
+                    item.meta["slug"], item.meta["target_slug"], item.meta["target_title"],
+                    rationale=item.rationale, dry_run=dry_run,
+                )
+
             elif item.kind == ledger.Kind.PRUNE:
                 # Both halves, in one item: the header stops it being indexed, and dropping it from
                 # the sitemap stops us asking for it to be. Doing only the first leaves the site
@@ -223,6 +229,10 @@ def _urls_for(item: ledger.Item) -> set[str]:
     if not slug:
         return set()
     urls = {f"{settings.site}/blog/{slug}"}
+    if item.kind == ledger.Kind.LINK and item.meta.get("target_slug"):
+        # The donor changed, and its recrawl is what carries the link to a crawler. The target did
+        # not change, but asking for it costs nothing and is the whole point of the edit.
+        urls.add(f"{settings.site}/blog/{item.meta['target_slug']}")
     if item.kind == ledger.Kind.POST:
         # The listing page changed too — it gained an entry, and it is how a crawler reaches the
         # new page from anywhere else on the site.

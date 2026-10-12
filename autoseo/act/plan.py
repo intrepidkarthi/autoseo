@@ -10,6 +10,7 @@ does not re-judge quality; it executes.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import httpx
@@ -39,6 +40,9 @@ class Planned:
     merged: int = 0            # duplicate pages to be folded into their better half
     sitemap_dropped: int = 0   # URLs to stop submitting
     redirected: int = 0        # dead URLs with outside value, 301'd onto their successor
+    links: int = 0             # links from indexed pages to unindexed ones
+    # Why a run with post budget to spend planned no post. Empty when it wrote one, or had no budget.
+    post_stall: str = ""
     skipped: list[str] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
@@ -46,7 +50,7 @@ class Planned:
 
     @property
     def total(self) -> int:
-        return self.posts + self.meta + self.faq
+        return self.posts + self.meta + self.faq + self.links
 
 
 def _live(url: str) -> bool:
@@ -78,6 +82,7 @@ def run(days: int = 90, dry_run: bool = False) -> Planned:
     _plan_reclaim(days, result, dry_run)
     _plan_onpage(days, result, dry_run)
     _plan_posts(days, result, dry_run)
+    _plan_links(result, dry_run)
     return result
 
 
@@ -437,6 +442,8 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
         print("\n  last two posts came from Search Console — this one targets an answer-engine gap")
 
     failures = 0
+    considered = 0
+    why: dict[str, int] = {}
     # Seeded from the ledger, not empty. The per-run set was the whole guard for one day, and one
     # day is not the window that matters: a page published this morning to relieve an incumbent is
     # still relieving it tomorrow, and Search Console will not report it for a week.
@@ -444,17 +451,33 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
     for action in wanted:
         if budget <= 0 or failures >= MAX_CONSECUTIVE_FAILURES:
             break
+        considered += 1
         slug = _slugify(action.query)
+        # Logged, not just skipped. This line was a bare `continue` until 2026-10-12, and for the
+        # week before that every answer-engine gap hit it — each one already had a page — so the
+        # arm announced "this one targets an answer-engine gap" every morning and then said nothing
+        # at all about why it wrote nothing.
         if slug in written:
+            log.info("/blog/%s was already written — skipping '%s'", slug, action.query[:60])
+            result.skipped.append(f"post '{action.query[:40]}': already written as /blog/{slug}")
+            why["already written"] = why.get("already written", 0) + 1
             continue
         if _live(f"https://getdailyvox.com/blog/{slug}"):
             log.info("/blog/%s is already live — skipping", slug)
+            result.skipped.append(f"post '{action.query[:40]}': /blog/{slug} is already live")
+            why["already live"] = why.get("already live", 0) + 1
             continue
 
-        ours = brief.pages_ranking_for(action.query, days=days)
+        # An answer-engine question is never itself a Search Console query, so checking it as one
+        # always found nothing of ours and the cannibalisation guard waved every gap through. Where
+        # the panel names the query that grounds a question, that query is what a new page would
+        # actually compete on.
+        ours = brief.pages_ranking_for(action.proxy_query or action.query, days=days)
         if reason := _would_cannibalise(ours, claimed):
             log.info("skipping '%s': %s", action.query, reason)
             result.skipped.append(f"post '{action.query[:40]}': {reason}")
+            key = "an existing page to edit" if "edit it" in reason else "our pages already competing"
+            why[key] = why.get(key, 0) + 1
             continue
         incumbent = ours[0][0] if ours else ""
 
@@ -467,11 +490,13 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
         except Exception as exc:  # noqa: BLE001 — a model outage must not fail the whole run
             log.error("draft failed for '%s': %s", action.query, exc)
             result.skipped.append(f"post '{action.query}': {str(exc)[:80]}")
+            why["draft errors"] = why.get("draft errors", 0) + 1
             failures += 1
             continue
         failures = 0
         if not draft:
             result.skipped.append(f"post '{action.query}': failed the quality gate twice")
+            why["failed the quality gate"] = why.get("failed the quality gate", 0) + 1
             continue
 
         print(f"    {draft.title}")
@@ -497,3 +522,99 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
             claimed.add(incumbent)
         result.posts += 1
         budget -= 1
+
+    if not result.posts:
+        if failures >= MAX_CONSECUTIVE_FAILURES:
+            result.post_stall = f"{failures} drafts failed in a row — see the errors above"
+        elif not considered:
+            result.post_stall = "no candidates at all — the brief and the answer-engine panel are both empty"
+        else:
+            counts = ", ".join(f"{n} {k}" for k, n in sorted(why.items(), key=lambda kv: -kv[1]))
+            result.post_stall = f"all {considered} candidate(s) filtered out ({counts})"
+        print(f"\n  no post this run — {result.post_stall}")
+
+
+# --- links to pages Google has not indexed -----------------------------------------------------
+
+def _plan_links(result: Planned, dry_run: bool) -> None:
+    """Link unindexed pages from indexed ones that share their topic. See `decide.linking`.
+
+    Runs every day, not only when the post arm comes up empty: a page Google has not indexed is
+    worth nothing whether or not anything new was written that morning.
+    """
+    from autoseo.decide import linking
+
+    budget = policy.link_budget()
+    if budget <= 0:
+        result.skipped.append("links: already planned and waiting, or the weekly cap is reached")
+        return
+
+    recent = ledger.link_targets(days=policy.LINK_COOLDOWN_DAYS)
+    # Donors that gave a link recently, and pages inside the edit cooldown: a title change and a new
+    # paragraph in the same fortnight would make the title change impossible to grade.
+    exclude = (ledger.slugs_touched((ledger.Kind.LINK,), days=policy.LINK_COOLDOWN_DAYS)
+               | policy.cooling_down())
+    try:
+        pool = linking.donors()
+        targets = linking.targets()
+    except Exception as exc:  # noqa: BLE001 — a missing table costs a day of links, not the run
+        log.warning("link planning failed: %s", exc)
+        result.skipped.append(f"links: {str(exc)[:80]}")
+        return
+
+    unpaired = 0
+    for t in targets:
+        if budget <= 0:
+            break
+        if t.slug in recent:
+            continue
+        try:
+            live = onpage.live_page(t.url)
+        except Exception as exc:  # noqa: BLE001 — one unreachable page must not end the arm
+            log.warning("could not read %s: %s", t.url, str(exc)[:80])
+            continue
+        if live.redirected or not live.title:
+            continue
+        picked = linking.choose(t, live.title, pool, exclude)
+        if not picked:
+            unpaired += 1
+            continue
+        donor, shared = picked
+        try:
+            r = httpx.get(donor.url, timeout=30.0, follow_redirects=True,
+                          headers={"user-agent": "autoseo"})
+            r.raise_for_status()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("could not read donor %s: %s", donor.url, str(exc)[:80])
+            exclude.add(donor.slug)
+            continue
+        from autoseo.publish import page as _page
+        if r.history or _page.links_to(r.text, t.slug):
+            # Already linked, or the donor is itself a redirect. Either way not this pairing.
+            exclude.add(donor.slug)
+            continue
+
+        title = re.split(r"\s+[|–—]\s+DailyVox\b", live.title)[0].strip()
+        rationale = (
+            f"/blog/{t.slug} is \"{t.state}\" in Search Console's URL inspection. /blog/{donor.slug} "
+            f"is indexed and earned {donor.impressions:.0f} impressions in the last "
+            f"{linking.DONOR_WINDOW_DAYS} days; they share {', '.join(sorted(shared))}. A link from a "
+            f"page Google already shows is the signal that the target matters."
+        )
+        print(f"\n  link /blog/{t.slug} from /blog/{donor.slug}")
+        print(f"      {t.state}; shared: {', '.join(sorted(shared))}; donor {donor.impressions:.0f} imp")
+        exclude.add(donor.slug)
+        result.links += 1
+        budget -= 1
+        if dry_run:
+            continue
+        ledger.plan(ledger.Item(
+            kind=ledger.Kind.LINK, title=f"Link /blog/{t.slug} from /blog/{donor.slug}",
+            body=title, rationale=rationale,
+            meta={"slug": donor.slug, "url": donor.url, "target_slug": t.slug,
+                  "target_url": t.url, "target_title": title, "state": t.state,
+                  "shared": sorted(shared), "donor_impressions": round(donor.impressions)},
+        ))
+    if unpaired:
+        result.skipped.append(f"links: {unpaired} unindexed page(s) share no topic with any indexed "
+                              f"page — left alone rather than linked from something unrelated")

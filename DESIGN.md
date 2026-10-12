@@ -54,6 +54,7 @@ autoseo/
 │   │   ├── brief.py            # ranked actions with evidence
 │   │   ├── outreach.py         # pages worth being listed on, from real citations
 │   │   ├── reclaim.py          # dead URLs with impressions/citations → suggested 301 target
+│   │   ├── linking.py          # unindexed pages → the indexed page that should link to them
 │   │   └── pitch.py            # roundup → facts → templated draft (never sent); listing check
 │   │
 │   ├── act/                    # ← the loop
@@ -131,6 +132,10 @@ no longer a human reading the output before it ships.
       │     or AI citations → successor by slug tokens
       │     → only at confidence ≥0.8, ≤2 a run
       │
+      ├── link: a page Google has not indexed
+      │     → the indexed page that shares its topic
+      │     → one paragraph, ≤2 a run, 8 a week
+      │
       └── new post: demand with no page close enough
             → compose 700-1000 words
             → quality gate: slop, length, truncation,
@@ -169,6 +174,7 @@ repo — and they earn every impression the blog gets, so `publish/page.py` edit
 | staleness | `act/apply.py` | a draft composed 14+ days ago is dropped, not shipped |
 | reclaim bar | `decide/reclaim.py` | 301 only at confidence ≥0.8 *and* impressions or AI citations; 403/5xx/timeouts are unknown, never dead |
 | reclaim cap | `act/policy.py` | ≤2 redirects per run, counting queued; a source is never redirected twice |
+| link cap | `act/policy.py` | ≤2 links per run, 8 per week, counting queued; a page gives or receives one link per 30 days; donors in the edit cooldown are skipped |
 | redirect guards | `publish/redirect.py` | strict: no chain, no loop, no source an existing rule covers, no edit to an existing rule, no reformat |
 | reclaim staleness | `act/apply.py` | a redirect decided 3+ days ago is dropped: the page may have been restored |
 | path allowlist | `publish/site.py` | a commit outside four path prefixes raises, never sends |

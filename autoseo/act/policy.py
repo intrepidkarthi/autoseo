@@ -55,6 +55,20 @@ PAGE_COOLDOWN_DAYS = 30
 # URLs that something outside the site still points at. Everything else is reported, not shipped.
 MAX_REDIRECTS_PER_RUN = 2
 
+# Links from an indexed page to one Google has not indexed. Added 2026-10-12, when the post arm ran
+# dry for a week and the run's own report said why more posts would not help: 25 live blog pages
+# sit unindexed, nine of them "Discovered - currently not indexed" — Google knows the URL and has
+# not judged it worth a fetch. A link from a page it already recrawls is the one signal this loop
+# can send about that; the sitemap and the /blog index already say "exists", not "matters".
+#
+# Two a run, eight a week: each is a commit to a page that earns impressions, and the effect is
+# read off the inspection data a week later, which a flood would make unattributable. A page is
+# linked to at most once a month, and a donor gives at most one link a month, so no page becomes a
+# link farm and no target is propped up by repetition instead of by the page itself.
+MAX_LINKS_PER_RUN = 2
+MAX_LINKS_PER_WEEK = 8
+LINK_COOLDOWN_DAYS = 30
+
 
 def paused() -> str:
     """Reason the loop is paused, or "" if it should run."""
@@ -115,6 +129,13 @@ def redirect_budget() -> int:
     return max(0, MAX_REDIRECTS_PER_RUN - len(ledger.planned(ledger.Kind.REDIRECT)))
 
 
+def link_budget() -> int:
+    """How many internal links may be planned this run. Queued ones count against it."""
+    queued = len(ledger.planned(ledger.Kind.LINK))
+    week = ledger.shipped_since(ledger.Kind.LINK, days=7)
+    return max(0, min(MAX_LINKS_PER_RUN - queued, MAX_LINKS_PER_WEEK - week - queued))
+
+
 def already_redirected() -> set[str]:
     """Paths a merge has already folded away. Permanent — a redirect is not a cooldown."""
     return ledger.redirected_sources()
@@ -134,6 +155,8 @@ def describe() -> str:
         f"  merged       {len(already_redirected())} path(s) already 301'd — never proposed again",
         f"  reclaim      {redirect_budget()} redirect(s) available now "
         f"(cap {MAX_REDIRECTS_PER_RUN}/run, confident targets with outside value only)",
+        f"  links        {link_budget()} available now (cap {MAX_LINKS_PER_RUN}/run, "
+        f"{MAX_LINKS_PER_WEEK}/week; {ledger.shipped_since(ledger.Kind.LINK, 7)} shipped in 7 days)",
     ]
     if reason := paused():
         lines.insert(0, f"  PAUSED       {reason}")

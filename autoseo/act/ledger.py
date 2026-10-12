@@ -37,6 +37,7 @@ class Kind(StrEnum):
     SITEMAP = "sitemap"   # drop URLs that should never have been submitted
     MERGE = "merge"       # 301 a duplicate page onto the one that outranks it
     REDIRECT = "redirect"  # 301 a dead URL that still earns impressions or citations
+    LINK = "link"         # a link from a page Google already values to one it has not indexed
 
 
 @dataclass
@@ -135,6 +136,30 @@ def shipped_since(kind: str, days: int) -> int:
             "SELECT COUNT(*) FROM queue_item WHERE kind = ? AND status = ? AND decided_at >= ?",
             (kind, Status.SHIPPED, cutoff),
         ).fetchone()[0]
+
+
+def last_shipped(kind: str) -> str | None:
+    """When the most recent item of this kind reached the site, or None if one never has."""
+    with session() as conn:
+        row = conn.execute(
+            "SELECT MAX(decided_at) FROM queue_item WHERE kind = ? AND status = ?",
+            (kind, Status.SHIPPED),
+        ).fetchone()
+    return row[0] if row and row[0] else None
+
+
+def link_targets(days: int) -> set[str]:
+    """Slugs a link was planned or shipped *to* recently. `slugs_touched` answers for the donor."""
+    cutoff = (dt.datetime.now(dt.UTC) - dt.timedelta(days=days)).isoformat(timespec="seconds")
+    out: set[str] = set()
+    with session() as conn:
+        for r in conn.execute(
+            "SELECT meta FROM queue_item WHERE kind = ? AND created >= ? AND status IN (?, ?)",
+            (Kind.LINK, cutoff, Status.PLANNED, Status.SHIPPED),
+        ):
+            if target := json.loads(r["meta"] or "{}").get("target_slug"):
+                out.add(target)
+    return out
 
 
 def summary(days: int = 30) -> list[tuple[str, str, int]]:

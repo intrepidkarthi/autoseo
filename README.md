@@ -41,6 +41,7 @@ submit      IndexNow → Bing, Yandex, Seznam, Naver. Google reads the regenerat
 | pitch drafts — for the roundups that cite competitors | ✅ | weekly; dead competitor links found; **never sent**, Karthik rewrites |
 | listing check — do pages that listed us still do? | ✅ | weekly, `pitches --review`; reports only |
 | reclaim — dead URLs that still carry value | ✅ | 301 only at confidence ≥0.8 with impressions or citations; rest reported |
+| links to unindexed pages | ✅ | an indexed page that shares the topic links to one Google hasn't indexed; ≤2/run, 8/week |
 | quality gate — write-like-me, in code | ✅ | vendored scanner; every article, no exceptions |
 | answer-engine gaps drive content | ✅ | 0 of 8 buyer questions mention us today |
 | IndexNow submission | ✅ | Bing/Yandex/Seznam/Naver; Google has no equivalent API |
@@ -79,6 +80,7 @@ Removing the approval step means removing a rate limiter, so the rate limits are
 | **empty duplication corpus → no posts** | if it can't check for self-duplication it doesn't write |
 | **14-day staleness drop** | a draft composed against numbers that have moved is dropped, not shipped |
 | **≤2 reclaim redirects/run** | only at confidence ≥0.8, only for a dead URL with impressions or AI citations; never over a live URL, an existing rule, or into a chain |
+| **≤2 internal links/run, 8/week** | donor must be indexed with ≥20 impressions in 28 days and share the topic; each page gives or gets one link a month |
 | **path allowlist** | a commit touching anything outside four path prefixes raises before it is sent |
 | **kill switch** | `AUTOSEO_PAUSE=1`, or commit a `state/PAUSE` file. Both halves stop immediately |
 

@@ -399,7 +399,8 @@ def _already_worked_today() -> bool:
     cries on healthy runs is one you stop reading, which is the failure it exists to prevent.
     """
     from autoseo.act import ledger
-    return any(ledger.shipped_today(k) for k in (ledger.Kind.POST, ledger.Kind.META, ledger.Kind.FAQ))
+    return any(ledger.shipped_today(k) for k in (ledger.Kind.POST, ledger.Kind.META, ledger.Kind.FAQ,
+                                                 ledger.Kind.LINK))
 
 
 def _print_plan(result) -> None:
@@ -416,16 +417,29 @@ def _print_plan(result) -> None:
     and three days passed with no article because every candidate had been filtered out. The run
     must not fail — an idle day is not a broken one — but it must announce itself.
     """
-    from autoseo.act import policy
+    from autoseo.act import ledger, policy
 
-    print(f"\n  planned: {result.posts} post(s), {result.meta} retitle(s), {result.faq} FAQ(s)")
+    print(f"\n  planned: {result.posts} post(s), {result.meta} retitle(s), {result.faq} FAQ(s), "
+          f"{result.links} link(s)")
     for s in result.skipped:
         print(f"  skipped: {s}")
     if result.total == 0 and not _already_worked_today() and policy.MAX_POSTS_PER_DAY:
         print("::warning title=autoseo planned nothing::"
-              "No post, retitle or FAQ this run — every candidate was filtered out. "
+              "No post, retitle, FAQ or link this run — every candidate was filtered out. "
               "If this repeats, the acquisition arms have run dry rather than run clean; "
               "read the skip reasons above.")
+    # Separate from the alarm above, which a single retitle silences. From 2026-10-06 to 10-11 the
+    # loop wrote no article on any day while shipping a retitle on most of them, so that alarm never
+    # fired and a week without a post read as a week of healthy runs.
+    if (result.post_stall and not ledger.shipped_today(ledger.Kind.POST)
+          and not ledger.planned(ledger.Kind.POST)):
+        last = ledger.last_shipped(ledger.Kind.POST)
+        since = ""
+        if last:
+            days = (dt.datetime.now(dt.UTC) - dt.datetime.fromisoformat(last)).days
+            since = f" Last post: {last[:10]} ({days} day(s) ago)."
+        print("::warning title=autoseo wrote no post::"
+              f"There was budget for a post and none was planned — {result.post_stall}.{since}")
 
 
 def _grade_default() -> int:

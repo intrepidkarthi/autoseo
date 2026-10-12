@@ -163,3 +163,35 @@ def append_faq(doc: str, pairs: list[tuple[str, str]]) -> str:
     else:
         log.warning("no </head> found — the FAQ section was added without structured data")
     return doc
+
+
+# --- internal links --------------------------------------------------------------------------
+
+LINK_ANCHORS = (
+    # Before the FAQ if there is one, so the link reads as part of the argument and not as an
+    # answer; then before a hand-built "Related" list; then the CTA; then the end of the article.
+    re.compile(r'([ \t]*)<h2[^>]*>\s*(?:Frequently asked questions|FAQs?\b)', re.I),
+    re.compile(r'([ \t]*)<h2[^>]*>\s*Related\b', re.I),
+    *FAQ_ANCHORS,
+)
+
+
+def links_to(doc: str, slug: str) -> bool:
+    """Does this page already link to /blog/<slug>, with or without a trailing slash or .html?"""
+    return bool(re.search(rf'href="(?:https://getdailyvox\.com)?/blog/{re.escape(slug)}(?:\.html)?/?"', doc))
+
+
+def insert_link(doc: str, slug: str, title: str) -> str:
+    """Add one 'Related reading' paragraph pointing at /blog/<slug>. Nothing else on the page moves."""
+    if links_to(doc, slug):
+        from autoseo.publish.site import AlreadyApplied
+        raise AlreadyApplied(f"the page already links to /blog/{slug}")
+    for anchor in LINK_ANCHORS:
+        match = anchor.search(doc)
+        if not match:
+            continue
+        indent = match.group(1)
+        para = (f'{indent}<p class="related-reading">Related reading: '
+                f'<a href="/blog/{slug}">{htmllib.escape(title)}</a></p>\n\n')
+        return doc[:match.start()] + para + doc[match.start():]
+    raise RuntimeError("could not find the end of the article body — refusing to guess")

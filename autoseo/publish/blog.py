@@ -305,6 +305,45 @@ def append_section(slug: str, block: str, rationale: str, dry_run: bool = False)
     )
 
 
+_MD_FAQ = re.compile(r"^##\s+(?:question|frequently asked|faq)", re.I | re.M)
+
+
+def link_paragraph(slug: str, title: str) -> str:
+    # Brackets would end the link text early; the renderer escapes everything else.
+    clean = re.sub(r"[\[\]]", "", title).strip()
+    return f"Related reading: [{clean}](/blog/{slug})."
+
+
+def add_link(donor: str, target: str, title: str, rationale: str, dry_run: bool = False) -> str:
+    """Link /blog/<target> from /blog/<donor> with one paragraph. Additive, like an FAQ.
+
+    In markdown the paragraph goes before any FAQ heading. The renderer treats everything after a
+    "## Questions…" heading as question-and-answer pairs, so a line appended at the end would be
+    swallowed into the last answer instead of standing on its own.
+    """
+    markdown = site.read_text(f"{site.content_dir()}/{donor}.md")
+    if markdown is not None:
+        if re.search(rf"\]\(/blog/{re.escape(target)}/?\)", markdown):
+            raise site.AlreadyApplied(f"{donor}.md already links to /blog/{target}")
+        para = link_paragraph(target, title)
+        faq = _MD_FAQ.search(markdown)
+        updated = (markdown[:faq.start()] + para + "\n\n" + markdown[faq.start():] if faq
+                   else markdown.rstrip() + "\n\n" + para + "\n")
+        files = render({donor: updated})
+    else:
+        html_path = f"{site.site_dir()}/public/blog/{donor}.html"
+        doc = site.read_text(html_path)
+        if doc is None:
+            raise RuntimeError(
+                f"neither {donor}.md nor {donor}.html is in the site repo — nothing to link from"
+            )
+        files = {html_path: page.insert_link(doc, target, title)}
+
+    return site.commit(
+        files, f"seo: link /blog/{target} from /blog/{donor}\n\n{rationale}", dry_run=dry_run
+    )
+
+
 # --- the blog index ----------------------------------------------------------------------------
 
 def index_pages() -> list[str]:

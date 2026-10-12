@@ -5,7 +5,7 @@
 # already rank for. Wording is fixed on purpose: LLM answers vary run to run, so changing the question
 # destroys the comparison. Add questions, never edit them; retire one by setting active: false.
 #
-# `core` runs daily, the rest weekly. At 10 daily + 24 weekly that is ~400 grounded calls/month
+# `core` runs daily, the rest weekly. At 10 daily + 26 weekly that is ~400 grounded calls/month
 # against a 5,000/month free allowance.
 
 brand: DailyVox
@@ -96,6 +96,17 @@ questions:
   - id: journal-app-privacy-audit
     text: "Which journaling apps actually collect no data according to their App Store privacy label?"
     tier: extended
+  # Added 2026-10-12. By then every gap the panel had surfaced already had a page, and the post arm
+  # planned nothing for a week. Both are grounded in queries where nothing of ours ranks within
+  # reach, so a page for them adds to the site instead of competing with it.
+  - id: journal-before-bed
+    text: "Does journaling before bed help you sleep, and which app makes it easy?"
+    tier: extended
+    gsc_evidence: "journaling before bed — 13 imp, position 70.4"
+  - id: health-journal
+    text: "What is the best app for keeping a health journal to share with my doctor?"
+    tier: extended
+    gsc_evidence: "patient journal app — 10 imp, position 61.3"
 
   # --- frontier: the local/private-AI cluster, run on demand -----------------
   #
