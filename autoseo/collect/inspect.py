@@ -93,6 +93,7 @@ def collect(limit: int | None = None, sample_orphans: int = 0) -> dict[str, int]
         return {}
     now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
     tally = {"checked": 0, "indexed": 0, "errors": 0}
+    timeouts = 0
 
     for url in urls:
         try:
@@ -114,6 +115,19 @@ def collect(limit: int | None = None, sample_orphans: int = 0) -> dict[str, int]
             log.warning("inspect failed %s: %s", url, exc)
             tally["errors"] += 1
             continue
+        except (TimeoutError, OSError) as exc:
+            # One slow response is not a reason to lose the run. On 2026-10-19 a single read
+            # timeout here raised out of `collect` and took the whole morning run down with it —
+            # measurement, planning and publishing — over one URL of 174. Skip it; three in a row
+            # means the API itself is unreachable, and the remaining URLs keep until tomorrow.
+            log.warning("inspect timed out %s: %s", url, str(exc)[:80])
+            tally["errors"] += 1
+            timeouts += 1
+            if timeouts >= 3:
+                log.warning("URL Inspection unreachable — stopping after %d URLs", tally["checked"])
+                break
+            continue
+        timeouts = 0
 
         idx = result.get("inspectionResult", {}).get("indexStatusResult", {})
         coverage = idx.get("coverageState", "")
