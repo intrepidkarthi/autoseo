@@ -16,6 +16,7 @@ A tree commit is atomic: all four files or none.
 from __future__ import annotations
 
 import base64
+import time
 
 import httpx
 
@@ -152,7 +153,18 @@ def _headers() -> dict[str, str]:
 
 
 def get(path: str) -> dict | list:
-    r = httpx.get(f"{API}{path}", headers=_headers(), timeout=60.0)
+    # Reads retry on a dropped connection. "Server disconnected without sending a response" failed
+    # a retitle outright on 2026-10-04 and a retire sweep on 2026-10-20; both were one lost read.
+    # Writes are not retried here — a POST that reached GitHub before the connection dropped would
+    # be sent twice.
+    for attempt in range(3):
+        try:
+            r = httpx.get(f"{API}{path}", headers=_headers(), timeout=60.0)
+            break
+        except httpx.TransportError:
+            if attempt == 2:
+                raise
+            time.sleep(2 * (attempt + 1))
     r.raise_for_status()
     return r.json()
 
@@ -202,12 +214,16 @@ def head_sha(ref: str = BASE_BRANCH) -> str:
     return get(f"/repos/{SITE_REPO}/git/ref/heads/{ref}")["object"]["sha"]
 
 
-def commit(files: dict[str, str], message: str, dry_run: bool = False) -> str:
+def commit(files: dict[str, str | None], message: str, dry_run: bool = False,
+           verified: bool = False) -> str:
     """Write every file in one atomic commit on main. Returns the commit URL, or "" for a no-op.
 
     Unchanged files are dropped before the tree is built, so a run that decides nothing new produces
     no commit at all rather than an empty one — which keeps the site history readable as a list of
     real changes.
+
+    A value of None deletes that file. Deleting one that is already gone is a no-op, like any other
+    unchanged file.
     """
     outside = [p for p in files if not _writable(p)]
     if outside:
@@ -215,7 +231,10 @@ def commit(files: dict[str, str], message: str, dry_run: bool = False) -> str:
             f"refusing to commit outside the writable paths: {', '.join(sorted(outside))}"
         )
 
-    changed = {p: c for p, c in files.items() if read_text(p) != c}
+    # `verified` is for a caller that built `files` by reading each one and keeping only what it
+    # changed. Re-reading two hundred pages to learn that again is slow and one more chance to drop a
+    # connection.
+    changed = dict(files) if verified else {p: c for p, c in files.items() if read_text(p) != c}
     if not changed:
         log.info("no change: %s", message)
         return ""
@@ -223,15 +242,17 @@ def commit(files: dict[str, str], message: str, dry_run: bool = False) -> str:
     if dry_run:
         print(f"  would commit to {SITE_REPO}@{BASE_BRANCH}: {message}")
         for p in sorted(changed):
-            print(f"      {p}")
+            print(f"      {'delete ' if changed[p] is None else ''}{p}")
         return ""
 
     parent = head_sha()
     base_tree = get(f"/repos/{SITE_REPO}/git/commits/{parent}")["tree"]["sha"]
     tree = post(f"/repos/{SITE_REPO}/git/trees", {
         "base_tree": base_tree,
+        # `"sha": None` is how the trees API removes a path from the base tree.
         "tree": [
-            {"path": p, "mode": "100644", "type": "blob", "content": c}
+            {"path": p, "mode": "100644", "type": "blob", "sha": None} if c is None
+            else {"path": p, "mode": "100644", "type": "blob", "content": c}
             for p, c in sorted(changed.items())
         ],
     })

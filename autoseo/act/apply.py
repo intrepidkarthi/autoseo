@@ -55,7 +55,7 @@ def run(dry_run: bool = False) -> Applied:
     from autoseo.compose.blog import Draft
     from autoseo.core.config import ConfigError, settings
     from autoseo.publish import blog as publisher
-    from autoseo.publish import delist, indexnow, redirect, site, sitemap
+    from autoseo.publish import delist, indexnow, redirect, retire, site, sitemap
     from autoseo.quality import gate as qgate
 
     result = Applied()
@@ -76,7 +76,9 @@ def run(dry_run: bool = False) -> Applied:
     # --- structural fixes. Idempotent, cheap, and checked every run rather than queued: all three
     # are comparisons against the live repo, so "is there anything to do" is the same call as
     # doing it. `indexnow.ensure_key` is one read after the first run.
-    for label, fn in (("delist", delist.apply), ("relink", publisher.relink),
+    # `retire` before `relink`: it is what makes a redirected page stop counting as an orphan.
+    for label, fn in (("delist", delist.apply), ("retire", retire.retire),
+                      ("relink", publisher.relink),
                       ("indexnow-key", indexnow.ensure_key)):
         try:
             if url := fn(dry_run=dry_run):
@@ -154,8 +156,11 @@ def run(dry_run: bool = False) -> Applied:
                 # `drop_urls` is itself a no-op when there is nothing to remove, so leading with it
                 # costs one read in the ordinary case.
                 sitemap.drop_urls({item.meta["loser"]}, item.rationale, dry_run=dry_run)
+                # Strict for a declined page: it may itself be a redirect's destination, and a
+                # merge must never turn somebody else's rule into a chain.
                 url = redirect.add(item.meta["source"], item.meta["destination"],
-                                   item.rationale, dry_run=dry_run)
+                                   item.rationale, dry_run=dry_run,
+                                   strict=bool(item.meta.get("strict")))
 
             elif item.kind == ledger.Kind.REDIRECT:
                 # Same order as a merge, for the same reason. `strict` adds the reclaim-only
@@ -199,6 +204,18 @@ def run(dry_run: bool = False) -> Applied:
         if url:
             result.commits.append(url)
             print(f"  {item.kind}: {url}")
+
+    # A redirect shipped above is only half a retirement until the index, sitemaps and links stop
+    # pointing at the old URL. The run's opening `retire` saw yesterday's redirects, not these.
+    if any(i.split(" ", 1)[1].startswith("301 ") for i in result.shipped if i.startswith("#")):
+        try:
+            if url := retire.retire(dry_run=dry_run):
+                result.shipped.append("retire")
+                result.commits.append(url)
+                print(f"  retire: {url}")
+        except Exception as exc:  # noqa: BLE001 — tomorrow's opening pass will catch it
+            log.error("retire failed: %s", exc)
+            result.failed.append(f"retire: {str(exc)[:120]}")
 
     # Google has no submission API for ordinary pages, so for Google the mechanism is the sitemap
     # and the internal links, both regenerated in the commits above. This covers everyone else:

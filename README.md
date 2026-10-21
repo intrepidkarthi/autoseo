@@ -41,6 +41,8 @@ submit      IndexNow → Bing, Yandex, Seznam, Naver. Google reads the regenerat
 | pitch drafts — for the roundups that cite competitors | ✅ | weekly; dead competitor links found; **never sent**, Karthik rewrites |
 | listing check — do pages that listed us still do? | ✅ | weekly, `pitches --review`; reports only |
 | reclaim — dead URLs that still carry value | ✅ | 301 only at confidence ≥0.8 with impressions or citations; rest reported |
+| fold declined pages into their indexed sibling | ✅ | "crawled, not indexed" + same-topic indexed page; strict 301, ≤2/run, never a cited, clicked, young or recently edited page |
+| retire redirected URLs everywhere | ✅ | every run: index cards, sitemaps, markdown sources; after a redirect and weekly: every internal link |
 | links to unindexed pages | ✅ | an indexed page that shares the topic links to one Google hasn't indexed; ≤2/run, 8/week |
 | quality gate — write-like-me, in code | ✅ | vendored scanner; every article, no exceptions |
 | answer-engine gaps drive content | ✅ | 0 of 8 buyer questions mention us today |

@@ -65,6 +65,11 @@ MAX_REDIRECTS_PER_RUN = 2
 # read off the inspection data a week later, which a flood would make unattributable. A page is
 # linked to at most once a month, and a donor gives at most one link a month, so no page becomes a
 # link farm and no target is propped up by repetition instead of by the page itself.
+# Pages Google crawled and declined, folded into the indexed sibling on their topic. Separate from
+# the one-a-run duplicate merge: those pages earn nothing, so there is no ranking to attribute, but
+# each is still a permanent redirect.
+MAX_DECLINED_MERGES_PER_RUN = 2
+
 MAX_LINKS_PER_RUN = 2
 MAX_LINKS_PER_WEEK = 8
 LINK_COOLDOWN_DAYS = 30

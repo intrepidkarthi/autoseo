@@ -100,7 +100,13 @@ def render(changes: dict[str, str]) -> dict[str, str]:
     # rendered and the sitemap entry all come from the same corrected text.
     changes = {slug: _align_slug(markdown, slug) for slug, markdown in changes.items()}
 
-    articles = fetch_articles()
+    # A redirected slug's markdown must not be rendered: the renderer would put its page back in
+    # sitemap-articles.xml. `retire` deletes those sources; this holds until it has run.
+    from autoseo.publish import retire
+    retired = retire.redirect_map()
+    articles = {s: md for s, md in fetch_articles().items() if s not in retired}
+    # New and edited text never links to a retired URL, so it never waits for a sweep to be fixed.
+    changes = {slug: retire.rewrite_links(md, retired, markdown=True) for slug, md in changes.items()}
     articles.update(changes)
 
     # Resolved before the tempdir below shadows the name `root` with a local path.
@@ -373,6 +379,11 @@ def find_orphans() -> dict[str, tuple[str, str]]:
     for index_page in index_pages():
         if doc := site.read_text(index_page):
             linked |= set(re.findall(r'href="/blog/([a-z0-9-]+)"', doc))
+
+    # A redirected page's HTML file stays in the repo, and it is unlinked on purpose. Re-listing it
+    # would undo `retire` every morning.
+    from autoseo.publish import retire
+    slugs -= set(retire.redirect_map())
 
     orphans: dict[str, tuple[str, str]] = {}
     for slug in sorted(slugs - linked):

@@ -174,6 +174,8 @@ repo — and they earn every impression the blog gets, so `publish/page.py` edit
 | staleness | `act/apply.py` | a draft composed 14+ days ago is dropped, not shipped |
 | reclaim bar | `decide/reclaim.py` | 301 only at confidence ≥0.8 *and* impressions or AI citations; 403/5xx/timeouts are unknown, never dead |
 | reclaim cap | `act/policy.py` | ≤2 redirects per run, counting queued; a source is never redirected twice |
+| declined-page folds | `decide/consolidate.py` | crawled-not-indexed 21+ days, page 45+ days old, 0 clicks, not AI-cited, not a redirect destination; sibling indexed, shares 2+ topic words incl. one in its slug; strict redirect; ≤2/run |
+| retire | `publish/retire.py` | a redirected blog URL leaves the index, sitemaps and markdown sources every run, and every internal link on a sweep (redirect shipped in 3 days, or Sunday) |
 | link cap | `act/policy.py` | ≤2 links per run, 8 per week, counting queued; a page gives or receives one link per 30 days; donors in the edit cooldown are skipped |
 | redirect guards | `publish/redirect.py` | strict: no chain, no loop, no source an existing rule covers, no edit to an existing rule, no reformat |
 | reclaim staleness | `act/apply.py` | a redirect decided 3+ days ago is dropped: the page may have been restored |

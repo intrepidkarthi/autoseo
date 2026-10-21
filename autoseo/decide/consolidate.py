@@ -39,6 +39,7 @@ distinct intent, which is a thing to keep, not fold.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from dataclasses import dataclass
 
 import httpx
@@ -190,3 +191,151 @@ def candidates(days: int = 90) -> list[Merge]:
 
     merges.sort(key=lambda m: -m.shared_impressions)
     return merges
+
+
+# --- pages Google crawled and declined ---------------------------------------------------------
+#
+# Added 2026-10-20. `candidates` above can only see a duplicate that Search Console reports, and a
+# page Google has declined to index earns no impressions, so it is invisible there by construction.
+# By that date 22 blog pages sat at "Crawled - currently not indexed", most last fetched months
+# earlier, and nearly every one had a sibling on the same topic that *was* indexed:
+# voice-journaling-for-therapy beside voice-journaling-vs-therapy, free-mood-tracker-app beside the
+# mood-tracking page with 283 impressions. Google read both, kept one, and stopped coming back for
+# the other. A link does not change that verdict; folding the page into the one Google kept does.
+
+# Google's verdict needs time to be a verdict. A page fetched last week may simply be queued.
+DECLINED_MIN_CRAWL_AGE_DAYS = 21
+# Nothing young. A post gets a month and a half to be indexed before it is judged.
+DECLINED_MIN_PAGE_AGE_DAYS = 45
+
+
+@dataclass
+class Declined:
+    loser: str
+    winner: str
+    shared: list[str]
+    last_crawl: str
+    winner_impressions: float
+    strict: bool = True
+
+    @property
+    def winner_path(self) -> str:
+        return self.winner.replace("https://getdailyvox.com", "")
+
+    @property
+    def loser_path(self) -> str:
+        return self.loser.replace("https://getdailyvox.com", "")
+
+    @property
+    def evidence(self) -> str:
+        return (
+            f"{self.loser_path} is 'Crawled - currently not indexed' (last fetched "
+            f"{self.last_crawl or 'unknown'}): Google read it and declined it. {self.winner_path} "
+            f"covers the same topic ({', '.join(self.shared)}), is indexed and earned "
+            f"{self.winner_impressions:.0f} impressions in 90 days. Folding the declined page into "
+            f"the one Google kept stops splitting the topic across two URLs."
+        )
+
+
+def _redirect_destinations() -> set[str] | None:
+    """Paths some existing rule redirects *to*, read from the public site repo. None if unreadable.
+
+    A page that is already a redirect's destination cannot be merged without turning that rule into
+    a chain. The planning half has no site credential, but the repository is public.
+    """
+    url = "https://raw.githubusercontent.com/intrepidkarthi/dailyvox/main/website/vercel.json"
+    try:
+        import json
+        r = httpx.get(url, timeout=30.0)
+        r.raise_for_status()
+        return {str(x.get("destination", "")).rstrip("/")
+                for x in json.loads(r.text).get("redirects", []) if isinstance(x, dict)}
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _cited_pages(days: int) -> set[str]:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from autoseo.decide.reclaim import resolve_citation
+    with session() as conn:
+        raw = sorted({r["url"] for r in conn.execute(
+            "SELECT url FROM aeo_citation WHERE domain LIKE '%getdailyvox%' AND ts >= datetime('now', ?)",
+            (f"-{days} days",))})
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return {u.rstrip("/") for u in pool.map(resolve_citation, raw) if u}
+
+
+def _title(url: str) -> str:
+    try:
+        r = httpx.get(url, timeout=30.0, follow_redirects=False,
+                      headers={"user-agent": "autoseo (+https://github.com/intrepidkarthi/autoseo)"})
+    except Exception:  # noqa: BLE001
+        return ""
+    if r.status_code != 200:
+        return ""
+    m = re.search(r"<title>(.*?)</title>", r.text, re.S | re.I)
+    return m.group(1).strip() if m else ""
+
+
+def declined(days: int = 90) -> list[Declined]:
+    """Declined pages with an indexed sibling to fold into, best-evidenced first.
+
+    Fail-closed throughout: an unreadable vercel.json, a page that does not serve 200, a page an
+    answer engine cites, or a page with a single click in the window is left alone.
+    """
+    from autoseo.decide import linking
+
+    destinations = _redirect_destinations()
+    if destinations is None:
+        return []
+    start, _ = _window(days)
+    crawl_cutoff = (dt.datetime.now(dt.UTC) - dt.timedelta(days=DECLINED_MIN_CRAWL_AGE_DAYS)).isoformat()
+    age_cutoff = (dt.date.today() - dt.timedelta(days=DECLINED_MIN_PAGE_AGE_DAYS)).isoformat()
+
+    with session() as conn:
+        losers = conn.execute(
+            """SELECT s.url, s.last_crawl_time FROM url_index_status s
+               JOIN url_inventory u ON u.url = s.url
+               WHERE u.in_sitemap = 1 AND u.cluster = 'blog' AND s.indexed = 0
+                 AND s.coverage_state = 'Crawled - currently not indexed'
+                 AND COALESCE(s.last_crawl_time, '') < ? AND u.first_seen <= ?
+                 AND COALESCE((SELECT SUM(clicks) FROM gsc_page_daily d
+                               WHERE d.page = s.url AND d.date >= ?), 0) = 0
+               ORDER BY s.last_crawl_time""",
+            (crawl_cutoff, age_cutoff, start),
+        ).fetchall()
+    if not losers:
+        return []
+
+    pool = linking.donors(days=days, min_impressions=1)
+    cited = _cited_pages(days)
+    out: list[Declined] = []
+    for row in losers:
+        url = row["url"].rstrip("/")
+        path = url.replace("https://getdailyvox.com", "")
+        if url in cited or path in destinations:
+            continue
+        title = _title(url)
+        if not title:
+            continue                       # does not serve 200 itself — nothing to merge
+        slug = path.rsplit("/", 1)[-1]
+        want = linking.words(slug) | linking.words(title)
+        best: tuple[float, linking.Donor, set[str]] | None = None
+        for d in pool:
+            if d.slug == slug:
+                continue
+            shared = want & d.words
+            # Stricter than a link: a redirect is permanent. The sibling has to be *about* what
+            # the declined page is about, on two words at least, one of them in its own name.
+            if len(shared) < 2 or not shared & d.own:
+                continue
+            score = len(shared) * (1 + d.impressions) ** 0.5
+            if best is None or score > best[0]:
+                best = (score, d, shared)
+        if not best or not _serves_200(best[1].url):
+            continue
+        out.append(Declined(loser=url, winner=best[1].url, shared=sorted(best[2]),
+                            last_crawl=(row["last_crawl_time"] or "")[:10],
+                            winner_impressions=best[1].impressions))
+    return out

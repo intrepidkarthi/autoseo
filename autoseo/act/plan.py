@@ -143,6 +143,8 @@ def _plan_hygiene(days: int, result: Planned, dry_run: bool) -> None:
         if len(merges) > 1:
             print(f"      ({len(merges) - 1} more duplicate pair(s) waiting for a later run)")
 
+    _plan_declined(result, dry_run)
+
     # --- URLs that should not be in a sitemap at all
     #
     # Candidates come from the URL Inspection data rather than from probing every entry. Google has
@@ -200,6 +202,56 @@ def _plan_hygiene(days: int, result: Planned, dry_run: bool) -> None:
         meta={"urls": sorted(dead | pagination), "dead": sorted(dead),
               "pagination": sorted(pagination)},
     ))
+
+
+def _plan_declined(result: Planned, dry_run: bool) -> None:
+    """Fold pages Google crawled and declined into the indexed sibling on the same topic.
+
+    Separate from the merge above, which only ever sees pages Search Console reports: a declined
+    page earns nothing, so it never qualifies there. Two a run — these pages carry no traffic to
+    attribute, but each is a permanent redirect, and a bad batch should stay small enough to read.
+    """
+    from autoseo.decide import consolidate
+
+    queued = [i for i in ledger.planned(ledger.Kind.MERGE) if i.meta.get("declined")]
+    budget = policy.MAX_DECLINED_MERGES_PER_RUN - len(queued)
+    if budget <= 0:
+        return
+    # Every queued merge, not only these: a page that today's ordinary merge is moving must not be
+    # folded somewhere else as well, on either side.
+    every = ledger.planned(ledger.Kind.MERGE)
+    taken = (policy.already_redirected() | {i.meta.get("source") for i in every}
+             | {i.meta.get("destination") for i in every})
+    cooling = policy.cooling_down()
+    try:
+        found = consolidate.declined()
+    except Exception as exc:  # noqa: BLE001 — a day without these merges costs nothing
+        log.warning("declined-page merge planning failed: %s", exc)
+        result.skipped.append(f"declined merges: {str(exc)[:80]}")
+        return
+
+    for m in found:
+        if budget <= 0:
+            break
+        loser_slug = m.loser_path.rsplit("/", 1)[-1]
+        # Never a page edited inside the cooldown (a retitle five days old has not been read yet),
+        # and never a page already moving this run, on either side of the redirect.
+        if loser_slug in cooling or m.loser_path in taken or m.winner_path in taken:
+            continue
+        print(f"\n  fold {m.loser_path} -> {m.winner_path}")
+        print(f"      {m.evidence}")
+        taken |= {m.loser_path, m.winner_path}
+        result.merged += 1
+        budget -= 1
+        if dry_run:
+            continue
+        ledger.plan(ledger.Item(
+            kind=ledger.Kind.MERGE, title=f"301 {m.loser_path} -> {m.winner_path}",
+            body=m.evidence, rationale=m.evidence,
+            meta={"source": m.loser_path, "destination": m.winner_path, "loser": m.loser,
+                  "declined": True, "strict": True, "shared": m.shared,
+                  "last_crawl": m.last_crawl},
+        ))
 
 
 # --- dead URLs that still carry value -----------------------------------------------------------
@@ -562,11 +614,15 @@ def _plan_links(result: Planned, dry_run: bool) -> None:
         result.skipped.append(f"links: {str(exc)[:80]}")
         return
 
+    # A page about to be folded into another needs no link; `retire` repoints links once it goes.
+    folding = {str(i.meta.get("source", "")).rsplit("/", 1)[-1]
+               for i in ledger.planned(ledger.Kind.MERGE)}
+
     unpaired = 0
     for t in targets:
         if budget <= 0:
             break
-        if t.slug in recent:
+        if t.slug in recent or t.slug in folding:
             continue
         try:
             live = onpage.live_page(t.url)
