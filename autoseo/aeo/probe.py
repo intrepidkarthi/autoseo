@@ -209,11 +209,20 @@ def run(tier: str = "core", model: str = DEFAULT_MODEL, repeats: int = REPEATS,
     results: list[ProbeResult] = []
     now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
 
+    out_of_credit = False
     for q in questions:
+        if out_of_credit:
+            break
         for run_no in range(1, repeats + 1):
             try:
                 text, citations = _ask(q["text"], model)
             except (httpx.HTTPError, RuntimeError) as exc:
+                if "Gemini 402" in str(exc):
+                    # No credit is not a flaky answer. Every remaining call fails identically.
+                    from autoseo.compose.llm import billing_alarm
+                    billing_alarm(str(exc))
+                    out_of_credit = True
+                    break
                 log.warning("probe failed [%s run %d]: %s", q["id"], run_no, exc)
                 continue
 

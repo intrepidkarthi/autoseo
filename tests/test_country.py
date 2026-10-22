@@ -69,3 +69,18 @@ def test_measure_only_questions_are_reported_but_never_written(db, monkeypatch):
                              "'[\"Day One\"]')", (qid, q, run))
     assert [g.query for g in brief.aeo_gaps()] == ["Best journal for ADHD?"]
     assert len(brief.aeo_gaps(for_content=False)) == 2
+
+
+def test_an_empty_gemini_account_stops_the_panel_and_says_so(db, monkeypatch, capsys):
+    from autoseo.aeo import probe
+    from autoseo.compose import llm
+    calls = []
+
+    def broke(text, model):
+        calls.append(text)
+        raise RuntimeError("Gemini 402: Your prepayment credits are depleted.")
+    monkeypatch.setattr(probe, "_ask", broke)
+    monkeypatch.setattr(llm, "_BILLING_REPORTED", False)
+    probe.run(tier="extended", repeats=3)
+    assert len(calls) == 1                                  # not 51
+    assert "::error title=Gemini credits exhausted::" in capsys.readouterr().out

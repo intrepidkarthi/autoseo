@@ -52,6 +52,24 @@ RETRY_STATUSES = {429, 500, 502, 503, 504}
 BACKOFF_SECONDS = (5, 15)
 
 
+_BILLING_REPORTED = False
+
+
+def billing_alarm(detail: str) -> None:
+    """Say once, as a CI error, that the Gemini key has no credit left.
+
+    A 402 is not a bad day. Every probe, draft, retitle and FAQ after it fails the same way, and on
+    2026-10-22 thirty of them did so as warnings inside a run that finished green.
+    """
+    global _BILLING_REPORTED
+    if _BILLING_REPORTED:
+        return
+    _BILLING_REPORTED = True
+    print("::error title=Gemini credits exhausted::The Gemini API key returned 402 — prepaid "
+          "credits are depleted. No answer-engine probe, article, retitle or FAQ can be composed "
+          "until billing is topped up at https://ai.studio/projects. Detail: " + detail[:160])
+
+
 def complete(prompt: str, tier: Tier = Tier.FREE, temperature: float = 0.85,
              max_tokens: int = 16384) -> str:
     """One completion. Temperature defaults high: low temperature produces the metronomic,
@@ -71,6 +89,9 @@ def complete(prompt: str, tier: Tier = Tier.FREE, temperature: float = 0.85,
                 return _once(model, prompt, temperature, max_tokens)
             except RuntimeError as exc:
                 last_error = str(exc)
+                if "Gemini 402" in last_error:
+                    billing_alarm(last_error)
+                    raise
                 transient = any(f"Gemini {s}" in last_error for s in RETRY_STATUSES)
                 if not transient:
                     raise
