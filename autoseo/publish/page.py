@@ -195,3 +195,33 @@ def insert_link(doc: str, slug: str, title: str) -> str:
                 f'<a href="/blog/{slug}">{htmllib.escape(title)}</a></p>\n\n')
         return doc[:match.start()] + para + doc[match.start():]
     raise RuntimeError("could not find the end of the article body — refusing to guess")
+
+
+# --- hand-written sections -------------------------------------------------------------------
+
+def section_html(block: str, indent: str) -> str:
+    """The small markdown a section is written in: one `## ` heading, then paragraphs."""
+    out = []
+    for chunk in re.split(r"\n\s*\n", block.strip()):
+        line = " ".join(chunk.split())
+        if line.startswith("## "):
+            out.append(f"{indent}<h2>{htmllib.escape(line[3:].strip(), quote=False)}</h2>")
+        elif line:
+            out.append(f"{indent}<p>{htmllib.escape(line, quote=False)}</p>")
+    return "\n".join(out)
+
+
+def insert_section(doc: str, block: str) -> str:
+    """Insert a section where a link would go: before the FAQ, the related list, or the CTA."""
+    heading = re.search(r"^##\s+(.+)$", block, re.M)
+    if not heading:
+        raise RuntimeError("a section needs a `## ` heading")
+    if htmllib.escape(heading.group(1).strip(), quote=False) in doc:
+        from autoseo.publish.site import AlreadyApplied
+        raise AlreadyApplied(f"the page already has a section headed {heading.group(1).strip()!r}")
+    for anchor in LINK_ANCHORS:
+        match = anchor.search(doc)
+        if match:
+            html = section_html(block, match.group(1)) + "\n\n"
+            return doc[:match.start()] + html + doc[match.start():]
+    raise RuntimeError("could not find the end of the article body — refusing to guess")

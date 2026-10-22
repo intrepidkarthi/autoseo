@@ -125,7 +125,8 @@ def onpage_budget() -> int:
 def cooling_down() -> set[str]:
     """Slugs edited recently enough that another edit would be noise."""
     return ledger.slugs_touched(
-        (ledger.Kind.META, ledger.Kind.FAQ, ledger.Kind.POST), days=PAGE_COOLDOWN_DAYS
+        (ledger.Kind.META, ledger.Kind.FAQ, ledger.Kind.POST, ledger.Kind.SECTION),
+        days=PAGE_COOLDOWN_DAYS,
     )
 
 

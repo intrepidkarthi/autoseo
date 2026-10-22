@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autoseo.core.config import settings
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 SCHEMA = """
 -- Phase 0: measurement -------------------------------------------------------
@@ -55,6 +55,29 @@ CREATE TABLE IF NOT EXISTS gsc_query_daily (
     PRIMARY KEY (date, query)
 );
 CREATE INDEX IF NOT EXISTS ix_gsc_query_daily_date ON gsc_query_daily(date);
+
+-- Added 2026-10-22, when the Dark.ai launch made "is this landing in India" a question nobody could
+-- answer: no table held a country. Site-wide by country is complete at [date, country]; the
+-- per-query slice is collected for India only, where the bet is, to keep the file small.
+CREATE TABLE IF NOT EXISTS gsc_country_daily (
+    date        TEXT NOT NULL,
+    country     TEXT NOT NULL,      -- ISO 3166-1 alpha-3, lower case, as GSC returns it ("ind")
+    clicks      REAL NOT NULL DEFAULT 0,
+    impressions REAL NOT NULL DEFAULT 0,
+    ctr         REAL NOT NULL DEFAULT 0,
+    position    REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (date, country)
+);
+CREATE TABLE IF NOT EXISTS gsc_country_query (
+    date        TEXT NOT NULL,
+    country     TEXT NOT NULL,
+    query       TEXT NOT NULL,
+    clicks      REAL NOT NULL DEFAULT 0,
+    impressions REAL NOT NULL DEFAULT 0,
+    ctr         REAL NOT NULL DEFAULT 0,
+    position    REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (date, country, query)
+);
 
 -- The page<->query mapping. Lossy by nature (1,439 of 7,828) — used only to answer "which query is
 -- this page closest on", never to measure volume.

@@ -266,13 +266,25 @@ def _print_brief(days: int, top: int) -> None:
             print(f"      {imp:>5.0f} imp  pos {pos:>5.1f}  "
                   f"{page.replace('https://getdailyvox.com', '')}")
 
-    gaps = brief.aeo_gaps(days)
+    gaps = brief.aeo_gaps(days, for_content=False)
     print("\n=== ANSWER-ENGINE GAPS — asked, competitors named, we are not ===")
     if not gaps:
         print("  None recorded. Run `autoseo aeo` to measure.")
     for g in gaps[:top]:
-        print(f"\n  [{g.priority}] {g.query}")
+        note = "  (measured only — no post)" if g.target.startswith("(measured") else ""
+        print(f"\n  [{g.priority}] {g.query}{note}")
         print(f"      {g.evidence}")
+
+    m = brief.market("ind")
+    print("\n=== INDIA — the Dark.ai privacy wave lands here first ===")
+    if not m:
+        print("  No country data yet — the next `collect` seeds 90 days of it.")
+    else:
+        change = f"{(m.week - m.prior) / m.prior:+.0%}" if m.prior else "new"
+        print(f"  impressions, last 7d: {m.week:.0f} ({change} vs the 7d before), "
+              f"{m.share:.0%} of the site")
+        for q, imp, pos in m.queries:
+            print(f"      {imp:>5.0f} imp  pos {pos:>5.1f}  {q}")
 
     ex = brief.excluded(days)
     print("\n=== EXCLUDED from acquisition analysis ===")
@@ -442,6 +454,36 @@ def _print_plan(result) -> None:
               f"There was budget for a post and none was planned — {result.post_stall}.{since}")
 
 
+def _queue_section(slug: str, block: str, why: str) -> None:
+    """Gate a hand-written section and put it in the ledger. Nothing reaches the site until apply.
+
+    Hand-written is not exempt. The same gate a composed FAQ goes through — marks, AI-isms,
+    duplication against the live site — and a fail stops here rather than at the commit.
+    """
+    from autoseo.act import ledger, onpage
+    from autoseo.quality import gate
+
+    if not block.lstrip().startswith("## "):
+        raise SystemExit("the section must start with a `## ` heading")
+    verdict = gate.evaluate(block, context="section")
+    print(f"  gate: {verdict.summary()}")
+    if not verdict.passed or verdict.warnings:
+        for r in [*verdict.reasons, *verdict.warnings]:
+            print(f"      {r}")
+        raise SystemExit("not queued — fix the section and run this again")
+    live = onpage.live_page(f"{settings.site}/blog/{slug}")
+    if live.redirected:
+        raise SystemExit(f"/blog/{slug} redirects — there is no page there to add to")
+    heading = block.strip().splitlines()[0][3:].strip()
+    item_id = ledger.plan(ledger.Item(
+        kind=ledger.Kind.SECTION, title=f"Add \"{heading}\" to /blog/{slug}",
+        body=verdict.text, rationale=why,
+        meta={"slug": slug, "url": f"{settings.site}/blog/{slug}", "block": verdict.text,
+              "verdict": verdict.summary(), "source": "hand"},
+    ))
+    print(f"  queued #{item_id}: {heading} -> /blog/{slug}. The next apply ships it.")
+
+
 def _grade_default() -> int:
     from autoseo.decide.grade import HORIZON_DAYS
     return HORIZON_DAYS
@@ -462,6 +504,12 @@ def main(argv: list[str] | None = None) -> int:
     p_plan = sub.add_parser("plan", help="decide and compose; publishes nothing")
     p_plan.add_argument("--days", type=int, default=90)
     p_plan.add_argument("--dry-run", action="store_true")
+
+    p_section = sub.add_parser(
+        "section", help="queue a hand-written section for a live article (gated; apply ships it)")
+    p_section.add_argument("slug", help="the article, e.g. best-journal-app-for-privacy")
+    p_section.add_argument("file", help="markdown: one `## ` heading, then paragraphs")
+    p_section.add_argument("--why", required=True, help="the rationale recorded with the edit")
 
     p_apply = sub.add_parser("apply", help="commit what plan composed, to the site repo")
     p_apply.add_argument("--dry-run", action="store_true")
@@ -620,6 +668,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "run":
             _run_loop(args)
+
+        elif args.command == "section":
+            _queue_section(args.slug, Path(args.file).read_text(encoding="utf-8"), args.why)
 
         elif args.command == "plan":
             from autoseo.act import plan as planner

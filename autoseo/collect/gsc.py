@@ -45,11 +45,17 @@ WINDOW_DAYS = 10
 # 3-month position was 11.6 — short windows are not merely noisy, they invert conclusions.
 RETENTION_DAYS = 480
 
-# (dimensions, destination table, column names after `date`)
-PASSES: list[tuple[list[str], str, tuple[str, ...]]] = [
-    (["date", "page"], "gsc_page_daily", ("page",)),
-    (["date", "query"], "gsc_query_daily", ("query",)),
-    (["date", "page", "query"], "gsc_page_query", ("page", "query")),
+# The one market with a per-query slice. See the gsc_country_query table for why.
+FOCUS_COUNTRY = "ind"
+
+# (dimensions, destination table, column names after `date`, country filter or None).
+# A filtered pass stores the filter value as its `country` column, so the table says what it holds.
+PASSES: list[tuple[list[str], str, tuple[str, ...], str | None]] = [
+    (["date", "page"], "gsc_page_daily", ("page",), None),
+    (["date", "query"], "gsc_query_daily", ("query",), None),
+    (["date", "page", "query"], "gsc_page_query", ("page", "query"), None),
+    (["date", "country"], "gsc_country_daily", ("country",), None),
+    (["date", "query"], "gsc_country_query", ("country", "query"), FOCUS_COUNTRY),
 ]
 
 
@@ -73,7 +79,7 @@ def _upsert(conn, table: str, cols: tuple[str, ...], keys: list[str], row: dict)
 
 
 def _fetch(service, site_url: str, start: dt.date, end: dt.date,
-           dims: list[str], table: str, cols: tuple[str, ...]) -> int:
+           dims: list[str], table: str, cols: tuple[str, ...], country: str | None = None) -> int:
     written = 0
     start_row = 0
     while True:
@@ -85,6 +91,9 @@ def _fetch(service, site_url: str, start: dt.date, end: dt.date,
             "startRow": start_row,
             "type": "web",
         }
+        if country:
+            body["dimensionFilterGroups"] = [{"filters": [
+                {"dimension": "country", "operator": "equals", "expression": country}]}]
         try:
             response = service.searchanalytics().query(siteUrl=site_url, body=body).execute()
         except HttpError as exc:
@@ -100,7 +109,10 @@ def _fetch(service, site_url: str, start: dt.date, end: dt.date,
             break
         with session() as conn:
             for row in rows:
-                _upsert(conn, table, cols, row["keys"], row)
+                keys = row["keys"]
+                if country:                     # [date, query] -> [date, country, query]
+                    keys = [keys[0], country, *keys[1:]]
+                _upsert(conn, table, cols, keys, row)
         written += len(rows)
         if len(rows) < ROW_LIMIT:
             break
@@ -112,10 +124,11 @@ def _run(start: dt.date, end: dt.date, label: str) -> int:
     site_url = resolve_site_url()
     service = search_console()
     total = 0
-    for dims, table, cols in PASSES:
-        n = _fetch(service, site_url, start, end, dims, table, cols)
+    for dims, table, cols, country in PASSES:
+        n = _fetch(service, site_url, start, end, dims, table, cols, country)
         total += n
-        log.info("  %s %s -> %s rows", label, "+".join(dims), n)
+        log.info("  %s %s%s -> %s rows", label, "+".join(dims),
+                 f" ({country})" if country else "", n)
     return total
 
 
@@ -124,8 +137,28 @@ def collect(days: int = WINDOW_DAYS) -> int:
     start = end - dt.timedelta(days=days)
     log.info("GSC %s -> %s", start, end)
     total = _run(start, end, "")
+    total += _seed_country(end)
     log.info("GSC: wrote %d rows", total)
     return total
+
+
+# A country table that starts on the day it was added has no "before" to compare a launch against.
+SEED_DAYS = 90
+
+
+def _seed_country(end: dt.date) -> int:
+    """Fill the country tables back SEED_DAYS once, the first time they are empty."""
+    with session() as conn:
+        if conn.execute("SELECT COUNT(*) FROM gsc_country_daily").fetchone()[0]:
+            return 0
+    site_url, service = resolve_site_url(), search_console()
+    start = end - dt.timedelta(days=SEED_DAYS)
+    n = 0
+    for dims, table, cols, country in PASSES:
+        if table.startswith("gsc_country"):
+            n += _fetch(service, site_url, start, end, dims, table, cols, country)
+    log.info("GSC: seeded the country tables with %d rows over %d days", n, SEED_DAYS)
+    return n
 
 
 def backfill(days: int = RETENTION_DAYS) -> int:

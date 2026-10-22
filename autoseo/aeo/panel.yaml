@@ -5,7 +5,7 @@
 # already rank for. Wording is fixed on purpose: LLM answers vary run to run, so changing the question
 # destroys the comparison. Add questions, never edit them; retire one by setting active: false.
 #
-# `core` runs daily, the rest weekly. At 10 daily + 26 weekly that is ~400 grounded calls/month
+# `core` runs daily, the rest weekly. At 10 daily + 29 weekly that is ~400 grounded calls/month
 # against a 5,000/month free allowance.
 
 brand: DailyVox
@@ -107,6 +107,26 @@ questions:
     text: "What is the best app for keeping a health journal to share with my doctor?"
     tier: extended
     gsc_evidence: "patient journal app — 10 imp, position 61.3"
+  # Added 2026-10-22, for the Dark.ai launch (Eternal, "we cannot read your conversations"), which
+  # puts "can the company read what I tell its AI" in front of India's tech press for weeks. Asked
+  # in category words, never the brand: the question is whether the wave makes answer engines start
+  # naming privacy-first apps at all, and whether DailyVox is one of them.
+  #
+  # `content: false` — measured, never turned into a post by the loop. The one article this wave
+  # deserves is written by hand; an automated second page on the same question would compete
+  # with it, in the cluster where Google already declined most of what we have.
+  - id: ai-cannot-read
+    text: "Which AI apps cannot read what you tell them?"
+    tier: extended
+    content: false
+  - id: chatgpt-personal-safe
+    text: "Is it safe to tell ChatGPT personal things?"
+    tier: extended
+    content: false
+  - id: ai-journal-no-server
+    text: "Is there an AI journal that works without sending my entries to a server?"
+    tier: extended
+    content: false
 
   # --- frontier: the local/private-AI cluster, run on demand -----------------
   #

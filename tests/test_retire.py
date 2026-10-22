@@ -211,3 +211,27 @@ def test_a_page_that_is_already_a_redirect_destination_is_never_folded(declined_
 def test_an_unreadable_redirect_file_means_no_folds_at_all(declined_env):
     declined_env.setattr(consolidate, "_redirect_destinations", lambda: None)
     assert consolidate.declined() == []
+
+
+# --- hand-written sections ------------------------------------------------------------------------
+
+SECTION = """## Can the company read what you tell its AI?
+
+First "quoted" paragraph & more.
+
+Second paragraph."""
+
+
+def test_a_section_goes_before_the_faq_and_is_escaped():
+    from autoseo.publish import page
+    doc = "<article>\n  <p>Body.</p>\n  <h2>Frequently Asked Questions</h2>\n</article>"
+    out = page.insert_section(doc, SECTION)
+    assert out.index("<h2>Can the company read") < out.index("Frequently Asked Questions")
+    assert '<p>First "quoted" paragraph &amp; more.</p>' in out
+
+
+def test_a_section_is_never_added_twice():
+    from autoseo.publish import page
+    doc = page.insert_section("<article>\n<p>x</p>\n</article>", SECTION)
+    with pytest.raises(site.AlreadyApplied):
+        page.insert_section(doc, SECTION)

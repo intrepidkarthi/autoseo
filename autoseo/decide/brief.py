@@ -215,7 +215,7 @@ def cannibalised(days: int = 90, min_impressions: float = 20) -> list[Cannibalis
     return out
 
 
-def aeo_gaps(days: int = 90, min_runs: int = 2) -> list[Action]:
+def aeo_gaps(days: int = 90, min_runs: int = 2, for_content: bool = True) -> list[Action]:
     """Buyer questions where an answer engine names competitors and never names us.
 
     Google is not the only place a decision gets made any more, and it is the only one this module
@@ -234,6 +234,7 @@ def aeo_gaps(days: int = 90, min_runs: int = 2) -> list[Action]:
     cutoff = (dt.date.today() - dt.timedelta(days=days)).isoformat()
     gaps: list[Action] = []
     grounding = panel_queries()
+    measure_only = panel_measure_only()
 
     with session() as conn:
         rows = conn.execute(
@@ -249,19 +250,24 @@ def aeo_gaps(days: int = 90, min_runs: int = 2) -> list[Action]:
         ).fetchall()
 
     for r in rows:
+        if for_content and r["question_id"] in measure_only:
+            continue
         try:
             competitors = _json.loads(r["competitors"] or "[]")
         except ValueError:
             competitors = []
         named = ", ".join(competitors[:4]) or "no one consistently"
         gaps.append(Action(
-            priority=0, kind="aeo-gap", target="(no page answers this)",
+            priority=0, kind="aeo-gap",
             query=r["question"], impressions=0.0, clicks=0.0, position=0.0,
             # Ranked among themselves by how contested the question is: a question where four
             # products get named is one where the engine has an answer shape and we are absent
             # from it, which is more tractable than one nobody wins.
             est_click_gain=float(len(competitors)),
             proxy_query=grounding.get(r["question_id"], ""),
+            # Read by the report, which shows measure-only questions; the post arm never sees them.
+            target="(measured only — no post)" if r["question_id"] in measure_only
+            else "(no page answers this)",
             evidence=(
                 f"Asked {r['runs']} times, DailyVox mentioned 0 times. The engine names "
                 f"{named} instead. Answer-engine demand with nothing of ours answering it."
@@ -299,6 +305,16 @@ def panel_queries() -> dict[str, str]:
     return out
 
 
+def panel_measure_only() -> set[str]:
+    """Question ids marked `content: false`: asked and reported, never handed to the post arm."""
+    try:
+        from autoseo.aeo.probe import _load_panel
+        questions = _load_panel()["questions"]
+    except Exception:  # noqa: BLE001
+        return set()
+    return {q["id"] for q in questions if str(q.get("content", "")).lower() == "false"}
+
+
 def excluded(days: int = 90, min_impressions: float = 15) -> dict[str, list[tuple[str, float]]]:
     """What was filtered out and why — so the exclusions stay auditable rather than invisible."""
     start, end = _window(days)
@@ -316,3 +332,43 @@ def excluded(days: int = 90, min_impressions: float = 15) -> dict[str, list[tupl
             if k in out:
                 out[k].append((r["query"], r["imp"]))
     return out
+
+
+@dataclass
+class Market:
+    country: str
+    week: float            # impressions, the latest 7 days of data
+    prior: float           # impressions, the 7 days before that
+    share: float           # of all impressions in the latest 7 days
+    queries: list[tuple[str, float, float]]   # (query, impressions, position), last 28 days
+
+
+def market(country: str = "ind", top: int = 12) -> Market | None:
+    """How one country is trending, against the data's own last day — GSC lags, so not today."""
+    with session() as conn:
+        end = conn.execute("SELECT MAX(date) FROM gsc_country_daily").fetchone()[0]
+        if not end:
+            return None
+        last = dt.date.fromisoformat(end)
+
+        def day(n: int) -> str:
+            return (last - dt.timedelta(days=n)).isoformat()
+
+        def imp(lo: str, hi: str, only: str | None) -> float:
+            sql = "SELECT COALESCE(SUM(impressions), 0) FROM gsc_country_daily WHERE date BETWEEN ? AND ?"
+            args: tuple = (lo, hi)
+            if only:
+                sql += " AND country = ?"
+                args += (only,)
+            return conn.execute(sql, args).fetchone()[0]
+
+        week, prior, total = imp(day(6), end, country), imp(day(13), day(7), country), imp(day(6), end, None)
+        queries = [
+            (r["query"], r["imp"], r["pos"]) for r in conn.execute(
+                """SELECT query, SUM(impressions) imp,
+                          SUM(impressions * position) / NULLIF(SUM(impressions), 0) pos
+                   FROM gsc_country_query WHERE country = ? AND date BETWEEN ? AND ?
+                   GROUP BY query ORDER BY imp DESC LIMIT ?""",
+                (country, day(27), end, top))
+        ]
+    return Market(country, week, prior, week / total if total else 0.0, queries)

@@ -159,7 +159,7 @@ jobs:
           # site has no foothold in, which is a strategy question, not a trend. That is why this
           # names the tiers rather than using `all`.
           #
-          # Quota: (10 core + 14 extended) x 3 repeats = 72 calls/week, ~310/month against the
+          # Quota: (10 core + 17 extended) x 3 repeats = 81 calls/week, ~350/month against the
           # 5,000/month free grounded allowance.
           TIER="${{ github.event.inputs.aeo_tier }}"
           if [ -z "$TIER" ] && [ "$(date -u +%u)" = "1" ]; then TIER=core; fi
