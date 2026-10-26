@@ -484,6 +484,61 @@ def _queue_section(slug: str, block: str, why: str) -> None:
     print(f"  queued #{item_id}: {heading} -> /blog/{slug}. The next apply ships it.")
 
 
+def _queue_post(markdown: str, why: str, link_from: list[str]) -> None:
+    """Gate a hand-written article and queue it, plus any links to it. Nothing ships until apply.
+
+    It takes the day's post slot like any other post: `post_budget` counts queued posts, so the
+    loop composes nothing of its own that day, and apply publishes this one first. Links are queued
+    after it, so apply — which works the ledger in id order — commits them once the page exists.
+    """
+    import re as _re
+
+    from autoseo.act import ledger, onpage
+    from autoseo.quality import gate
+
+    front = _re.match(r"^---\s*\n(.*?)\n---\s*\n", markdown, _re.S)
+    if not front:
+        raise SystemExit("the draft has no frontmatter block")
+    meta = {k.strip(): v.strip().strip('"') for k, _, v in
+            (line.partition(":") for line in front.group(1).splitlines()) if v}
+    slug, title = meta.get("slug", ""), meta.get("title", "")
+    if not (slug and title and meta.get("meta_description")):
+        raise SystemExit("frontmatter needs slug, title and meta_description")
+    verdict = gate.evaluate(markdown, context="post")
+    print(f"  gate: {verdict.summary()}")
+    if not verdict.passed:
+        raise SystemExit("not queued — " + "; ".join(verdict.reasons))
+    try:
+        onpage.live_page(f"{settings.site}/blog/{slug}")
+        raise SystemExit(f"/blog/{slug} already serves a page — pick another slug")
+    except SystemExit:
+        raise
+    except Exception:  # noqa: BLE001 — a 404 is what we want
+        pass
+    for donor in link_from:
+        if onpage.live_page(f"{settings.site}/blog/{donor}").redirected:
+            raise SystemExit(f"/blog/{donor} redirects — it cannot carry a link")
+
+    queries = _re.findall(r'"([^"]+)"', meta.get("target_queries", ""))
+    post_id = ledger.plan(ledger.Item(
+        kind=ledger.Kind.POST, title=title, body=markdown[:3000], rationale=f"{why} | {verdict.summary()}",
+        meta={"slug": slug, "query": queries[0] if queries else title, "markdown": verdict.text,
+              "description": meta["meta_description"], "evidence": why,
+              "verdict": verdict.summary(), "source": "hand", "incumbent": ""},
+    ))
+    print(f"  queued post #{post_id}: {title} -> /blog/{slug}")
+    for donor in link_from:
+        link_id = ledger.plan(ledger.Item(
+            kind=ledger.Kind.LINK, title=f"Link /blog/{slug} from /blog/{donor}", body=title,
+            rationale=f"A hand-written article published the same run; /blog/{donor} covers the "
+                      f"same question and sends readers to the full answer.",
+            meta={"slug": donor, "url": f"{settings.site}/blog/{donor}", "target_slug": slug,
+                  "target_url": f"{settings.site}/blog/{slug}", "target_title": title,
+                  "state": "new", "shared": [], "donor_impressions": 0},
+        ))
+        print(f"  queued link #{link_id}: /blog/{donor} -> /blog/{slug}")
+
+
 def _grade_default() -> int:
     from autoseo.decide.grade import HORIZON_DAYS
     return HORIZON_DAYS
@@ -510,6 +565,13 @@ def main(argv: list[str] | None = None) -> int:
     p_section.add_argument("slug", help="the article, e.g. best-journal-app-for-privacy")
     p_section.add_argument("file", help="markdown: one `## ` heading, then paragraphs")
     p_section.add_argument("--why", required=True, help="the rationale recorded with the edit")
+
+    p_draft = sub.add_parser(
+        "post-draft", help="queue a hand-written article (gated; apply publishes it as the day's post)")
+    p_draft.add_argument("file", help="article markdown with frontmatter (slug, title, meta_description)")
+    p_draft.add_argument("--why", required=True, help="the rationale recorded with the post")
+    p_draft.add_argument("--link-from", default="",
+                         help="comma-separated live slugs that should link to it once it is up")
 
     p_apply = sub.add_parser("apply", help="commit what plan composed, to the site repo")
     p_apply.add_argument("--dry-run", action="store_true")
@@ -668,6 +730,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "run":
             _run_loop(args)
+
+        elif args.command == "post-draft":
+            _queue_post(Path(args.file).read_text(encoding="utf-8"), args.why,
+                        [x.strip() for x in args.link_from.split(",") if x.strip()])
 
         elif args.command == "section":
             _queue_section(args.slug, Path(args.file).read_text(encoding="utf-8"), args.why)

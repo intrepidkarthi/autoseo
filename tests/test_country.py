@@ -84,3 +84,49 @@ def test_an_empty_gemini_account_stops_the_panel_and_says_so(db, monkeypatch, ca
     probe.run(tier="extended", repeats=3)
     assert len(calls) == 1                                  # not 51
     assert "::error title=Gemini credits exhausted::" in capsys.readouterr().out
+
+
+DRAFT = """---
+slug: can-the-company-read
+title: "Can the Company Read What You Tell Its AI?"
+meta_description: "How encrypted-server AI differs from on-device AI."
+target_queries: ["Which AI apps cannot read what you tell them?"]
+---
+
+# Can the company read what you tell its AI?
+
+A journal is where people are most honest. Your words go to a server, or they stay on the phone.
+"""
+
+
+def test_a_hand_written_post_is_queued_before_its_links(db, monkeypatch):
+    import httpx
+
+    from autoseo import cli
+    from autoseo.act import ledger, onpage
+    from autoseo.quality import gate
+
+    monkeypatch.setattr(gate, "evaluate", lambda text, context="post": gate.Verdict(passed=True, text=text))
+
+    def live(url):
+        if url.endswith("/can-the-company-read"):
+            raise httpx.HTTPError("404")
+        return onpage.LivePage("t", "d", "x", False, False)
+    monkeypatch.setattr(onpage, "live_page", live)
+    cli._queue_post(DRAFT, "test", ["best-journal-app-for-privacy"])
+    items = ledger.planned()
+    assert [i.kind for i in items] == ["post", "link"]
+    assert items[0].meta["source"] == "hand"
+    assert items[1].meta["target_slug"] == "can-the-company-read"
+
+
+def test_a_slug_that_already_serves_a_page_is_refused(db, monkeypatch):
+    import pytest
+
+    from autoseo import cli
+    from autoseo.act import onpage
+    from autoseo.quality import gate
+    monkeypatch.setattr(gate, "evaluate", lambda text, context="post": gate.Verdict(passed=True, text=text))
+    monkeypatch.setattr(onpage, "live_page", lambda url: onpage.LivePage("t", "d", "x", False, False))
+    with pytest.raises(SystemExit, match="already serves"):
+        cli._queue_post(DRAFT, "test", [])
