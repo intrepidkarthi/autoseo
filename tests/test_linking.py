@@ -184,6 +184,8 @@ def post_arm(monkeypatch):
     monkeypatch.setattr(ledger, "recent_sources", lambda kind, limit=2: ["gsc", "gsc"])
     monkeypatch.setattr(ledger, "incumbents_supported", lambda days: set())
     monkeypatch.setattr(plan, "_live", lambda url: False)
+    from autoseo.decide import topics
+    monkeypatch.setattr(topics, "live_pages", lambda: {})
 
     def run(gaps, written=(), ranking=None):
         monkeypatch.setattr(brief, "aeo_gaps", lambda days: gaps)

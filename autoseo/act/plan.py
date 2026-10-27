@@ -500,6 +500,10 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
     # day is not the window that matters: a page published this morning to relieve an incumbent is
     # still relieving it tomorrow, and Search Console will not report it for a week.
     claimed: set[str] = ledger.incumbents_supported(days=POST_INCUMBENT_COOLDOWN_DAYS)
+    # The pages that already own a topic. Read once; a post drafted this run joins it below, so a
+    # second candidate on the same topic in the same morning is caught too.
+    from autoseo.decide import topics
+    owners = topics.live_pages()
     for action in wanted:
         if budget <= 0 or failures >= MAX_CONSECUTIVE_FAILURES:
             break
@@ -518,6 +522,20 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
             log.info("/blog/%s is already live — skipping", slug)
             result.skipped.append(f"post '{action.query[:40]}': /blog/{slug} is already live")
             why["already live"] = why.get("already live", 0) + 1
+            continue
+
+        # Topical, before positional. Search Console says where our pages rank for this query; it
+        # cannot say whether one of them was written for it. A page that owns the topic at
+        # position 45 is still the page to strengthen — every post written beside one since
+        # September was later folded into the other. See `decide.topics`.
+        if owned := topics.owner(action.query, owners, exclude=slug):
+            page, words = owned
+            reason = (f"/blog/{page} is already about this ({', '.join(sorted(words))}) — "
+                      f"strengthen it instead" if words else
+                      "a head term every best-of page already competes for")
+            log.info("skipping '%s': %s", action.query[:60], reason)
+            result.skipped.append(f"post '{action.query[:40]}': {reason}")
+            why["a page already about it"] = why.get("a page already about it", 0) + 1
             continue
 
         # An answer-engine question is never itself a Search Console query, so checking it as one
@@ -572,6 +590,7 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
         ))
         if incumbent:
             claimed.add(incumbent)
+        owners[draft.slug] = topics.topic(draft.slug)
         result.posts += 1
         budget -= 1
 
