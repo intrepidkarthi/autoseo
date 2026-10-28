@@ -39,7 +39,8 @@ _FOLD = {
 _EMPTY = {"cannot", "tell", "help", "make", "makes", "good", "keep", "keeping", "easy", "work",
           "works", "want", "need", "best", "someone", "thing", "things", "really", "way", "say",
           "completely", "fully", "actually", "powered", "assisted", "based", "daily", "entry",
-          "online"}
+          "online", "alternative", "don", "have", "when", "all", "let", "them", "using", "where",
+          "instead", "both", "does", "should", "could", "would", "will", "about", "after"}
 
 # How much of the query's topic a page's name has to carry before the page owns it.
 COVER = 0.5
