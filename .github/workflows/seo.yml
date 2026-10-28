@@ -159,8 +159,9 @@ jobs:
           # site has no foothold in, which is a strategy question, not a trend. That is why this
           # names the tiers rather than using `all`.
           #
-          # Quota: (10 core + 17 extended) x 3 repeats = 81 calls/week, ~350/month against the
-          # 5,000/month free grounded allowance.
+          # Quota: (10 core + 30 extended) x 3 repeats = 120 calls/week, ~520/month. The key has been
+          # on prepaid billing since 2026-10-22, when the credit ran out mid-run — so these calls are
+          # paid now, and a 402 raises a CI error rather than thirty warnings.
           TIER="${{ github.event.inputs.aeo_tier }}"
           if [ -z "$TIER" ] && [ "$(date -u +%u)" = "1" ]; then TIER=core; fi
           if [ -z "$TIER" ] && [ "$(date -u +%u)" = "4" ]; then TIER=extended; fi

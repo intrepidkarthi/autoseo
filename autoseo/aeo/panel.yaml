@@ -5,7 +5,7 @@
 # already rank for. Wording is fixed on purpose: LLM answers vary run to run, so changing the question
 # destroys the comparison. Add questions, never edit them; retire one by setting active: false.
 #
-# `core` runs daily, the rest weekly. At 10 daily + 29 weekly that is ~400 grounded calls/month
+# `core` runs daily, the rest weekly. At 10 core + 30 extended weekly that is ~400 grounded calls/month
 # against a 5,000/month free allowance.
 
 brand: DailyVox
@@ -125,6 +125,62 @@ questions:
     content: false
   - id: ai-journal-no-server
     text: "Is there an AI journal that works without sending my entries to a server?"
+    tier: extended
+    content: false
+
+  # Added 2026-10-28. By then Search Console demand was covered: 10 uncovered acquisition topics
+  # in 90 days, the largest at 15 impressions, most of them things DailyVox is not (video, shared,
+  # desktop). So these come from where buyers ask outside Google — Reddit, app-store alternatives
+  # pages, India's journaling launches — and each is something DailyVox does differently. None is
+  # grounded in GSC the way the rest of this file is; the evidence is in the comment beside it.
+  # Every one cleared the topic guard (no live page already about it) when added.
+  #
+  # `content: false` on four: Hindi (on-device support not yet confirmed — a post would claim it),
+  # two named competitors (the composer must not make claims about another company's product), and
+  # grief (a page on grief is written by a person or not at all).
+  - id: android-voice-offline
+    text: "What is the best voice journal app for Android that works offline?"
+    tier: extended
+    # r/digitaljournaling asks; the main offline Android option transcribes German only.
+  - id: journal-sleep-hrv
+    text: "Is there a journal app that connects my mood with my sleep and heart rate?"
+    tier: extended
+    # MoodJot, Moodpress and Oura are named for this; it is the Body Twin.
+  - id: daylio-voice-alternative
+    text: "Is there a free Daylio alternative where I can talk instead of tapping?"
+    tier: extended
+  - id: journal-iphone-android
+    text: "Which journaling apps work on both iPhone and Android?"
+    tier: extended
+  - id: ask-my-journal
+    text: "Is there a journal app that answers questions about my own past entries?"
+    tier: extended
+  - id: journal-export-ownership
+    text: "Which journal apps let me export all my entries if I stop using them?"
+    tier: extended
+  - id: journal-no-time
+    text: "How can I keep a journal when I don't have time to write?"
+    tier: extended
+  - id: journal-burnout
+    text: "What journaling app helps with work stress and burnout?"
+    tier: extended
+  - id: journal-language-learning
+    text: "Can I keep a voice journal in a language I am learning?"
+    tier: extended
+  - id: hindi-voice-journal
+    text: "What is the best voice journaling app that understands Hindi?"
+    tier: extended
+    content: false
+  - id: rocket-journal-alternative
+    text: "What is a private alternative to Rocket Journal?"
+    tier: extended
+    content: false
+  - id: dayone-ai-alternative
+    text: "What is a good Day One alternative that does not send my entries to an AI company?"
+    tier: extended
+    content: false
+  - id: journal-grief
+    text: "Is there a private journal app for processing grief?"
     tier: extended
     content: false
 
