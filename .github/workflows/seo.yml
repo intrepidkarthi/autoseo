@@ -131,6 +131,8 @@ jobs:
           GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
           BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # Optional; without it PageSpeed answers 429 and the audit skips Core Web Vitals.
+          PAGESPEED_API_KEY: ${{ secrets.PAGESPEED_API_KEY }}
           AUTOSEO_INSPECT_LIMIT: ${{ github.event.inputs.inspect_limit || '200' }}
           AUTOSEO_PAUSE: ${{ vars.AUTOSEO_PAUSE }}
           DAYS: ${{ github.event.inputs.days || '90' }}
