@@ -116,8 +116,12 @@ def donors(days: int = DONOR_WINDOW_DAYS, min_impressions: float = DONOR_MIN_IMP
                GROUP BY d.page HAVING imp >= ? ORDER BY imp DESC""",
             (start, f"{SITE}/blog/%", min_impressions),
         ).fetchall()
+        from autoseo.collect.audit import noindexed
+        dead = noindexed()
         out = []
         for p in pages:
+            if p["page"] in dead:
+                continue                   # still "indexed" in Search Console, noindex on the page
             queries = [
                 r["query"] for r in conn.execute(
                     """SELECT query, SUM(impressions) imp FROM gsc_page_query

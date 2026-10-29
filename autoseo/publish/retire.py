@@ -33,11 +33,17 @@ log = get_logger(__name__)
 _EXACT = re.compile(r"^/blog/([a-z0-9-]+)/?$")
 
 
-def redirect_map(raw: str | None = None) -> dict[str, str]:
-    """{retired slug: final destination path} for every exact /blog/<slug> redirect.
+# Any exact path: letters, digits, dashes, underscores and slashes. Vercel's pattern syntax
+# (`:slug`, `(.*)`, wildcards) has no single page to rewrite a link to, so it is left alone.
+_EXACT_PATH = re.compile(r"^/[A-Za-z0-9/_-]*$")
+
+
+def path_map(raw: str | None = None) -> dict[str, str]:
+    """{retired path: final destination} for every exact-path redirect on the site.
 
     Chains are followed to the end, so a link is rewritten once to where the reader actually lands.
-    Pattern rules (`:slug`, wildcards) are skipped: there is no single page to rewrite them to.
+    Not only /blog: on 2026-10-29 seven blog pages linked /reports/... and /alternative/... URLs
+    that had redirected for months, and a /blog-only map never saw them.
     """
     if raw is None:
         from autoseo.publish import redirect
@@ -45,9 +51,9 @@ def redirect_map(raw: str | None = None) -> dict[str, str]:
     if not raw:
         return {}
     rules = {
-        r["source"].rstrip("/"): r["destination"]
+        str(r["source"]).rstrip("/") or "/": str(r["destination"])
         for r in json.loads(raw).get("redirects", [])
-        if isinstance(r, dict) and _EXACT.match(str(r.get("source", "")))
+        if isinstance(r, dict) and _EXACT_PATH.match(str(r.get("source", "")).rstrip("/") or "/")
         and str(r.get("destination", "")).startswith("/")
     }
     out: dict[str, str] = {}
@@ -56,8 +62,14 @@ def redirect_map(raw: str | None = None) -> dict[str, str]:
         while dest.rstrip("/") in rules and dest.rstrip("/") not in seen:
             seen.add(dest.rstrip("/"))
             dest = rules[dest.rstrip("/")]
-        out[_EXACT.match(source).group(1)] = dest
+        out[source] = dest
     return out
+
+
+def redirect_map(raw: str | None = None) -> dict[str, str]:
+    """{retired blog slug: final destination} — the /blog subset of `path_map`."""
+    return {m.group(1): dest for path, dest in path_map(raw).items()
+            if (m := _EXACT.match(path))}
 
 
 def drop_index_entries(doc: str, slugs: set[str]) -> tuple[str, list[str]]:
@@ -76,15 +88,19 @@ def drop_index_entries(doc: str, slugs: set[str]) -> tuple[str, list[str]]:
 
 
 def rewrite_links(text: str, retired: dict[str, str], markdown: bool = False) -> str:
-    """Point every link at a retired page at where its redirect lands."""
+    """Point every link at a retired page at where its redirect lands.
+
+    `retired` is keyed by blog slug (`redirect_map`) or by path (`path_map`); both work.
+    """
     if not retired:
         return text
-    alt = "|".join(re.escape(s) for s in sorted(retired, key=len, reverse=True))
+    paths = {(k if k.startswith("/") else f"/blog/{k}"): v for k, v in retired.items()}
+    alt = "|".join(re.escape(p) for p in sorted(paths, key=len, reverse=True))
     if markdown:
-        pattern = re.compile(rf"\]\((?:https://getdailyvox\.com)?/blog/({alt})/?\)")
-        return pattern.sub(lambda m: f"]({retired[m.group(1)]})", text)
-    pattern = re.compile(rf'href="(?:https://getdailyvox\.com)?/blog/({alt})(?:\.html)?/?"')
-    return pattern.sub(lambda m: f'href="{retired[m.group(1)]}"', text)
+        pattern = re.compile(rf"\]\((?:https://getdailyvox\.com)?({alt})/?\)")
+        return pattern.sub(lambda m: f"]({paths[m.group(1)]})", text)
+    pattern = re.compile(rf'href="(?:https://getdailyvox\.com)?({alt})(?:\.html)?/?"')
+    return pattern.sub(lambda m: f'href="{paths[m.group(1)]}"', text)
 
 
 def _download(entry: dict) -> str | None:
@@ -131,8 +147,9 @@ def retire(dry_run: bool = False, sweep: bool | None = None) -> str:
     if sweep is None:
         sweep = _needs_sweep()
 
-    retired = redirect_map()
-    if not retired:
+    paths = path_map()
+    retired = {m.group(1): d for p, d in paths.items() if (m := _EXACT.match(p))}
+    if not paths:
         return ""
     files: dict[str, str | None] = {}
     report: list[str] = []
@@ -143,7 +160,7 @@ def retire(dry_run: bool = False, sweep: bool | None = None) -> str:
         if doc is None:
             continue
         updated, gone = drop_index_entries(doc, set(retired))
-        updated = rewrite_links(updated, retired)
+        updated = rewrite_links(updated, paths)
         if updated != doc:
             files[path] = updated
             report += [f"index: {s}" for s in gone]
@@ -164,7 +181,7 @@ def retire(dry_run: bool = False, sweep: bool | None = None) -> str:
     index_paths = set(blog.index_pages())
     if sweep:
         for name, text in _fetch_all(keep).items():
-            if text is not None and (updated := rewrite_links(text, retired, markdown=True)) != text:
+            if text is not None and (updated := rewrite_links(text, paths, markdown=True)) != text:
                 files[f"{content}/{name}"] = updated
 
         # --- rendered pages: repoint body links and the related blocks
@@ -173,7 +190,7 @@ def retire(dry_run: bool = False, sweep: bool | None = None) -> str:
                  if e["type"] == "file" and e["name"].endswith(".html")
                  and e["name"][:-5] not in retired and f"{pages_dir}/{e['name']}" not in index_paths]
         for name, text in _fetch_all(pages).items():
-            if text is not None and (updated := rewrite_links(text, retired)) != text:
+            if text is not None and (updated := rewrite_links(text, paths)) != text:
                 files[f"{pages_dir}/{name}"] = updated
 
     # --- sitemaps

@@ -286,6 +286,10 @@ def _print_brief(days: int, top: int) -> None:
         for q, imp, pos in m.queries:
             print(f"      {imp:>5.0f} imp  pos {pos:>5.1f}  {q}")
 
+    from autoseo.collect import audit
+    print("\n=== TECHNICAL AUDIT — what Google finds when it reads the pages ===")
+    print(audit.describe())
+
     ex = brief.excluded(days)
     print("\n=== EXCLUDED from acquisition analysis ===")
     for kind, items in ex.items():
@@ -599,6 +603,10 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("bing", help="pull Bing Webmaster stats")
     sub.add_parser("report", help="print the indexation report")
+
+    p_audit = sub.add_parser("audit", help="crawl the sitemap and check every page; free, no API")
+    p_audit.add_argument("--psi", type=int, default=0,
+                         help="also read Core Web Vitals for the top N pages by impressions")
 
     p_all = sub.add_parser("collect", help="gsc + bing + inspect + report")
     p_all.add_argument("--limit", type=int, default=None)
@@ -984,6 +992,16 @@ def main(argv: list[str] | None = None) -> int:
             from autoseo.core import snapshot
             for tbl, n in snapshot.load().items():
                 print(f"  {tbl:<20}{n:>7}")
+
+        elif args.command == "audit":
+            from autoseo.collect import audit
+            result = audit.run(psi=args.psi)
+            print(f"\n=== TECHNICAL AUDIT ===\n{audit.describe()}")
+            errors = sum(1 for i in result.issues if i[2] == "error")
+            if errors:
+                print(f"::warning title=audit found {errors} error(s)::Broken links, redirects or "
+                      f"noindex pages in the sitemap, or a canonical pointing elsewhere — "
+                      f"see TECHNICAL AUDIT in the log.")
 
         elif args.command == "collect":
             from autoseo.collect import bing, gsc, health, inspect

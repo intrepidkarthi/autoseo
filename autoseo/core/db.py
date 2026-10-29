@@ -14,7 +14,7 @@ from pathlib import Path
 
 from autoseo.core.config import settings
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 SCHEMA = """
 -- Phase 0: measurement -------------------------------------------------------
@@ -67,6 +67,34 @@ CREATE TABLE IF NOT EXISTS gsc_country_daily (
     ctr         REAL NOT NULL DEFAULT 0,
     position    REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (date, country)
+);
+-- The technical audit (collect/audit.py). audit_issue is the latest crawl only; audit_summary is the
+-- per-day count of each check, which is the trend; audit_cwv is PageSpeed's mobile reading.
+CREATE TABLE IF NOT EXISTS audit_issue (
+    date        TEXT NOT NULL,
+    url         TEXT NOT NULL,
+    check_name  TEXT NOT NULL,
+    severity    TEXT NOT NULL,
+    detail      TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (url, check_name, detail)
+);
+CREATE TABLE IF NOT EXISTS audit_summary (
+    date        TEXT NOT NULL,
+    check_name  TEXT NOT NULL,
+    n           INTEGER NOT NULL,
+    PRIMARY KEY (date, check_name)
+);
+CREATE TABLE IF NOT EXISTS audit_cwv (
+    date         TEXT NOT NULL,
+    url          TEXT NOT NULL,
+    perf         INTEGER,
+    lcp_ms       REAL,
+    cls          REAL,
+    tbt_ms       REAL,
+    field_lcp_ms REAL,
+    field_cls    REAL,
+    field_inp_ms REAL,
+    PRIMARY KEY (date, url)
 );
 CREATE TABLE IF NOT EXISTS gsc_country_query (
     date        TEXT NOT NULL,

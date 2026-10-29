@@ -68,10 +68,12 @@ def live_pages() -> dict[str, set[str]]:
                  AND COALESCE(s.coverage_state, '') NOT LIKE '%redirect%'
                  AND COALESCE(s.coverage_state, '') NOT LIKE '%noindex%'"""
         ).fetchall()
+    from autoseo.collect.audit import noindexed
+    dead = noindexed()
     out = {}
     for r in rows:
         slug = r["url"].rstrip("/").rsplit("/", 1)[-1]
-        if slug not in gone:
+        if slug not in gone and r["url"] not in dead:
             out[slug] = topic(slug)
     return out
 

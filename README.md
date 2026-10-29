@@ -45,6 +45,7 @@ submit      IndexNow → Bing, Yandex, Seznam, Naver. Google reads the regenerat
 | retire redirected URLs everywhere | ✅ | every run: index cards, sitemaps, markdown sources; after a redirect and weekly: every internal link |
 | hand-written sections — `autoseo section` | ✅ | same gate as composed copy; queued in the ledger, shipped by apply, inside the edit cooldown |
 | country data — India | ✅ | `date × country` site-wide, `date × query` for India; 90 days seeded on first collect; INDIA block in the brief |
+| technical audit — `autoseo audit` | ✅ | daily crawl of every sitemap page, rules ported from open-seo (MIT): noindex/redirect/canonical/thin/duplicate/broken links/orphans; Core Web Vitals from the free PageSpeed API on Sundays (needs `PAGESPEED_API_KEY`) |
 | topic-owner guard on new posts | ✅ | a live page whose name already carries the query's topic owns it, wherever it ranks; the loop strengthens it instead of writing a rival |
 | links to unindexed pages | ✅ | an indexed page that shares the topic links to one Google hasn't indexed; ≤2/run, 8/week |
 | quality gate — write-like-me, in code | ✅ | vendored scanner; every article, no exceptions |

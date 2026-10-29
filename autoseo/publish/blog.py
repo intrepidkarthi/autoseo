@@ -106,7 +106,8 @@ def render(changes: dict[str, str]) -> dict[str, str]:
     retired = retire.redirect_map()
     articles = {s: md for s, md in fetch_articles().items() if s not in retired}
     # New and edited text never links to a retired URL, so it never waits for a sweep to be fixed.
-    changes = {slug: retire.rewrite_links(md, retired, markdown=True) for slug, md in changes.items()}
+    paths = retire.path_map()
+    changes = {slug: retire.rewrite_links(md, paths, markdown=True) for slug, md in changes.items()}
     articles.update(changes)
 
     # Resolved before the tempdir below shadows the name `root` with a local path.

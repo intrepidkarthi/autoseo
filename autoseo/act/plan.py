@@ -167,6 +167,11 @@ def _plan_hygiene(days: int, result: Planned, dry_run: bool) -> None:
 
     dead = {u for u in suspect if not _live(u)}
 
+    # Pages the site itself marks noindex. Listing them asks Google to index what the page tells it
+    # not to; on 2026-10-29 six blog pages noindexed on 12 Aug were still in sitemap-blog.xml.
+    from autoseo.collect.audit import noindexed
+    marked = noindexed()
+
     pagination: set[str] = set()
     for name in ("blog", "core"):
         try:
@@ -176,7 +181,7 @@ def _plan_hygiene(days: int, result: Planned, dry_run: bool) -> None:
             continue
         pagination |= {u for u in sm.urls(xml) if prune._PAGINATION.search(u)}
 
-    if not (dead or pagination):
+    if not (dead or pagination or marked):
         return
 
     reasons = []
@@ -184,6 +189,9 @@ def _plan_hygiene(days: int, result: Planned, dry_run: bool) -> None:
         reasons.append(f"{len(dead)} URL(s) that no longer resolve")
     if pagination:
         reasons.append(f"{len(pagination)} paginated listing(s)")
+    if marked:
+        reasons.append(f"{len(marked)} page(s) marked noindex")
+    dead |= marked
     rationale = (
         "A sitemap is a set of assertions that each URL is worth indexing. "
         + " and ".join(reasons)

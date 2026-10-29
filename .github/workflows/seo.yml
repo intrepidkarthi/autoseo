@@ -146,6 +146,12 @@ jobs:
           autoseo inventory
           autoseo collect
 
+          # The technical audit: every sitemap page fetched and checked, free. Core Web Vitals from
+          # PageSpeed for the top 10 pages on Sundays — a reading a week is all that metric moves.
+          # Never fatal: a crawl that trips on the site must not cost the day's measurement.
+          PSI=0; if [ "$(date -u +%u)" = "7" ]; then PSI=10; fi
+          autoseo audit --psi "$PSI" || echo "::warning::audit failed — continuing"
+
           # The AEO panel costs a few minutes of free-tier quota and moves slowly. Weekly is
           # enough to keep the outreach list current; the input overrides it on demand.
           #
