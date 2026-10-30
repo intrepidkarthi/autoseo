@@ -286,6 +286,10 @@ def _print_brief(days: int, top: int) -> None:
         for q, imp, pos in m.queries:
             print(f"      {imp:>5.0f} imp  pos {pos:>5.1f}  {q}")
 
+    from autoseo.decide import diagnose
+    print("\n=== LOST QUESTIONS — why answer engines leave DailyVox out, and the next move ===")
+    print(diagnose.describe())
+
     from autoseo.collect import audit
     print("\n=== TECHNICAL AUDIT — what Google finds when it reads the pages ===")
     print(audit.describe())
