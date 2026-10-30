@@ -352,23 +352,32 @@ def add_link(donor: str, target: str, title: str, rationale: str, dry_run: bool 
     )
 
 
-def insert_section(slug: str, block: str, rationale: str, dry_run: bool = False) -> str:
-    """Insert a hand-written section into a live article, before its FAQ. Additive."""
+def insert_section(slug: str, block: str, rationale: str, dry_run: bool = False,
+                   position: str = "end") -> str:
+    """Insert a section into a live article. Additive.
+
+    `end` places it before the FAQ; `lead` before the first section heading, where a Quick answer
+    belongs.
+    """
     heading = re.search(r"^##\s+(.+)$", block, re.M)
     markdown = site.read_text(f"{site.content_dir()}/{slug}.md")
     if markdown is not None:
         if heading and heading.group(0).strip() in markdown:
             raise site.AlreadyApplied(f"{slug}.md already has this section")
-        faq = _MD_FAQ.search(markdown)
-        updated = (markdown[:faq.start()] + block.strip() + "\n\n" + markdown[faq.start():] if faq
-                   else markdown.rstrip() + "\n\n" + block.strip() + "\n")
+        if position == "lead" and (first := re.search(r"^##\s", markdown, re.M)):
+            anchor = first
+        else:
+            anchor = _MD_FAQ.search(markdown)
+        updated = (markdown[:anchor.start()] + block.strip() + "\n\n" + markdown[anchor.start():]
+                   if anchor else markdown.rstrip() + "\n\n" + block.strip() + "\n")
         files = render({slug: updated})
     else:
         html_path = f"{site.site_dir()}/public/blog/{slug}.html"
         doc = site.read_text(html_path)
         if doc is None:
             raise RuntimeError(f"neither {slug}.md nor {slug}.html is in the site repo")
-        files = {html_path: page.insert_section(doc, block)}
+        insert = page.insert_lead if position == "lead" else page.insert_section
+        files = {html_path: insert(doc, block)}
     title = heading.group(1).strip() if heading else "a section"
     return site.commit(files, f"blog: add \"{title}\" to /blog/{slug}\n\n{rationale}",
                        dry_run=dry_run)

@@ -225,3 +225,20 @@ def insert_section(doc: str, block: str) -> str:
             html = section_html(block, match.group(1)) + "\n\n"
             return doc[:match.start()] + html + doc[match.start():]
     raise RuntimeError("could not find the end of the article body — refusing to guess")
+
+
+def insert_lead(doc: str, block: str) -> str:
+    """Insert a section before the article's first H2 — after the intro, ahead of everything else.
+
+    Where the article has no H2 it goes where an ordinary section would, before the FAQ or the CTA.
+    """
+    heading = re.search(r"^##\s+(.+)$", block, re.M)
+    if heading and htmllib.escape(heading.group(1).strip(), quote=False) in doc:
+        from autoseo.publish.site import AlreadyApplied
+        raise AlreadyApplied(f"the page already has a section headed {heading.group(1).strip()!r}")
+    article = re.search(r"<article\b", doc)
+    first_h2 = re.compile(r"([ \t]*)<h2\b").search(doc, article.end() if article else 0)
+    if not first_h2:
+        return insert_section(doc, block)
+    html = section_html(block, first_h2.group(1)) + "\n\n"
+    return doc[:first_h2.start()] + html + doc[first_h2.start():]

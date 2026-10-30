@@ -41,6 +41,7 @@ class Planned:
     sitemap_dropped: int = 0   # URLs to stop submitting
     redirected: int = 0        # dead URLs with outside value, 301'd onto their successor
     links: int = 0             # links from indexed pages to unindexed ones
+    strengthened: int = 0      # Quick answers on pages the diagnosis calls weak
     # Why a run with post budget to spend planned no post. Empty when it wrote one, or had no budget.
     post_stall: str = ""
     skipped: list[str] = None  # type: ignore[assignment]
@@ -50,7 +51,7 @@ class Planned:
 
     @property
     def total(self) -> int:
-        return self.posts + self.meta + self.faq + self.links
+        return self.posts + self.meta + self.faq + self.links + self.strengthened
 
 
 def _live(url: str) -> bool:
@@ -81,6 +82,7 @@ def run(days: int = 90, dry_run: bool = False) -> Planned:
     _plan_hygiene(days, result, dry_run)
     _plan_reclaim(days, result, dry_run)
     _plan_onpage(days, result, dry_run)
+    _plan_strengthen(result, dry_run)
     _plan_posts(days, result, dry_run)
     _plan_links(result, dry_run)
     return result
@@ -611,6 +613,65 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
             counts = ", ".join(f"{n} {k}" for k, n in sorted(why.items(), key=lambda kv: -kv[1]))
             result.post_stall = f"all {considered} candidate(s) filtered out ({counts})"
         print(f"\n  no post this run — {result.post_stall}")
+
+
+# --- strengthening pages that already own a lost question ----------------------------------
+
+def _plan_strengthen(result: Planned, dry_run: bool) -> None:
+    """A Quick answer at the top of a page the lost-question diagnosis calls weak. See act.strengthen."""
+    from autoseo.act import strengthen
+
+    budget = policy.strengthen_budget()
+    if budget <= 0:
+        return
+    cooling = policy.cooling_down()
+    try:
+        found = strengthen.candidates()
+    except Exception as exc:  # noqa: BLE001 — a diagnosis failure costs a day of these, not the run
+        log.warning("strengthen: diagnosis failed: %s", exc)
+        result.skipped.append(f"strengthen: {str(exc)[:80]}")
+        return
+
+    failures = 0
+    for c in found:
+        if budget <= 0 or failures >= MAX_CONSECUTIVE_FAILURES:
+            break
+        if c.slug in cooling:
+            result.skipped.append(f"strengthen {c.slug}: edited inside the cooldown")
+            continue
+        try:
+            live = onpage.live_page(c.url)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("could not read %s: %s", c.url, str(exc)[:80])
+            continue
+        if live.redirected or strengthen.HEADING.lower() in live.text.lower()[:3000]:
+            continue
+        try:
+            block = strengthen.compose(c, live.text)
+        except Exception as exc:  # noqa: BLE001 — a model outage skips a fix, not the run
+            log.error("quick answer failed for %s: %s", c.slug, exc)
+            result.skipped.append(f"strengthen {c.slug}: {str(exc)[:80]}")
+            failures += 1
+            continue
+        failures = 0
+        if not block:
+            result.skipped.append(f"strengthen {c.slug}: nothing cleared the checks")
+            continue
+        print(f"\n  quick answer for /blog/{c.slug}")
+        print(f"      {c.evidence}")
+        result.strengthened += 1
+        budget -= 1
+        cooling.add(c.slug)
+        if dry_run:
+            for line in block.splitlines():
+                print(f"      {line}")
+            continue
+        ledger.plan(ledger.Item(
+            kind=ledger.Kind.SECTION, title=f"Quick answer on /blog/{c.slug}", body=block,
+            rationale=c.evidence,
+            meta={"slug": c.slug, "url": c.url, "block": block, "position": "lead",
+                  "source": "diagnose", "question": c.question},
+        ))
 
 
 # --- links to pages Google has not indexed -----------------------------------------------------

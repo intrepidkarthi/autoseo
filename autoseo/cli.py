@@ -440,7 +440,7 @@ def _print_plan(result) -> None:
     from autoseo.act import ledger, policy
 
     print(f"\n  planned: {result.posts} post(s), {result.meta} retitle(s), {result.faq} FAQ(s), "
-          f"{result.links} link(s)")
+          f"{result.strengthened} quick answer(s), {result.links} link(s)")
     for s in result.skipped:
         print(f"  skipped: {s}")
     if result.total == 0 and not _already_worked_today() and policy.MAX_POSTS_PER_DAY:

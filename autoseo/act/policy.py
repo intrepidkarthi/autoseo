@@ -70,6 +70,12 @@ MAX_REDIRECTS_PER_RUN = 2
 # each is still a permanent redirect.
 MAX_DECLINED_MERGES_PER_RUN = 2
 
+# Quick answers on pages the diagnosis calls weak. Each is an edit to a page that already ranks,
+# so it sits inside the page cooldown like a retitle, and four a week keeps each one readable in
+# the panel's next run.
+MAX_STRENGTHEN_PER_RUN = 1
+MAX_STRENGTHEN_PER_WEEK = 4
+
 MAX_LINKS_PER_RUN = 2
 MAX_LINKS_PER_WEEK = 8
 LINK_COOLDOWN_DAYS = 30
@@ -140,6 +146,23 @@ def link_budget() -> int:
     queued = len(ledger.planned(ledger.Kind.LINK))
     week = ledger.shipped_since(ledger.Kind.LINK, days=7)
     return max(0, min(MAX_LINKS_PER_RUN - queued, MAX_LINKS_PER_WEEK - week - queued))
+
+
+def strengthen_budget() -> int:
+    """Quick answers that may be composed this run. Queued ones count against it."""
+    queued = len([i for i in ledger.planned(ledger.Kind.SECTION)
+                  if i.meta.get("source") == "diagnose"])
+    week = sum(1 for i in ledger.recent(limit=200)
+               if i.kind == ledger.Kind.SECTION and i.meta.get("source") == "diagnose"
+               and i.status == ledger.Status.SHIPPED and _within(i.decided_at, 7))
+    return max(0, min(MAX_STRENGTHEN_PER_RUN - queued, MAX_STRENGTHEN_PER_WEEK - week - queued))
+
+
+def _within(ts: str | None, days: int) -> bool:
+    import datetime as dt
+    if not ts:
+        return False
+    return dt.datetime.fromisoformat(ts) >= dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
 
 
 def already_redirected() -> set[str]:
