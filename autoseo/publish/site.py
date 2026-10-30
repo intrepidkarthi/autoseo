@@ -114,9 +114,13 @@ def _writable(path: str) -> bool:
     # not reach it (no trailing hyphen), and it is listed here rather than by widening that prefix
     # for the same reason as the three files above: one more exact name is cheaper than one more
     # directory inside the blast radius.
-    from autoseo.publish import agent_layer, indexnow, sitemap
+    from autoseo.publish import agent_layer, attribution, indexnow, sitemap
+    # The top-level pages carry the store links the home page's visitors click. They are allowed by
+    # exact name, and `attribution.tag` refuses any edit to them beyond store-link URLs.
+    core = {f"{site_dir()}/public/{p}.html" for p in attribution.CORE_PAGES}
     return (
-        path.startswith(writable_prefixes())
+        path in core
+        or path.startswith(writable_prefixes())
         or path == sitemap.index_path()
         or path == indexnow.key_file_path()
         or path in agent_layer.profile_paths()

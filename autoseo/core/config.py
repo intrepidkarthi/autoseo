@@ -66,6 +66,9 @@ class Settings:
     gemini_api_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
     # Optional. PageSpeed Insights answers without a key at the volume the audit asks for.
     pagespeed_api_key: str = field(default_factory=lambda: _env("PAGESPEED_API_KEY"))
+    # App Store Connect's provider token, for campaign links. Public — it appears in every tagged
+    # link — so it is a repo variable, not a secret. See publish/attribution.py.
+    appstore_provider_token: str = field(default_factory=lambda: _env("AUTOSEO_APPSTORE_PT"))
     gh_dailyvox_token: str = field(default_factory=lambda: _env("GH_DAILYVOX_TOKEN"))
     # Accepts a common misspelling of the secret name. A GitHub secret cannot be renamed in place —
     # you delete and re-add it — so a typo silently reads as empty and surfaces as "credential not

@@ -23,14 +23,19 @@ def _root(monkeypatch):
     "website/public/sitemap-blog.xml",
     "website/public/sitemap.xml",          # the index — added by exact name, not by prefix
     "website/vercel.json",
+    # The homepage and the other top-level pages with store links, by exact name, since 30 Oct
+    # 2026: install attribution has to tag the links people actually click. The only edit allowed
+    # there is to store-link URLs — `attribution.tag` refuses anything else.
+    "website/public/index.html",
+    "website/public/faq.html",
 ])
 def test_allowed(path):
     assert site._writable(path)
 
 
 @pytest.mark.parametrize("path", [
-    "website/public/index.html",           # the homepage
     "website/public/style.css",
+    "website/public/for/a-templated-page.html",   # a top-level page not on the list
     "website/package.json",
     "website/src/App.tsx",
     "sitemap.xml",                         # outside the website root entirely

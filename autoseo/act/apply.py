@@ -54,8 +54,8 @@ def _stale(item: ledger.Item) -> bool:
 def run(dry_run: bool = False) -> Applied:
     from autoseo.compose.blog import Draft
     from autoseo.core.config import ConfigError, settings
+    from autoseo.publish import attribution, delist, indexnow, redirect, retire, site, sitemap
     from autoseo.publish import blog as publisher
-    from autoseo.publish import delist, indexnow, redirect, retire, site, sitemap
     from autoseo.quality import gate as qgate
 
     result = Applied()
@@ -78,7 +78,7 @@ def run(dry_run: bool = False) -> Applied:
     # doing it. `indexnow.ensure_key` is one read after the first run.
     # `retire` before `relink`: it is what makes a redirected page stop counting as an orphan.
     for label, fn in (("delist", delist.apply), ("retire", retire.retire),
-                      ("relink", publisher.relink),
+                      ("relink", publisher.relink), ("attribution", attribution.backfill),
                       ("indexnow-key", indexnow.ensure_key)):
         try:
             if url := fn(dry_run=dry_run):

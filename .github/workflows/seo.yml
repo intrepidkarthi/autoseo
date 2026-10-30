@@ -280,6 +280,8 @@ jobs:
         id: apply
         env:
           GH_DAILYVOX_TOKEN: ${{ secrets.GH_DAILYVOX_TOKEN }}
+          # App Store Connect provider token for campaign links (public; a repo variable).
+          AUTOSEO_APPSTORE_PT: ${{ vars.AUTOSEO_APPSTORE_PT }}
           AUTOSEO_PAUSE: ${{ vars.AUTOSEO_PAUSE }}
           DRY: ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
         run: |
