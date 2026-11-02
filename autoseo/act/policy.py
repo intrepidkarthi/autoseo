@@ -70,9 +70,9 @@ MAX_REDIRECTS_PER_RUN = 2
 # each is still a permanent redirect.
 MAX_DECLINED_MERGES_PER_RUN = 2
 
-# Quick answers on pages the diagnosis calls weak. Each is an edit to a page that already ranks,
-# so it sits inside the page cooldown like a retitle, and four a week keeps each one readable in
-# the panel's next run.
+# Quick answers, from the diagnosis and from long Search Console queries. Each is an edit to a
+# page that already ranks, so it sits inside the page cooldown like a retitle, and four a week
+# keeps each one readable in the panel's next run.
 MAX_STRENGTHEN_PER_RUN = 1
 MAX_STRENGTHEN_PER_WEEK = 4
 
@@ -149,11 +149,12 @@ def link_budget() -> int:
 
 
 def strengthen_budget() -> int:
-    """Quick answers that may be composed this run. Queued ones count against it."""
+    """Quick answers that may be composed this run, from either source. Queued ones count."""
+    from autoseo.act.strengthen import SOURCES
     queued = len([i for i in ledger.planned(ledger.Kind.SECTION)
-                  if i.meta.get("source") == "diagnose"])
+                  if i.meta.get("source") in SOURCES])
     week = sum(1 for i in ledger.recent(limit=200)
-               if i.kind == ledger.Kind.SECTION and i.meta.get("source") == "diagnose"
+               if i.kind == ledger.Kind.SECTION and i.meta.get("source") in SOURCES
                and i.status == ledger.Status.SHIPPED and _within(i.decided_at, 7))
     return max(0, min(MAX_STRENGTHEN_PER_RUN - queued, MAX_STRENGTHEN_PER_WEEK - week - queued))
 

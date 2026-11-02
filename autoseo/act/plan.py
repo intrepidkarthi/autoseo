@@ -41,7 +41,7 @@ class Planned:
     sitemap_dropped: int = 0   # URLs to stop submitting
     redirected: int = 0        # dead URLs with outside value, 301'd onto their successor
     links: int = 0             # links from indexed pages to unindexed ones
-    strengthened: int = 0      # Quick answers on pages the diagnosis calls weak
+    strengthened: int = 0      # Quick answers on weak pages and long-query pages
     # Why a run with post budget to spend planned no post. Empty when it wrote one, or had no budget.
     post_stall: str = ""
     skipped: list[str] = None  # type: ignore[assignment]
@@ -618,7 +618,7 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
 # --- strengthening pages that already own a lost question ----------------------------------
 
 def _plan_strengthen(result: Planned, dry_run: bool) -> None:
-    """A Quick answer at the top of a page the lost-question diagnosis calls weak. See act.strengthen."""
+    """A Quick answer at the top of a page that already ranks for a lost question. See act.strengthen."""
     from autoseo.act import strengthen
 
     budget = policy.strengthen_budget()
@@ -627,8 +627,8 @@ def _plan_strengthen(result: Planned, dry_run: bool) -> None:
     cooling = policy.cooling_down()
     try:
         found = strengthen.candidates()
-    except Exception as exc:  # noqa: BLE001 — a diagnosis failure costs a day of these, not the run
-        log.warning("strengthen: diagnosis failed: %s", exc)
+    except Exception as exc:  # noqa: BLE001 — a source failure costs a day of these, not the run
+        log.warning("strengthen: candidates failed: %s", exc)
         result.skipped.append(f"strengthen: {str(exc)[:80]}")
         return
 
@@ -670,7 +670,7 @@ def _plan_strengthen(result: Planned, dry_run: bool) -> None:
             kind=ledger.Kind.SECTION, title=f"Quick answer on /blog/{c.slug}", body=block,
             rationale=c.evidence,
             meta={"slug": c.slug, "url": c.url, "block": block, "position": "lead",
-                  "source": "diagnose", "question": c.question},
+                  "source": c.source, "question": c.question},
         ))
 
 

@@ -10,6 +10,13 @@ What answer engines quote is the opening of a page: the passage that answers the
 fewest words, and names its options fairly. So the fix is a short "Quick answer" block, placed
 before the first section heading, that answers the exact question the engine is being asked —
 composed against the page's own text and held to the same gate as everything else.
+
+Added 2026-11-02, a second source: long Search Console queries. Queries of eight words or more
+that a blog post already ranks for on page one are, almost all of them, prompts that answer
+engines and AI agents send to Google ("compare top-rated voice journaling services that...").
+None of them click, so CTR says nothing; what matters is that the engine fetched our page and
+quoted someone else. The same Quick answer is the fix. The two sources share one budget and
+alternate, so neither starves the other.
 """
 
 from __future__ import annotations
@@ -52,15 +59,111 @@ Return only markdown in exactly this shape, no preamble:
 <paragraph>"""
 
 
+# Long-query source. Eight words is where queries stop being keywords and start being questions.
+LONG_QUERY = re.compile(r"^(?:\S+\s+){7,}\S+$")
+LONG_QUERY_DAYS = 90
+# All of a page's long queries together, over the window. Not per query: the API spreads one
+# templated prompt over many near-identical rows.
+LONG_QUERY_MIN_IMPRESSIONS = 10
+LONG_QUERY_MAX_POSITION = 10.0    # page one; below it the engine is not reading us
+# Prompt-template debris (<brand>…</brand>) and other languages: a Quick answer in English
+# answers neither.
+_ENGLISH = {"the", "a", "an", "for", "to", "my", "me", "that", "with", "of", "and", "is", "what",
+            "how", "which", "are", "best", "app", "apps", "i", "can", "in", "on", "your"}
+# Per-market templates ("...with templates and reminders in lithuania?") are one prompt run per
+# country; the page is not about any of them. And a question that is not about journaling at all
+# (therapy-notes software) is one Google stretched to us, not one the page should answer.
+_COUNTRY = re.compile(r"\bin (?:the )?(?:united states|usa|us|uk|great britain|united kingdom|india|"
+                      r"germany|france|spain|italy|netherlands|lithuania|australia|canada|israel|"
+                      r"ireland|japan|brazil|mexico)\b")
+_ON_TOPIC = re.compile(r"journal|diary|reflect")
+_LISTING = re.compile(r"/blog/?$|/blog/page/\d+/?$")
+
+
 @dataclass
 class Candidate:
     slug: str
     url: str
     question: str
     evidence: str
+    source: str = "diagnose"
+
+
+SOURCES = ("diagnose", "gsc")
 
 
 def candidates() -> list[Candidate]:
+    """Both sources, alternating: diagnosis first, then long Search Console queries."""
+    try:
+        weak = weak_pages()
+    except Exception as exc:  # noqa: BLE001 — one source failing leaves the other
+        log.warning("strengthen: diagnosis failed: %s", exc)
+        weak = []
+    long = long_queries()
+    out, seen = [], set()
+    for i in range(max(len(weak), len(long))):
+        for c in (weak[i:i + 1] + long[i:i + 1]):
+            if c.slug not in seen:
+                seen.add(c.slug)
+                out.append(c)
+    return out
+
+
+def _english(q: str) -> bool:
+    if "<" in q or ">" in q:
+        return False
+    tokens = re.findall(r"[a-z']+", q.lower())
+    return sum(t in _ENGLISH for t in tokens) >= 2 and not re.search(r"[äöüß]", q.lower())
+
+
+def long_queries(days: int = LONG_QUERY_DAYS) -> list[Candidate]:
+    """Blog posts on page one for 8+ word queries, most such impressions first.
+
+    Each page is asked its single biggest long query; the rest are the evidence.
+    """
+    import datetime as dt
+
+    from autoseo.core.db import session
+    from autoseo.decide.diagnose import SITE
+
+    start = (dt.date.today() - dt.timedelta(days=days)).isoformat()
+    with session() as conn:
+        rows = conn.execute(
+            """SELECT page, query, SUM(impressions) imp,
+                      SUM(impressions * position) / SUM(impressions) pos
+               FROM gsc_page_query WHERE date >= ? AND page LIKE ? AND impressions > 0
+               GROUP BY page, query""",
+            (start, f"{SITE}/blog/%"),
+        ).fetchall()
+
+    by_page: dict[str, list[tuple[str, float, float]]] = {}
+    for r in rows:
+        q = " ".join(r["query"].split())
+        if _LISTING.search(r["page"]) or not LONG_QUERY.match(q) or not _english(q):
+            continue
+        if _COUNTRY.search(q.lower()) or not _ON_TOPIC.search(q.lower()):
+            continue
+        by_page.setdefault(r["page"], []).append((q, r["imp"], r["pos"]))
+
+    out = []
+    for url, qs in by_page.items():
+        qs.sort(key=lambda x: -x[1])
+        q, imp, pos = qs[0]
+        total = sum(x[1] for x in qs)
+        if total < LONG_QUERY_MIN_IMPRESSIONS or pos > LONG_QUERY_MAX_POSITION:
+            continue
+        slug = url.rstrip("/").rsplit("/", 1)[1]
+        out.append((total, Candidate(
+            slug=slug, url=url, question=q, source="gsc",
+            evidence=(f"Google showed /blog/{slug} {int(total)} times in {days} days for "
+                      f"{len(qs)} queries of eight words or more, none clicked; the biggest, "
+                      f"\"{q}\", {int(imp)} times at position {pos:.1f}. These are answer-engine "
+                      f"prompts: the page is fetched and not quoted."),
+        )))
+    return [c for _, c in sorted(out, key=lambda x: -x[0])]
+
+
+def weak_pages() -> list[Candidate]:
     """Weak pages from the diagnosis, worst-named question first."""
     from autoseo.decide import diagnose
 
