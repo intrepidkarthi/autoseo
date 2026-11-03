@@ -47,6 +47,8 @@ public/
 # Pitch drafts stay on Karthik's machine. This repo is public, and a draft names an outreach
 # target and its wording before any editor has seen it. Run `autoseo pitches` locally to make them.
 state/pitches/
+# The submission kit, same reason: it holds the Show HN draft before it is posted.
+state/kit/
 
 # Hand-written article drafts, same reason: unpublished copy in a public repo is published copy.
 state/drafts/

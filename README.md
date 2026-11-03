@@ -37,7 +37,8 @@ submit      IndexNow → Bing, Yandex, Seznam, Naver. Google reads the regenerat
 |---|---|---|
 | measurement — GSC, URL Inspection, Bing | ✅ | validated to -1.2% against a UI export |
 | AEO panel — buyer questions vs Gemini grounding | ✅ | free tier; records who gets cited instead |
-| outreach targets — pages worth being listed on | ✅ | ranked from real citations; app-store listings now skipped by host |
+| outreach targets — pages worth being listed on | ✅ | ranked from real citations; app-store listings skipped by host; competitors' own sites, forums and dead redirects filtered out (`decide/screen.py`), pitches drafted for independent pages only |
+| submission kit — `autoseo kit` | ✅ | AlternativeTo, Product Hunt, SaaSHub, Slant, Indie Hackers, open-source-ios-apps, Show HN: each checked for a DailyVox listing, with gated copy to paste and `gh` fixes for the repo; never submits, no Reddit, no paid directories |
 | pitch drafts — for the roundups that cite competitors | ✅ | weekly; dead competitor links found; **never sent**, Karthik rewrites |
 | listing check — do pages that listed us still do? | ✅ | weekly, `pitches --review`; reports only |
 | reclaim — dead URLs that still carry value | ✅ | 301 only at confidence ≥0.8 with impressions or citations; rest reported |
@@ -120,6 +121,7 @@ autoseo status                # caps, ledger, what happens on the next run
 autoseo report                # per-cluster indexation ratio
 autoseo brief                 # ranked actions with evidence
 autoseo outreach              # pages worth getting listed on
+autoseo kit                   # directories and lists to submit to, with the copy
 autoseo reclaim               # dead URLs that still carry value, and where they should 301
 autoseo pitches --top 5       # pitch drafts in state/pitches/, for rewriting; nothing is sent
 autoseo pitches --review      # ...and whether the pages that listed us still do

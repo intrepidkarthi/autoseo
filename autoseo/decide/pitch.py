@@ -479,32 +479,36 @@ def _not_pitchable(domain: str) -> bool:
 
 
 def choose(top: int, rows: list[dict] | None = None,
-           resolver: Callable[[str], str] = outreach.resolve) -> list[dict]:
-    """The top `top` roundup-shaped targets still marked `new`, with their URLs resolved.
+           resolver: Callable[[str], str] = outreach.resolve,
+           fetcher: Callable[[str], Fetched | None] | None = None) -> list[dict]:
+    """The top `top` independent roundups still marked `new`, with their URLs resolved.
 
     Resolution happens here, lazily and only until `top` are found: most stored rows below the
     outreach shortlist still hold a grounding redirect, and some of those have expired.
+
+    Independent only, since 2026-11-03 (`screen`). A competitor's own "best alternatives" post
+    names rivals to rank above them; it used to get a draft when there were not enough independent
+    pages to fill `top`, and a draft nobody should send is not filling anything.
     """
+    from autoseo.decide import screen
+
     rows = outreach.stored("new") if rows is None else rows
+    fetcher = fetcher or fetch
     out: list[dict] = []
     seen: set[str] = set()
-    # Independent roundups first. A competitor's own "best alternatives" post names rivals to rank
-    # above them, and is the least likely page on the list to add one more; it still gets a draft
-    # when there are not enough independent pages to fill `top`.
-    vendors: list[dict] = []
     for r in rows:
         if len(out) >= top:
             break
         if outreach.is_skipped(r["domain"], r["url"]) or _not_pitchable(r["domain"]):
             continue
         url = resolver(r["url"]) if "vertexaisearch" in r["url"] else r["url"]
-        if "vertexaisearch" in url or url in seen:
-            continue                     # an expired redirect, or a duplicate of a resolved row
-        if outreach.is_skipped(r["domain"], url) or not outreach._is_listicle(r.get("title") or "", url):
+        if url in seen or not outreach._is_listicle(r.get("title") or "", url):
+            continue
+        if screen.kind(r["domain"], url, fetcher)[0] != screen.INDEPENDENT:
             continue
         seen.add(url)
-        (vendors if vendor_of(r["domain"]) else out).append({**r, "url": url})
-    return (out + vendors)[:top]
+        out.append({**r, "url": url})
+    return out
 
 
 def build(row: dict, page: Page, link_checker: Callable[[list[str]], dict[str, LinkCheck]]

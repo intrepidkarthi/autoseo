@@ -228,15 +228,14 @@ def test_choose_skips_stores_forums_expired_redirects_and_non_roundups():
     def resolver(url):
         return ("https://www.holstee.com/blogs/best-journaling-apps" if url.endswith("/ok") else url)
 
-    chosen = pitch.choose(5, rows=rows, resolver=resolver)
-    # Independent first, the vendor's own blog last.
-    assert [r["url"] for r in chosen] == ["https://www.holstee.com/blogs/best-journaling-apps",
-                                          "https://www.rosebud.app/blog/best-journaling-apps"]
+    chosen = pitch.choose(5, rows=rows, resolver=resolver, fetcher=lambda u: None)
+    # Independent only: the vendor's own blog gets no draft at all.
+    assert [r["url"] for r in chosen] == ["https://www.holstee.com/blogs/best-journaling-apps"]
 
 
 def test_choose_stops_at_top():
     rows = [_row(f"https://e{i}.com/best-apps", f"e{i}.com") for i in range(10)]
-    assert len(pitch.choose(3, rows=rows, resolver=lambda u: u)) == 3
+    assert len(pitch.choose(3, rows=rows, resolver=lambda u: u, fetcher=lambda u: None)) == 3
 
 
 # --- the Monday check ---------------------------------------------------------------------------

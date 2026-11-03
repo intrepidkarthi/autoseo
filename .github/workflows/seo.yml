@@ -185,6 +185,8 @@ jobs:
           # state changes. `|| echo`: a roundup that times out must not fail the measurement run.
           if [ "$(date -u +%u)" = "1" ]; then
             autoseo pitches --top 5 --review || echo "::warning::pitches failed — continuing"
+            # Which directories list DailyVox now. Read-only; the kit file is gitignored.
+            autoseo kit || echo "::warning::kit failed — continuing"
           fi
 
           autoseo brief

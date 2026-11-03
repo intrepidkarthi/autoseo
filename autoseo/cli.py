@@ -26,6 +26,7 @@ Decision:
     autoseo outreach --mark URL --state S   record that you contacted one
     autoseo reclaim [--days N] [--valuable]  dead URLs that still carry value, and where to 301 them
     autoseo pitches [--top N] [--review]    draft pitches for listicles; check listings still hold
+    autoseo kit                             directories and lists to submit to, with the copy
 
 Site and quality:
 
@@ -126,7 +127,7 @@ def _print_opportunities(days: int) -> None:
 
 
 def _print_outreach(days: int, top: int, show_all: bool = False) -> None:
-    from autoseo.decide import outreach
+    from autoseo.decide import outreach, screen
 
     targets = outreach.build(days)
 
@@ -146,6 +147,25 @@ def _print_outreach(days: int, top: int, show_all: bool = False) -> None:
         print("  pipeline: " + " · ".join(f"{k} {v}" for k, v in sorted(pipe.items())))
     if handled and not show_all:
         print(f"  {len(handled)} already handled, hidden — `--all` shows them")
+    # The competitor filter (decide.screen): only pages that could add us are shown. Classified
+    # lazily, until `top` are found, because a redirect costs a HEAD and a homepage a GET.
+    hidden: dict[str, int] = {}
+    if not show_all:
+        shown = []
+        for t in targets:
+            if len(shown) >= top:
+                break
+            if "vertexaisearch" in t.url:
+                t.url = outreach.resolve(t.url)
+            k, _ = screen.kind(t.domain, t.url)
+            if k == screen.INDEPENDENT:
+                shown.append(t)
+            else:
+                hidden[k] = hidden.get(k, 0) + 1
+        targets = shown
+        if hidden:
+            print("  hidden on the way: " + " · ".join(f"{v} {k}" for k, v in sorted(hidden.items()))
+                  + " — `--all` shows them")
     if not targets:
         print("  Nothing new to work. Run `autoseo aeo` for fresh citations.\n")
         return
@@ -201,6 +221,18 @@ def _print_reclaim(days: int, valuable_only: bool, top: int) -> None:
     # Internal links pointing at dead URLs would need every live page fetched and parsed; the
     # inventory holds URLs, not links, so that check is not made here.
     print()
+
+
+def _print_kit() -> None:
+    from autoseo.decide import kit
+
+    path, statuses, problems = kit.run()
+    print("\n=== SUBMISSION KIT — places to list DailyVox ===")
+    for s in statuses:
+        print(f"  {s.state:<8} {s.destination.name:<24} {s.evidence}")
+    for p in problems:
+        print(f"  COPY FAILS THE GATE: {p}")
+    print(f"\n  {path}\n  Nothing was submitted.\n")
 
 
 def _print_pitches(top: int, review: bool) -> None:
@@ -657,6 +689,8 @@ def main(argv: list[str] | None = None) -> int:
     p_pitch.add_argument("--review", action="store_true",
                          help="also re-read every `listed` page and report listings that were lost")
 
+    sub.add_parser("kit", help="directories and lists to submit DailyVox to; never submits")
+
     # --- site and quality -------------------------------------------------------------------
     p_relink = sub.add_parser(
         "relink", help="find live blog pages the index links to nowhere, and link them"
@@ -810,6 +844,9 @@ def main(argv: list[str] | None = None) -> int:
 
         elif args.command == "pitches":
             _print_pitches(args.top, args.review)
+
+        elif args.command == "kit":
+            _print_kit()
 
         elif args.command == "brief":
             _print_brief(args.days, args.top)
