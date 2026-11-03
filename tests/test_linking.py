@@ -181,6 +181,8 @@ def post_arm(monkeypatch):
     monkeypatch.setattr(plan.policy, "post_budget", lambda: (1, ""))
     monkeypatch.setattr(plagiarism, "corpus_size", lambda: 171)
     monkeypatch.setattr(brief, "build", lambda days: [])
+    from autoseo.decide import questions
+    monkeypatch.setattr(questions, "gaps", lambda days: [])
     monkeypatch.setattr(ledger, "recent_sources", lambda kind, limit=2: ["gsc", "gsc"])
     monkeypatch.setattr(ledger, "incumbents_supported", lambda days: set())
     monkeypatch.setattr(plan, "_live", lambda url: False)
@@ -219,3 +221,13 @@ def test_a_gap_is_checked_against_the_query_that_grounds_it(post_arm):
 def test_no_stall_is_recorded_when_there_was_nothing_to_consider(post_arm):
     result = post_arm([])
     assert result.post_stall.startswith("no candidates at all")
+
+
+def test_a_question_gap_joins_the_post_candidates(post_arm, monkeypatch):
+    from autoseo.decide import questions
+    gap = brief.Action(priority=0, kind="question-gap", target="(no page ranks)",
+                       query="is there a journal app for grief", impressions=16, clicks=0,
+                       position=55, est_click_gain=1, evidence="3 wordings")
+    monkeypatch.setattr(questions, "gaps", lambda days: [gap])
+    result = post_arm([], ranking={gap.query: [("https://getdailyvox.com/blog/grief", 16, 12.0)]})
+    assert any("is there a journal app for grief"[:40] in s and "edit it" in s for s in result.skipped)

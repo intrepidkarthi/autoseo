@@ -492,6 +492,14 @@ def _plan_posts(days: int, result: Planned, dry_run: bool) -> None:
     # writing a second article for the same query would put two of our pages in competition.
     written = ledger.slugs_touched((ledger.Kind.POST,), days=3650)
     gsc = [a for a in brief.build(days=days) if a.kind == "too-far" or "/blog/" not in a.target]
+    # Question clusters (decide.questions): wordings too small alone to clear the brief's floor,
+    # summed by topic. After the brief's own, which are better evidenced, one query each.
+    try:
+        from autoseo.decide import questions
+        have = {a.query for a in gsc}
+        gsc += [a for a in questions.gaps(days=days) if a.query not in have]
+    except Exception as exc:  # noqa: BLE001 — a failed extra source costs its candidates, not the run
+        log.warning("question gaps failed: %s", exc)
     aeo = brief.aeo_gaps(days=days)
 
     # Alternate. Google-measured demand is the better-evidenced channel and would win every ranking

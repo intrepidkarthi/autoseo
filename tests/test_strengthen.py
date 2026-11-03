@@ -84,7 +84,7 @@ def test_long_queries_ask_each_page_its_biggest_eight_word_query(db):
     found = strengthen.long_queries()
     assert [c.slug for c in found] == ["best-voice-journal-app"]
     assert found[0].question == LONG and found[0].source == "gsc"
-    assert "26 times" in found[0].evidence and "2 queries" in found[0].evidence
+    assert "26 times" in found[0].evidence and "2 question queries" in found[0].evidence
 
 
 def test_the_two_sources_alternate_and_a_page_is_asked_once(monkeypatch):
