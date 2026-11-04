@@ -14,8 +14,9 @@ from autoseo.decide import questions
     ("journal app that works without wifi?", True),                  # question mark
     ("best voice journal app for android", True),
     ("i need a private diary app", True),
-    ("voice journal app for android phones", False),                 # 6 words, not a question
-    ("island journal app ideas for kids", False),                    # "is" is not "island"
+    ("voice journal app for android", False),                        # 5 words, not a question
+    ("encrypted journal app that values privacy", True),             # 6 words: counts unphrased
+    ("island journal app for kids", False),                          # "is" is not "island"
     ("best journal app iphone", False),                              # four words
     ("which therapy software helps with session notes", False),      # off-topic
     ("best digital journaling app for beginners in france", False),  # a market template
@@ -69,3 +70,9 @@ def test_wordings_too_small_alone_add_up_to_a_gap(db):
     assert len(gaps) == 1 and gaps[0].kind == "question-gap"
     assert gaps[0].query == "is there a journal app for grief" and gaps[0].impressions == 16
     assert "3 wordings" in gaps[0].evidence
+
+
+def test_a_purchase_prompt_backs_a_question_but_is_not_chosen():
+    qs = [("sign me up for a subscription to an ai voice journaling service for daily habits", 30, 7),
+          ("which ai voice journaling apps help build a daily habit?", 10, 7)]
+    assert questions.representative(qs)[0].startswith("which")

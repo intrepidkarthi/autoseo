@@ -10,9 +10,10 @@ Two shapes, judged differently:
 
     8+ words      answer-engine and agent prompts, almost all of them. They never click, so CTR
                   says nothing; any of them on a page counts.
-    5-7 words     people, mostly. Only question-shaped ones count (an interrogative or "best",
-                  "recommend", "compare" first, or a question mark), and a page counts as losing
-                  them only when its clicks are under half what its position should earn.
+    5-7 words     people, mostly. Six words and up count as they are; five-word ones only when
+                  shaped like a question (an interrogative or "best", "recommend", "compare" first,
+                  or a question mark). Either way a page counts as losing them only when its
+                  clicks are under half what its position should earn.
 
 And two uses:
 
@@ -38,6 +39,10 @@ SITE = "https://getdailyvox.com"
 DAYS = 90
 
 MIN_WORDS = 5
+# From six words a query is specific enough to be the question even unphrased: "encrypted journal
+# app that values privacy" is a question in all but punctuation. Five-word queries still have to
+# be shaped like one, or every "voice journal app for android" would count.
+ANY_SHAPE_WORDS = 6
 PROMPT_WORDS = 8           # from here on, a query is an answer-engine prompt more than a person
 MAX_POSITION = 10.0        # page one: a Quick answer can be quoted
 MIN_PAGE_IMPRESSIONS = 10  # a page's qualifying questions together, over the window
@@ -88,7 +93,7 @@ def is_question(q: str) -> bool:
     if ":" in q or n < MIN_WORDS or not _english(q) or _COUNTRY.search(q) or not _ON_TOPIC.search(q):
         return False
     first = q.split()
-    return (n >= PROMPT_WORDS or q.endswith("?") or first[0] in _STARTS
+    return (n >= ANY_SHAPE_WORDS or q.endswith("?") or first[0] in _STARTS
             or (first[0] == "i" and first[1] in {"need", "want"}))
 
 
@@ -102,6 +107,13 @@ def losing(q: str, imp: float, clicks: float, pos: float) -> bool:
     if words(q) >= PROMPT_WORDS:
         return True                       # prompts never click; being shown and not quoted is it
     return clicks < CTR_SHORTFALL * expected_ctr(pos) * imp
+
+
+# Agents sent to buy ("sign me up for…", "where can i purchase…") are evidence that the page is
+# fetched, and a poor question to answer: the honest reply to "sign me up for a subscription" on a
+# free app is a correction. They back other wordings; they are not chosen while another exists.
+_TRANSACTIONAL = re.compile(r"^(?:sign me up|purchase|buy|subscribe|get me|jetzt)\b|"
+                            r"\b(?:purchase|subscribe to|sign me up|sign up for)\b")
 
 
 def representative(qs: list[tuple[str, float, float]]) -> tuple[str, float, float]:
@@ -125,7 +137,8 @@ def representative(qs: list[tuple[str, float, float]]) -> tuple[str, float, floa
                      if j != i and len(mine & words_of[j]) >= 2)
         return (qs[i][1] + backed, qs[i][1], -words(qs[i][0]))
 
-    return qs[max(range(len(qs)), key=score)]
+    pool = [i for i in range(len(qs)) if not _TRANSACTIONAL.search(qs[i][0].lower())]
+    return qs[max(pool or range(len(qs)), key=score)]
 
 
 @dataclass
