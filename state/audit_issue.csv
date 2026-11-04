@@ -216,10 +216,17 @@ date,url,check_name,severity,detail
 2026-11-03,https://getdailyvox.com/changelog,image-missing-alt,notice,1 image(s)
 2026-11-03,https://getdailyvox.com/compare,image-missing-alt,notice,1 image(s)
 2026-11-03,https://getdailyvox.com/compare,link-to-redirect,notice,/blog/best-journal-app-for-students -> /blog/best-offline-journal-app
+2026-11-04,https://getdailyvox.com/de,description-length,warning,161 chars (want 70-158)
+2026-11-04,https://getdailyvox.com/de,heading-skip,notice,h2 -> h4
+2026-11-04,https://getdailyvox.com/de,image-missing-alt,notice,2 image(s)
+2026-11-04,https://getdailyvox.com/de/support,image-missing-alt,notice,2 image(s)
 2026-11-03,https://getdailyvox.com/demo,description-length,warning,190 chars (want 70-158)
 2026-11-03,https://getdailyvox.com/demo,heading-skip,notice,h2 -> h4
 2026-11-03,https://getdailyvox.com/demo,image-missing-alt,notice,1 image(s)
 2026-11-03,https://getdailyvox.com/demo,title-length,warning,69 chars (want 10-62)
+2026-11-04,https://getdailyvox.com/es,heading-skip,notice,h2 -> h4
+2026-11-04,https://getdailyvox.com/es,image-missing-alt,notice,2 image(s)
+2026-11-04,https://getdailyvox.com/es/support,image-missing-alt,notice,2 image(s)
 2026-11-03,https://getdailyvox.com/facts,image-missing-alt,notice,1 image(s)
 2026-11-03,https://getdailyvox.com/facts,title-length,warning,81 chars (want 10-62)
 2026-11-03,https://getdailyvox.com/faq,description-length,warning,162 chars (want 70-158)
@@ -230,11 +237,20 @@ date,url,check_name,severity,detail
 2026-11-03,https://getdailyvox.com/for-students,image-missing-alt,notice,1 image(s)
 2026-11-03,https://getdailyvox.com/for-students,link-to-redirect,notice,/blog/best-journal-app-for-anxiety -> /blog/best-offline-journal-app
 2026-11-03,https://getdailyvox.com/for-students,title-length,warning,76 chars (want 10-62)
+2026-11-04,https://getdailyvox.com/fr,heading-skip,notice,h2 -> h4
+2026-11-04,https://getdailyvox.com/fr,image-missing-alt,notice,2 image(s)
+2026-11-04,https://getdailyvox.com/fr/support,image-missing-alt,notice,2 image(s)
 2026-11-03,https://getdailyvox.com/glossary,description-length,warning,162 chars (want 70-158)
 2026-11-03,https://getdailyvox.com/glossary,heading-skip,notice,h1 -> h3
 2026-11-03,https://getdailyvox.com/glossary,image-missing-alt,notice,1 image(s)
+2026-11-04,https://getdailyvox.com/it,heading-skip,notice,h2 -> h4
+2026-11-04,https://getdailyvox.com/it,image-missing-alt,notice,2 image(s)
+2026-11-04,https://getdailyvox.com/it/support,image-missing-alt,notice,2 image(s)
 2026-11-03,https://getdailyvox.com/personal-digital-twin,image-missing-alt,notice,1 image(s)
 2026-11-03,https://getdailyvox.com/privacy,image-missing-alt,notice,1 image(s)
+2026-11-04,https://getdailyvox.com/pt-br,heading-skip,notice,h2 -> h4
+2026-11-04,https://getdailyvox.com/pt-br,image-missing-alt,notice,2 image(s)
+2026-11-04,https://getdailyvox.com/pt-br/support,image-missing-alt,notice,2 image(s)
 2026-11-03,https://getdailyvox.com/research,description-length,warning,211 chars (want 70-158)
 2026-11-03,https://getdailyvox.com/research,heading-skip,notice,h2 -> h4
 2026-11-03,https://getdailyvox.com/research,image-missing-alt,notice,1 image(s)
