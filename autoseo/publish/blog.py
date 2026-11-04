@@ -383,6 +383,29 @@ def insert_section(slug: str, block: str, rationale: str, dry_run: bool = False,
                        dry_run=dry_run)
 
 
+def replace_section(slug: str, block: str, rationale: str, dry_run: bool = False) -> str:
+    """Rewrite a section already on a live article, found by its heading. For corrections."""
+    heading = re.search(r"^##\s+(.+)$", block, re.M)
+    if not heading:
+        raise RuntimeError("a section needs a `## ` heading")
+    markdown = site.read_text(f"{site.content_dir()}/{slug}.md")
+    if markdown is not None:
+        old = re.compile(rf"^{re.escape(heading.group(0).strip())}\s*$.*?(?=^##\s|\Z)",
+                         re.M | re.S).search(markdown)
+        if not old:
+            raise RuntimeError(f"{slug}.md has no section headed {heading.group(1).strip()!r}")
+        files = render({slug: markdown[:old.start()] + block.strip() + "\n\n" + markdown[old.end():]})
+    else:
+        html_path = f"{site.site_dir()}/public/blog/{slug}.html"
+        doc = site.read_text(html_path)
+        if doc is None:
+            raise RuntimeError(f"neither {slug}.md nor {slug}.html is in the site repo")
+        files = {html_path: page.replace_section(doc, block)}
+    title = heading.group(1).strip()
+    return site.commit(files, f"blog: rewrite \"{title}\" on /blog/{slug}\n\n{rationale}",
+                       dry_run=dry_run)
+
+
 # --- the blog index ----------------------------------------------------------------------------
 
 def index_pages() -> list[str]:

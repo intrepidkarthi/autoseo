@@ -105,3 +105,39 @@ def test_long_query_items_share_the_budget(db, monkeypatch):
     plan._plan_strengthen(plan.Planned(), dry_run=False)
     assert ledger.planned(ledger.Kind.SECTION)[0].meta["source"] == "gsc"
     assert policy.strengthen_budget() == 0
+
+
+SHIPPED_2026_11_03 = (
+    "Cloud-based AI companions log your voice on remote servers, which fails high-pressure work where "
+    "confidentiality is non-negotiable. Apps like Rosebud suit people who want guided cloud feedback. "
+    "I built DailyVox for total privacy. Nothing leaves the phone. The catch is clear.")
+
+
+def test_the_block_that_never_answered_is_refused():
+    problems = strengthen.shape_problems(SHIPPED_2026_11_03)
+    assert any("names no app" in p for p in problems)
+    assert any("teaser" in p for p in problems)
+
+
+def test_an_answer_first_block_ending_on_its_trade_off_passes():
+    good = ("DailyVox is a free voice journal that transcribes on the phone. Day One suits people "
+            "who want sync. DailyVox has no desktop app, and entries do not sync between platforms.")
+    assert strengthen.shape_problems(good) == []
+
+
+def test_a_page_is_asked_the_question_its_traffic_shares_not_its_one_off():
+    from autoseo.decide import questions
+    qs = [("compare ai companionship services for voice journaling in high-pressure work", 24, 7),
+          ("which voice journaling apps help build a daily reflection habit?", 11, 7),
+          ("best voice journaling apps for building a daily reflection habit", 12, 8),
+          ("recommend voice journaling apps for a consistent daily reflection habit", 8, 6)]
+    assert "habit" in questions.representative(qs)[0]
+
+
+def test_replace_section_swaps_only_that_section():
+    doc = ("<article>\n  <p>Intro.</p>\n\n  <h2>Quick answer</h2>\n  <p>Old one.</p>\n\n"
+           "  <h2>How These Apps Were Tested</h2>\n  <p>Body.</p>\n</article>")
+    out = page.replace_section(doc, "## Quick answer\n\nNew one.")
+    assert "Old one" not in out and out.count("<h2>Quick answer</h2>") == 1
+    assert "  <p>New one.</p>" in out and out.index("New one") < out.index("How These Apps")
+    assert "<p>Body.</p>" in out

@@ -132,6 +132,10 @@ def run(dry_run: bool = False) -> Applied:
                     dry_run=dry_run,
                 )
 
+            elif item.kind == ledger.Kind.SECTION and item.meta.get("replace"):
+                url = publisher.replace_section(item.meta["slug"], item.meta["block"],
+                                                rationale=item.rationale, dry_run=dry_run)
+
             elif item.kind == ledger.Kind.SECTION:
                 url = publisher.insert_section(item.meta["slug"], item.meta["block"],
                                                rationale=item.rationale, dry_run=dry_run,

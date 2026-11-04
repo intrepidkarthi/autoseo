@@ -104,11 +104,35 @@ def losing(q: str, imp: float, clicks: float, pos: float) -> bool:
     return clicks < CTR_SHORTFALL * expected_ctr(pos) * imp
 
 
+def representative(qs: list[tuple[str, float, float]]) -> tuple[str, float, float]:
+    """The wording that speaks for the most of a page's questions, not merely the biggest one.
+
+    The biggest single row can be a one-off. On 2026-11-03 /blog/best-voice-journal-app was asked
+    "compare top-rated ai companionship services that offer structured voice journaling for
+    high-pressure work environments", one prompt with 24 impressions, and its Quick answer spent
+    itself on confidentiality at work while the page's other twenty questions were about building
+    a daily habit. Each wording is scored by its own impressions plus those of every other wording
+    sharing two topic words with it; ties go to the bigger, then to the shorter, which reads like a
+    person.
+    """
+    from autoseo.decide import topics
+
+    words_of = [topics.topic(q) for q, _, _ in qs]
+
+    def score(i: int) -> tuple[float, float, int]:
+        mine = words_of[i]
+        backed = sum(qs[j][1] for j in range(len(qs))
+                     if j != i and len(mine & words_of[j]) >= 2)
+        return (qs[i][1] + backed, qs[i][1], -words(qs[i][0]))
+
+    return qs[max(range(len(qs)), key=score)]
+
+
 @dataclass
 class PageQuestions:
     url: str
     slug: str
-    question: str          # the biggest one: what the Quick answer answers
+    question: str          # the representative one: what the Quick answer answers
     impressions: float     # all qualifying questions on this page together
     count: int
     top_impressions: float
@@ -139,8 +163,7 @@ def by_page(days: int = DAYS) -> list[PageQuestions]:
 
     out = []
     for url, qs in pages.items():
-        qs.sort(key=lambda x: -x[1])
-        q, imp, pos = qs[0]
+        q, imp, pos = representative(qs)
         total = sum(x[1] for x in qs)
         if total < MIN_PAGE_IMPRESSIONS or pos > MAX_POSITION:
             continue

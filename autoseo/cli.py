@@ -494,13 +494,13 @@ def _print_plan(result) -> None:
               f"There was budget for a post and none was planned — {result.post_stall}.{since}")
 
 
-def _queue_section(slug: str, block: str, why: str) -> None:
+def _queue_section(slug: str, block: str, why: str, replace: bool = False) -> None:
     """Gate a hand-written section and put it in the ledger. Nothing reaches the site until apply.
 
     Hand-written is not exempt. The same gate a composed FAQ goes through — marks, AI-isms,
     duplication against the live site — and a fail stops here rather than at the commit.
     """
-    from autoseo.act import ledger, onpage
+    from autoseo.act import ledger, onpage, strengthen
     from autoseo.quality import gate
 
     if not block.lstrip().startswith("## "):
@@ -515,11 +515,18 @@ def _queue_section(slug: str, block: str, why: str) -> None:
     if live.redirected:
         raise SystemExit(f"/blog/{slug} redirects — there is no page there to add to")
     heading = block.strip().splitlines()[0][3:].strip()
+    if heading == strengthen.HEADING:
+        problems = strengthen.shape_problems(block.split("\n", 1)[1] if "\n" in block else "")
+        if problems:
+            for p in problems:
+                print(f"      {p}")
+            raise SystemExit("not queued — a Quick answer has to answer first and end on a fact")
+    verb = "Rewrite" if replace else "Add"
     item_id = ledger.plan(ledger.Item(
-        kind=ledger.Kind.SECTION, title=f"Add \"{heading}\" to /blog/{slug}",
+        kind=ledger.Kind.SECTION, title=f"{verb} \"{heading}\" on /blog/{slug}",
         body=verdict.text, rationale=why,
         meta={"slug": slug, "url": f"{settings.site}/blog/{slug}", "block": verdict.text,
-              "verdict": verdict.summary(), "source": "hand"},
+              "verdict": verdict.summary(), "source": "hand", "replace": replace},
     ))
     print(f"  queued #{item_id}: {heading} -> /blog/{slug}. The next apply ships it.")
 
@@ -605,6 +612,8 @@ def main(argv: list[str] | None = None) -> int:
     p_section.add_argument("slug", help="the article, e.g. best-journal-app-for-privacy")
     p_section.add_argument("file", help="markdown: one `## ` heading, then paragraphs")
     p_section.add_argument("--why", required=True, help="the rationale recorded with the edit")
+    p_section.add_argument("--replace", action="store_true",
+                           help="rewrite the section with this heading instead of adding one")
 
     p_draft = sub.add_parser(
         "post-draft", help="queue a hand-written article (gated; apply publishes it as the day's post)")
@@ -782,7 +791,8 @@ def main(argv: list[str] | None = None) -> int:
                         [x.strip() for x in args.link_from.split(",") if x.strip()])
 
         elif args.command == "section":
-            _queue_section(args.slug, Path(args.file).read_text(encoding="utf-8"), args.why)
+            _queue_section(args.slug, Path(args.file).read_text(encoding="utf-8"), args.why,
+                           replace=args.replace)
 
         elif args.command == "plan":
             from autoseo.act import plan as planner

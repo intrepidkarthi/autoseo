@@ -45,7 +45,10 @@ What the article already says:
 {excerpt}
 
 Rules:
-- One paragraph, 50 to 90 words. The first sentence answers the question directly.
+- One paragraph, 50 to 90 words. The first sentence answers the question directly and names the
+  app or apps that answer it; it never opens on background, a problem statement or a warning.
+- End on a concrete fact. Never end on a line that announces something without saying it ("The
+  catch is clear.", "Here is the trade-off."); if there is a catch, the last sentence states it.
 - Name DailyVox where it genuinely fits, and name one or two real alternatives fairly (for example
   Day One, Apple Journal, Rosebud, Daylio), saying who each suits better.
 - Only facts from the brand notes above or from the article. No statistics, prices, studies,
@@ -123,6 +126,38 @@ def weak_pages() -> list[Candidate]:
     return out
 
 
+# Added 2026-11-04, after /blog/best-voice-journal-app shipped a Quick answer that opened on "Cloud-
+# based AI companions log your voice on remote servers" and closed on "The catch is clear." The
+# gate judges prose; it cannot see that an answer never answered, or promised a catch it never
+# named. These can.
+_SENTENCE = re.compile(r"(?<=[.!?])[\"')]*\s+(?=[A-Z\"'(])")
+_TEASER = re.compile(r"\b(?:catch|trade-?off|downside|twist|kicker|difference|answer|reason|"
+                     r"verdict|bottom line)\b", re.I)
+MIN_LAST_SENTENCE_WORDS = 7
+
+
+def app_names() -> tuple[str, ...]:
+    from autoseo.decide.pitch import COMPETITORS
+    return ("DailyVox", *(c.name for c in COMPETITORS))
+
+
+def shape_problems(body: str) -> list[str]:
+    """Does the paragraph answer first and end on a fact? Empty when it does."""
+    sentences = [x.strip() for x in _SENTENCE.split(body.strip()) if x.strip()]
+    if not sentences:
+        return ["no sentences"]
+    problems = []
+    first, last = sentences[0], sentences[-1]
+    if not any(re.search(rf"\b{re.escape(n)}\b", first, re.I) for n in app_names()):
+        problems.append("the first sentence names no app, so it does not answer the question")
+    n = len(last.split())
+    if n < MIN_LAST_SENTENCE_WORDS and (_TEASER.search(last) or last.rstrip().endswith(":")):
+        problems.append(f"ends on a teaser ({last!r}) instead of the fact it promises")
+    elif n < 4:
+        problems.append(f"ends on a fragment ({last!r})")
+    return problems
+
+
 def compose(c: Candidate, excerpt: str) -> str | None:
     from autoseo.compose import llm
     from autoseo.compose.blog import BRAND, STYLE
@@ -141,6 +176,7 @@ def compose(c: Candidate, excerpt: str) -> str | None:
             problems.append(f"{words} words, want 50-90")
         if not re.search(r"[.!?\"')]\s*$", body):
             problems.append("ends mid-sentence")
+        problems += shape_problems(body)
         verdict = gate.evaluate(block, context="section")
         problems += verdict.reasons
         tells = [w for w in verdict.warnings if not w.startswith(("U+", "paste ", "provenance "))]

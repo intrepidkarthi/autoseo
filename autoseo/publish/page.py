@@ -227,6 +227,23 @@ def insert_section(doc: str, block: str) -> str:
     raise RuntimeError("could not find the end of the article body — refusing to guess")
 
 
+def replace_section(doc: str, block: str) -> str:
+    """Swap the section under this block's heading for the block: the heading and its paragraphs.
+
+    For a correction, where the first version shipped and was wrong. Additive edits refuse a
+    heading the page already has; this is the one path that rewrites it, and it touches nothing
+    past the section's last paragraph.
+    """
+    heading = re.search(r"^##\s+(.+)$", block, re.M)
+    if not heading:
+        raise RuntimeError("a section needs a `## ` heading")
+    title = htmllib.escape(heading.group(1).strip(), quote=False)
+    old = re.compile(rf"([ \t]*)<h2>{re.escape(title)}</h2>\s*(?:<p>.*?</p>\s*)*", re.S).search(doc)
+    if not old:
+        raise RuntimeError(f"the page has no section headed {heading.group(1).strip()!r} to replace")
+    return doc[:old.start()] + section_html(block, old.group(1)) + "\n\n" + doc[old.end():]
+
+
 def insert_lead(doc: str, block: str) -> str:
     """Insert a section before the article's first H2 — after the intro, ahead of everything else.
 
