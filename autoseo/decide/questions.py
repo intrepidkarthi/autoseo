@@ -165,9 +165,16 @@ def by_page(days: int = DAYS) -> list[PageQuestions]:
             (start, f"{SITE}/blog/%"),
         ).fetchall()
 
+    # A merged page keeps its Search Console history for weeks after the 301. Its questions now
+    # land on the page it was folded into, which is in this list on its own rows.
+    from autoseo.act import ledger
+    gone = {p.rsplit("/", 1)[-1] for p in ledger.redirected_sources()}
+
     pages: dict[str, list[tuple[str, float, float]]] = {}
     for r in rows:
         q = " ".join(r["query"].split())
+        if r["page"].rstrip("/").rsplit("/", 1)[-1] in gone:
+            continue
         if _LISTING.search(r["page"]) or not is_question(q):
             continue
         if not losing(q, r["imp"], r["clk"] or 0, r["pos"]):
