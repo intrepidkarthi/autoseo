@@ -290,6 +290,114 @@ Article:
 
 _ADDRESS = {"de": "du", "es": "tú", "fr": "tu", "it": "tu", "pt-br": "você"}
 
+# Above this a single call comes back shortened: on 2026-11-05 every attempt at the 4,400-word
+# best-voice-journal-app returned 2 to 5 of its 21 headings. So long articles go a section at a
+# time, each section checked against its own English, and the head (title, description) alone.
+CHUNK_WORDS = 1200
+
+PART_PROMPT = """{brand}
+
+Translate this part of an article from getdailyvox.com into {language}, for people searching in
+{language}. It is one part of a longer article; translate all of it and nothing else.
+
+Write it the way a native {language} writer who uses journaling apps would: natural phrasing and
+idiom, never word-for-word. Address the reader informally ({address}). Keep the author's
+first-person voice, the short sentences and every opinion.
+
+Hard rules, each one checked by a program after you:
+- Keep the markdown exactly: every `## ` and `### ` heading, every list item, every table row,
+  and the line `{faq_mark}` if it appears. Translate the text in them.
+- Keep every link: the same [text](url) count and the same URLs, unchanged. Translate link text.
+- Keep every number exactly as written. Never write a number that is not in the English.
+- Never translate product names: DailyVox, Day One, Apple Journal, Rosebud, Daylio, Journey,
+  App Store, Google Play, iPhone, Android, iCloud, Digital Twin.
+- Add nothing and drop nothing. Return only the translated markdown, no preamble.
+
+Part:
+{body}"""
+
+HEAD_PROMPT = """Translate this article title and description from getdailyvox.com into {language}, as a
+native writer would for people searching in {language}. Keep product names and numbers as they
+are. Return exactly two lines, no preamble:
+
+title: <under 65 characters>
+meta_description: <under 155 characters>
+
+Title: {title}
+Description: {description}"""
+
+
+def chunks(body: str, limit: int = CHUNK_WORDS) -> list[str]:
+    """The body in parts of about `limit` words, split at `## `, then `### `, then paragraphs.
+
+    Joined back with a blank line they are the body again, so a part never ends mid-block.
+    """
+    def pieces(text: str, seps: list[str]) -> list[str]:
+        if len(text.split()) <= limit or not seps:
+            return [text]
+        split = [p for p in re.split(seps[0], text) if p.strip()]
+        if len(split) == 1:
+            return pieces(text, seps[1:])
+        return [q for p in split for q in pieces(p.strip("\n"), seps[1:])]
+
+    parts, cur = [], ""
+    for piece in pieces(body, [r"\n\n(?=## )", r"\n\n(?=### )", r"\n\n(?=[^-|\d])"]):
+        if cur and len((cur + " " + piece).split()) > limit:
+            parts.append(cur)
+            cur = ""
+        cur = f"{cur}\n\n{piece}" if cur else piece
+    if cur:
+        parts.append(cur)
+    return parts
+
+
+def _translate_part(part: str, lang: str) -> str | None:
+    from autoseo.compose import llm
+    from autoseo.compose.blog import BRAND
+    from autoseo.quality import marks
+
+    L = LANGS[lang]
+    for attempt in (1, 2):
+        raw = llm.complete(PART_PROMPT.format(
+            brand=BRAND, language=L["english"], address=_ADDRESS[lang], faq_mark=FAQ_MARK,
+            body=part), temperature=0.3, max_tokens=16384)
+        out = marks.sanitise(re.sub(r"^```(?:markdown)?\s*|\s*```$", "", raw.strip())).text.strip()
+        found = problems(part, out)
+        if not found:
+            return out
+        log.warning("translation %s part attempt %d: %s", lang, attempt, "; ".join(found))
+    return None
+
+
+def _compose_in_parts(slug: str, lang: str, title: str, description: str,
+                      body: str) -> tuple[str, str] | None:
+    from autoseo.compose import llm
+
+    out = []
+    for part in chunks(body):
+        got = _translate_part(part, lang)
+        if got is None:
+            return None
+        out.append(got)
+    text = "\n\n".join(out)
+    if found := problems(body, text):
+        log.warning("translation %s/%s assembled: %s", lang, slug, "; ".join(found))
+        return None
+    head = llm.complete(HEAD_PROMPT.format(language=LANGS[lang]["english"], title=title,
+                                           description=description), temperature=0.3, max_tokens=512)
+    t = re.search(r"^title:\s*\"?(.+?)\"?\s*$", head, re.M)
+    d = re.search(r"^meta_description:\s*\"?(.+?)\"?\s*$", head, re.M)
+    if not t or not d or len(t.group(1)) > 80:
+        log.warning("translation %s/%s: no usable title", lang, slug)
+        return None
+    return _frontmatter(slug, lang, t.group(1).strip(), d.group(1).strip(), text), body
+
+
+def _frontmatter(slug: str, lang: str, title: str, description: str, body: str) -> str:
+    return (f'---\nslug: {slug}\nlang: {lang}\nsource: /blog/{slug}\n'
+            f'title: "{title.replace(chr(34), chr(39))}"\n'
+            f'meta_description: "{description.replace(chr(34), chr(39))}"\n---\n{body}\n')
+
 
 @dataclass
 class Candidate:
@@ -333,6 +441,8 @@ def compose(slug: str, lang: str, english_doc: str) -> tuple[str, str] | None:
     if not MIN_WORDS <= n <= MAX_WORDS:
         log.info("not translating /blog/%s: %d words after extraction", slug, n)
         return None
+    if n > CHUNK_WORDS * 1.5:
+        return _compose_in_parts(slug, lang, title, description, body)
     L = LANGS[lang]
     for attempt in (1, 2):
         raw = llm.complete(PROMPT.format(
@@ -351,9 +461,6 @@ def compose(slug: str, lang: str, english_doc: str) -> tuple[str, str] | None:
         if not t or len(t) > 80:
             found.append(f"title is {len(t)} characters")
         if not found:
-            md = (f'---\nslug: {slug}\nlang: {lang}\nsource: /blog/{slug}\n'
-                  f'title: "{t.replace(chr(34), chr(39))}"\n'
-                  f'meta_description: "{d.replace(chr(34), chr(39))}"\n---\n{out}\n')
-            return md, body
+            return _frontmatter(slug, lang, t, d, out), body
         log.warning("translation %s/%s attempt %d: %s", lang, slug, attempt, "; ".join(found))
     return None

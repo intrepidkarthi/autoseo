@@ -125,3 +125,26 @@ def test_planning_queues_two_a_run_and_skips_what_is_live(db, monkeypatch):
     queued = ledger.planned(ledger.Kind.TRANSLATE)
     assert result.translated == 2 and [i.meta["lang"] for i in queued] == ["es", "fr"]   # de is live
     assert policy.translation_budget() == 0
+
+
+def test_a_long_article_splits_into_parts_that_rejoin_exactly():
+    body = "\n\n".join(f"## Section {i}\n\n" + "\n\n".join(" ".join(["word"] * 120) for _ in range(5))
+                       for i in range(6))
+    parts = localize.chunks(body, limit=700)
+    assert len(parts) > 1 and all(len(p.split()) <= 700 for p in parts)
+    assert "\n\n".join(parts) == body
+
+
+def test_a_long_article_is_translated_part_by_part(monkeypatch):
+    from autoseo.compose import llm
+    body = "\n\n".join(f"## Teil {i}\n\n" + " ".join(["wort"] * 500) for i in range(4))
+    calls = []
+
+    def fake(prompt, **kw):
+        calls.append(prompt)
+        if "title:" in prompt and "Part:" not in prompt:
+            return "title: Titel\nmeta_description: Beschreibung"
+        return prompt.split("Part:\n", 1)[1]                  # an exact "translation"
+    monkeypatch.setattr(llm, "complete", fake)
+    md, _ = localize._compose_in_parts("s", "de", "T", "D", body)
+    assert len(calls) > 2 and 'title: "Titel"' in md and md.count("## Teil") == 4
