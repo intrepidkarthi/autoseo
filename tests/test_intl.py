@@ -114,10 +114,10 @@ def test_planning_queues_two_a_run_and_skips_what_is_live(db, monkeypatch):
     from autoseo.publish import site
     cands = [localize.Candidate("big", lg, 900) for lg in intl.LANGS]
     monkeypatch.setattr(localize, "candidates", lambda done=None: cands)
-    monkeypatch.setattr(site, "site_dir", lambda: "website")
-    monkeypatch.setattr(site, "read_text",
-                        lambda p: "<html></html>" if p.endswith("/public/blog/big.html")
-                        else ("live" if p.endswith("/content/intl/de/big.md") else None))
+    monkeypatch.setattr(site, "read_text", lambda p: (_ for _ in ()).throw(AssertionError(
+        "compose must not read the site repo")))
+    monkeypatch.setattr(plan, "_live", lambda u: u.endswith("/de/blog/big"))
+    monkeypatch.setattr(plan, "_english_page", lambda u: "<html></html>")
     md = '---\nslug: big\nlang: x\ntitle: "T"\nmeta_description: "D"\n---\nbody\n'
     monkeypatch.setattr(localize, "compose", lambda slug, lang, doc: (md, "body"))
     result = plan.Planned()

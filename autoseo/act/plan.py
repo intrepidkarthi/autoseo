@@ -84,7 +84,11 @@ def run(days: int = 90, dry_run: bool = False) -> Planned:
     _plan_reclaim(days, result, dry_run)
     _plan_onpage(days, result, dry_run)
     _plan_strengthen(result, dry_run)
-    _plan_translations(result, dry_run)
+    try:
+        _plan_translations(result, dry_run)
+    except Exception as exc:  # noqa: BLE001 — the newest arm must never cost the run its other work
+        log.error("translations failed: %s", exc)
+        result.skipped.append(f"translate: {str(exc)[:80]}")
     _plan_posts(days, result, dry_run)
     _plan_links(result, dry_run)
     return result
@@ -687,9 +691,13 @@ def _plan_strengthen(result: Planned, dry_run: bool) -> None:
 # --- translations into the app's other languages ---------------------------------------------
 
 def _plan_translations(result: Planned, dry_run: bool) -> None:
-    """The strongest English articles, in German, Spanish, French, Italian and Portuguese."""
+    """The strongest English articles, in German, Spanish, French, Italian and Portuguese.
+
+    Reads the public site over HTTP, never the site repo: this step runs in the compose job, which
+    holds no site credential by design, and a repo read here failed the whole run on 2026-11-05.
+    """
     from autoseo.act import localize
-    from autoseo.publish import intl, site
+    from autoseo.publish import intl
 
     budget = policy.translation_budget()
     if budget <= 0:
@@ -701,17 +709,16 @@ def _plan_translations(result: Planned, dry_run: bool) -> None:
         result.skipped.append(f"translate: {str(exc)[:80]}")
         return
 
-    failures, unusable = 0, set()
+    failures, english_of = 0, {}
     for c in found:
         if budget <= 0 or failures >= MAX_CONSECUTIVE_FAILURES:
             break
-        if c.slug in unusable:
-            continue
-        if site.read_text(intl.md_path(c.lang, c.slug)) is not None:
+        if _live(intl.url(c.lang, c.slug)):
             continue                                   # shipped by hand, or before the ledger knew
-        english = site.read_text(intl.english_path(c.slug))
+        if c.slug not in english_of:
+            english_of[c.slug] = _english_page(f"https://getdailyvox.com/blog/{c.slug}")
+        english = english_of[c.slug]
         if english is None:
-            unusable.add(c.slug)
             continue
         try:
             got = localize.compose(c.slug, c.lang, english)
@@ -741,6 +748,18 @@ def _plan_translations(result: Planned, dry_run: bool) -> None:
                        f"English AI-ism rules do not apply to it."),
             meta={"slug": c.slug, "lang": c.lang, "markdown": md},
         ))
+
+
+def _english_page(url: str) -> str | None:
+    """The live English article's HTML, or None if it redirects or cannot be read."""
+    import httpx
+    try:
+        r = httpx.get(url, timeout=45.0, follow_redirects=True,
+                      headers={"user-agent": "autoseo (+https://github.com/intrepidkarthi/autoseo)"})
+    except httpx.HTTPError as exc:
+        log.warning("could not read %s: %s", url, exc)
+        return None
+    return r.text if r.status_code == 200 and not r.history else None
 
 
 # --- links to pages Google has not indexed -----------------------------------------------------
