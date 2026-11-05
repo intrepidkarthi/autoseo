@@ -87,6 +87,7 @@ def content_dir() -> str:
 
 
 def writable_prefixes() -> tuple[str, ...]:
+    from autoseo.publish import intl
     """Files the bot is allowed to write, as path prefixes.
 
     Every commit is checked against this before it is sent. The autonomous loop composes its own
@@ -99,6 +100,9 @@ def writable_prefixes() -> tuple[str, ...]:
         f"{root}/public/blog/",           # rendered article pages and the index
         f"{root}/public/sitemap-",        # sitemap-blog.xml, -core.xml, -articles.xml
         f"{root}/vercel.json",            # noindex headers for the de-listed clusters
+        # Translated articles and their per-language index (publish.intl), and their markdown.
+        # Per language, not `public/`: the hand-made landing pages beside them stay out of reach.
+        *intl.writable_prefixes(root),
     )
 
 

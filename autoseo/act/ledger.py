@@ -39,6 +39,7 @@ class Kind(StrEnum):
     REDIRECT = "redirect"  # 301 a dead URL that still earns impressions or citations
     LINK = "link"         # a link from a page Google already values to one it has not indexed
     SECTION = "section"   # a hand-written section, gated, inserted into a live article
+    TRANSLATE = "translate"  # a live article in one of the app's other languages (publish.intl)
 
 
 @dataclass

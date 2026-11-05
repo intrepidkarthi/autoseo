@@ -42,6 +42,7 @@ class Planned:
     redirected: int = 0        # dead URLs with outside value, 301'd onto their successor
     links: int = 0             # links from indexed pages to unindexed ones
     strengthened: int = 0      # Quick answers on weak pages and long-query pages
+    translated: int = 0        # live articles in the app's other languages
     # Why a run with post budget to spend planned no post. Empty when it wrote one, or had no budget.
     post_stall: str = ""
     skipped: list[str] = None  # type: ignore[assignment]
@@ -51,7 +52,7 @@ class Planned:
 
     @property
     def total(self) -> int:
-        return self.posts + self.meta + self.faq + self.links + self.strengthened
+        return self.posts + self.meta + self.faq + self.links + self.strengthened + self.translated
 
 
 def _live(url: str) -> bool:
@@ -83,6 +84,7 @@ def run(days: int = 90, dry_run: bool = False) -> Planned:
     _plan_reclaim(days, result, dry_run)
     _plan_onpage(days, result, dry_run)
     _plan_strengthen(result, dry_run)
+    _plan_translations(result, dry_run)
     _plan_posts(days, result, dry_run)
     _plan_links(result, dry_run)
     return result
@@ -679,6 +681,65 @@ def _plan_strengthen(result: Planned, dry_run: bool) -> None:
             rationale=c.evidence,
             meta={"slug": c.slug, "url": c.url, "block": block, "position": "lead",
                   "source": c.source, "question": c.question},
+        ))
+
+
+# --- translations into the app's other languages ---------------------------------------------
+
+def _plan_translations(result: Planned, dry_run: bool) -> None:
+    """The strongest English articles, in German, Spanish, French, Italian and Portuguese."""
+    from autoseo.act import localize
+    from autoseo.publish import intl, site
+
+    budget = policy.translation_budget()
+    if budget <= 0:
+        return
+    try:
+        found = localize.candidates(done=policy.translated())
+    except Exception as exc:  # noqa: BLE001 — a failed query costs today's translations, not the run
+        log.warning("translations: candidates failed: %s", exc)
+        result.skipped.append(f"translate: {str(exc)[:80]}")
+        return
+
+    failures, unusable = 0, set()
+    for c in found:
+        if budget <= 0 or failures >= MAX_CONSECUTIVE_FAILURES:
+            break
+        if c.slug in unusable:
+            continue
+        if site.read_text(intl.md_path(c.lang, c.slug)) is not None:
+            continue                                   # shipped by hand, or before the ledger knew
+        english = site.read_text(intl.english_path(c.slug))
+        if english is None:
+            unusable.add(c.slug)
+            continue
+        try:
+            got = localize.compose(c.slug, c.lang, english)
+        except Exception as exc:  # noqa: BLE001 — a model outage skips one, not the run
+            log.error("translation %s/%s failed: %s", c.lang, c.slug, exc)
+            result.skipped.append(f"translate {c.lang}/{c.slug}: {str(exc)[:80]}")
+            failures += 1
+            continue
+        failures = 0
+        if not got:
+            result.skipped.append(f"translate {c.lang}/{c.slug}: nothing cleared the checks")
+            continue
+        md, _ = got
+        fm, _ = intl.parse(md)
+        print(f"\n  translation /{c.lang}/blog/{c.slug}")
+        print(f"      {fm.get('title', '')}")
+        result.translated += 1
+        budget -= 1
+        if dry_run:
+            print("\n".join(f"      {ln}" for ln in md.splitlines()[:14]))
+            continue
+        ledger.plan(ledger.Item(
+            kind=ledger.Kind.TRANSLATE, title=f"/{c.lang}/blog/{c.slug}", body=md[:3000],
+            rationale=(f"/blog/{c.slug} had {c.impressions:.0f} impressions in "
+                       f"{localize.DAYS} days. Translated into {intl.LANGS[c.lang]['english']}: links, "
+                       f"numbers, headings and product names checked against the English; the "
+                       f"English AI-ism rules do not apply to it."),
+            meta={"slug": c.slug, "lang": c.lang, "markdown": md},
         ))
 
 

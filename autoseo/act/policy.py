@@ -76,6 +76,12 @@ MAX_DECLINED_MERGES_PER_RUN = 2
 MAX_STRENGTHEN_PER_RUN = 1
 MAX_STRENGTHEN_PER_WEEK = 4
 
+# Translations (act.localize). An article that already ranks, in a language the app now speaks: no
+# new claims, and hreflang says it is the same page. Two a run, ten a week: the strongest English
+# page reaches all five languages in under three days.
+MAX_TRANSLATIONS_PER_RUN = 2
+MAX_TRANSLATIONS_PER_WEEK = 10
+
 MAX_LINKS_PER_RUN = 2
 MAX_LINKS_PER_WEEK = 8
 LINK_COOLDOWN_DAYS = 30
@@ -157,6 +163,22 @@ def strengthen_budget() -> int:
                if i.kind == ledger.Kind.SECTION and i.meta.get("source") in SOURCES
                and i.status == ledger.Status.SHIPPED and _within(i.decided_at, 7))
     return max(0, min(MAX_STRENGTHEN_PER_RUN - queued, MAX_STRENGTHEN_PER_WEEK - week - queued))
+
+
+def translation_budget() -> int:
+    """Translations that may be composed this run. Queued ones count against it."""
+    queued = len(ledger.planned(ledger.Kind.TRANSLATE))
+    week = sum(1 for i in ledger.recent(limit=300)
+               if i.kind == ledger.Kind.TRANSLATE and i.status == ledger.Status.SHIPPED
+               and _within(i.decided_at, 7))
+    return max(0, min(MAX_TRANSLATIONS_PER_RUN - queued, MAX_TRANSLATIONS_PER_WEEK - week - queued))
+
+
+def translated() -> set[tuple[str, str]]:
+    """(slug, lang) pairs already shipped or queued."""
+    return {(i.meta.get("slug"), i.meta.get("lang")) for i in ledger.recent(limit=2000)
+            if i.kind == ledger.Kind.TRANSLATE and i.status in (ledger.Status.SHIPPED,
+                                                                 ledger.Status.PLANNED)}
 
 
 def _within(ts: str | None, days: int) -> bool:

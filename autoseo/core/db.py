@@ -284,6 +284,9 @@ def _cluster_for(url: str) -> str:
         return "core"
     if head in {"blog", "for", "in", "alternative", "use", "reports", "research", "press"}:
         return head
+    # The five app languages' pages: landing, support, and translated articles (publish.intl).
+    if head in {"de", "es", "fr", "it", "pt-br"}:
+        return "intl"
     return "core" if "." not in head else "other"
 
 

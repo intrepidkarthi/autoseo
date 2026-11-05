@@ -167,12 +167,17 @@ def render(changes: dict[str, str]) -> dict[str, str]:
         # footer line is visible to anyone who loads the page; a BlogPosting that has reverted to
         # inlining its own publisher looks entirely fine and simply stops connecting the article to
         # anything, on the one page that was just edited because it mattered.
-        from autoseo.publish import attribution
+        from autoseo.publish import attribution, intl
         for slug in changes:
             path = out / f"{slug}.html"
-            files[f"{site_root}/public/blog/{slug}.html"] = attribution.tag(social.insert(
+            doc = attribution.tag(social.insert(
                 entity.insert(agent_layer.insert(path.read_text(encoding="utf-8")))
             ), f"/blog/{slug}")
+            # Its translations' alternates and "Also in" line, which the renderer knows nothing of.
+            # hreflang has to be on every page of the set or Google drops it from all of them.
+            if langs := intl.translated(slug):
+                doc = intl.with_also_in(intl.with_alternates(doc, slug, langs), slug, langs)
+            files[f"{site_root}/public/blog/{slug}.html"] = doc
         # `lastmod` is added to the renderer's output, and only the changed slugs get today's
         # date — every other article carries forward whatever the live sitemap already claimed.
         # The renderer rebuilds this file from the whole markdown directory on every publish, so
