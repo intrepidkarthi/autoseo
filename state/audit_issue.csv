@@ -198,6 +198,8 @@ date,url,check_name,severity,detail
 2026-11-05,https://getdailyvox.com/de,description-length,warning,161 chars (want 70-158)
 2026-11-05,https://getdailyvox.com/de,heading-skip,notice,h2 -> h4
 2026-11-05,https://getdailyvox.com/de,image-missing-alt,notice,2 image(s)
+2026-11-05,https://getdailyvox.com/de/blog,description-length,warning,64 chars (want 70-158)
+2026-11-05,https://getdailyvox.com/de/blog,thin-content,warning,39 words
 2026-11-05,https://getdailyvox.com/de/support,image-missing-alt,notice,2 image(s)
 2026-11-05,https://getdailyvox.com/demo,description-length,warning,190 chars (want 70-158)
 2026-11-05,https://getdailyvox.com/demo,heading-skip,notice,h2 -> h4
@@ -218,6 +220,7 @@ date,url,check_name,severity,detail
 2026-11-05,https://getdailyvox.com/for-students,title-length,warning,76 chars (want 10-62)
 2026-11-05,https://getdailyvox.com/fr,heading-skip,notice,h2 -> h4
 2026-11-05,https://getdailyvox.com/fr,image-missing-alt,notice,2 image(s)
+2026-11-05,https://getdailyvox.com/fr/blog,thin-content,warning,53 words
 2026-11-05,https://getdailyvox.com/fr/support,image-missing-alt,notice,2 image(s)
 2026-11-05,https://getdailyvox.com/glossary,description-length,warning,162 chars (want 70-158)
 2026-11-05,https://getdailyvox.com/glossary,heading-skip,notice,h1 -> h3
