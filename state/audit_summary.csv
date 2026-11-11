@@ -97,3 +97,11 @@ date,check_name,n
 2026-11-10,orphan-page,1
 2026-11-10,thin-content,4
 2026-11-10,title-length,29
+2026-11-11,_pages,178
+2026-11-11,description-length,52
+2026-11-11,heading-skip,34
+2026-11-11,image-missing-alt,138
+2026-11-11,link-to-redirect,2
+2026-11-11,orphan-page,1
+2026-11-11,thin-content,4
+2026-11-11,title-length,29
