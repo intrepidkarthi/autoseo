@@ -121,3 +121,11 @@ date,check_name,n
 2026-11-13,orphan-page,1
 2026-11-13,thin-content,4
 2026-11-13,title-length,28
+2026-11-14,_pages,177
+2026-11-14,description-length,51
+2026-11-14,heading-skip,34
+2026-11-14,image-missing-alt,137
+2026-11-14,link-to-redirect,2
+2026-11-14,orphan-page,1
+2026-11-14,thin-content,4
+2026-11-14,title-length,28
