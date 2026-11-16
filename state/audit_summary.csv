@@ -137,3 +137,11 @@ date,check_name,n
 2026-11-15,orphan-page,1
 2026-11-15,thin-content,4
 2026-11-15,title-length,28
+2026-11-16,_pages,176
+2026-11-16,description-length,50
+2026-11-16,heading-skip,34
+2026-11-16,image-missing-alt,136
+2026-11-16,link-to-redirect,2
+2026-11-16,orphan-page,1
+2026-11-16,thin-content,4
+2026-11-16,title-length,28
