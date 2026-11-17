@@ -145,3 +145,11 @@ date,check_name,n
 2026-11-16,orphan-page,1
 2026-11-16,thin-content,4
 2026-11-16,title-length,28
+2026-11-17,_pages,176
+2026-11-17,description-length,50
+2026-11-17,heading-skip,34
+2026-11-17,image-missing-alt,136
+2026-11-17,link-to-redirect,2
+2026-11-17,orphan-page,1
+2026-11-17,thin-content,4
+2026-11-17,title-length,28
