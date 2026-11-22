@@ -185,3 +185,11 @@ date,check_name,n
 2026-11-21,orphan-page,1
 2026-11-21,thin-content,4
 2026-11-21,title-length,26
+2026-11-22,_pages,172
+2026-11-22,description-length,48
+2026-11-22,heading-skip,33
+2026-11-22,image-missing-alt,132
+2026-11-22,link-to-redirect,2
+2026-11-22,orphan-page,1
+2026-11-22,thin-content,4
+2026-11-22,title-length,25
