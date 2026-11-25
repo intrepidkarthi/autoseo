@@ -209,3 +209,11 @@ date,check_name,n
 2026-11-24,orphan-page,1
 2026-11-24,thin-content,4
 2026-11-24,title-length,25
+2026-11-25,_pages,172
+2026-11-25,description-length,48
+2026-11-25,heading-skip,33
+2026-11-25,image-missing-alt,132
+2026-11-25,link-to-redirect,2
+2026-11-25,orphan-page,1
+2026-11-25,thin-content,4
+2026-11-25,title-length,25
