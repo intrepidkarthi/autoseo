@@ -63,10 +63,11 @@ def test_state_is_snapshotted_even_when_an_item_fails(apply_steps):
 
 def test_the_run_still_goes_red_but_last(apply_steps):
     """A failed item has to be visible. It just must not cost the ledger."""
-    assert apply_steps[-1]["if"] == "steps.apply.outputs.rc != '0'"
-    assert "exit 1" in apply_steps[-1]["run"]
     names = [s.get("name") for s in apply_steps]
-    assert names.index("Commit state") < len(names) - 1, \
+    step = apply_steps[names.index("Report failed items")]
+    assert step["if"] == "steps.apply.outputs.rc != '0'"
+    assert "exit 1" in step["run"]
+    assert names.index("Commit state") < names.index("Report failed items"), \
         "the failure step must come after the ledger is pushed"
 
 
@@ -128,3 +129,15 @@ def test_pitches_run_weekly_in_the_compose_job_and_cannot_fail_it(wf):
                 if "autoseo pitches" in ln and not ln.lstrip().startswith("#"))
     assert "||" in line
     assert "autoseo pitches" not in apply
+
+
+def test_a_dead_writer_turns_the_run_red(wf, apply_steps):
+    """From 2026-11-06 every completion failed with a 402, the planner caught each one, and the run
+    stayed green for three weeks with nothing written."""
+    plan = wf["jobs"]["plan"]
+    assert "llm_dead" in plan["outputs"]
+    compose = next(s for s in plan["steps"] if s.get("id") == "compose")
+    assert "CLAUDE_CODE_OAUTH_TOKEN" in compose["env"]
+    assert any("claude-code" in (s.get("run") or "") for s in plan["steps"])
+    last = apply_steps[-1]
+    assert "llm_dead" in last["if"] and "exit 1" in last["run"]

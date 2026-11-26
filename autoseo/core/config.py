@@ -64,6 +64,11 @@ class Settings:
     gsc_service_account_json: str = field(default_factory=lambda: _env("GSC_SERVICE_ACCOUNT_JSON"))
     bing_api_key: str = field(default_factory=lambda: _env("BING_WEBMASTER_API_KEY"))
     gemini_api_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY"))
+    # Long-lived token from `claude setup-token`: composition runs on the Claude subscription
+    # instead of a metered key. When it is set, Claude writes and Gemini is left to the AEO panel,
+    # which has to ask Google's answer engine and so cannot move. AUTOSEO_LLM forces either way.
+    claude_oauth_token: str = field(default_factory=lambda: _env("CLAUDE_CODE_OAUTH_TOKEN"))
+    llm_provider: str = field(default_factory=lambda: _env("AUTOSEO_LLM").lower())
     # Optional. PageSpeed Insights answers without a key at the volume the audit asks for.
     pagespeed_api_key: str = field(default_factory=lambda: _env("PAGESPEED_API_KEY"))
     # App Store Connect's provider token, for campaign links. Public — it appears in every tagged

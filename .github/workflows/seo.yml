@@ -115,6 +115,10 @@ jobs:
     if: needs.guard.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     environment: compose
+    # Read by the apply job's last step: a writer that refused (cap, dead token, empty key) turns
+    # the run red, after the day's links and merges have still shipped.
+    outputs:
+      llm_dead: ${{ steps.compose.outputs.llm_dead }}
     steps:
       - uses: actions/checkout@v4
 
@@ -126,11 +130,19 @@ jobs:
       - name: Install
         run: pip install -e .
 
+      # The writer. Articles, retitles, FAQs and translations go through `claude -p` on the
+      # subscription token, not a metered key: the Gemini key's prepaid credit ran out on
+      # 2026-11-06 and nothing was written for three weeks. Gemini stays for the AEO panel only.
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
       - name: Measure, decide, compose
+        id: compose
         env:
           GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
           BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Optional; without it PageSpeed answers 429 and the audit skips Core Web Vitals.
           PAGESPEED_API_KEY: ${{ secrets.PAGESPEED_API_KEY }}
           AUTOSEO_INSPECT_LIMIT: ${{ github.event.inputs.inspect_limit || '200' }}
@@ -167,9 +179,9 @@ jobs:
           # site has no foothold in, which is a strategy question, not a trend. That is why this
           # names the tiers rather than using `all`.
           #
-          # Quota: (10 core + 30 extended) x 3 repeats = 120 calls/week, ~520/month. The key has been
-          # on prepaid billing since 2026-10-22, when the credit ran out mid-run — so these calls are
-          # paid now, and a 402 raises a CI error rather than thirty warnings.
+          # Quota: (10 core + 30 extended) x 3 repeats = 120 calls/week, ~520/month. This panel is now
+          # the only Gemini consumer (Claude writes), and a 402 raises a CI error and turns the run
+          # red rather than thirty warnings.
           TIER="${{ github.event.inputs.aeo_tier }}"
           if [ -z "$TIER" ] && [ "$(date -u +%u)" = "1" ]; then TIER=core; fi
           if [ -z "$TIER" ] && [ "$(date -u +%u)" = "4" ]; then TIER=extended; fi
@@ -353,4 +365,15 @@ jobs:
           echo "::error::autoseo apply reported at least one failed item — see the Apply step log."
           echo "::error::The ledger has been committed, so the items that shipped are recorded and"
           echo "::error::the failed one is marked failed rather than retried on the next cycle."
+          exit 1
+
+      # Same placement, same reason. The planner catches a refused completion per item and moves
+      # on, so without this a dead writer looks exactly like a quiet day.
+      - name: Report a dead writer
+        # always(): a failed item above must not hide this one.
+        if: always() && needs.plan.outputs.llm_dead == '1'
+        run: |
+          echo "::error::the model refused to compose this run (see the plan job's annotations)."
+          echo "::error::Claude: a usage cap clears on its own; an auth error means replacing"
+          echo "::error::CLAUDE_CODE_OAUTH_TOKEN (run \`claude setup-token\`). Gemini: top up or swap the key."
           exit 1
