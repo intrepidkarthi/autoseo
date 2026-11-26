@@ -217,3 +217,11 @@ date,check_name,n
 2026-11-25,orphan-page,1
 2026-11-25,thin-content,4
 2026-11-25,title-length,25
+2026-11-26,_pages,172
+2026-11-26,description-length,48
+2026-11-26,heading-skip,33
+2026-11-26,image-missing-alt,132
+2026-11-26,link-to-redirect,2
+2026-11-26,orphan-page,1
+2026-11-26,thin-content,4
+2026-11-26,title-length,25
